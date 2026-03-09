@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ClubCategory {
+  DRIVER
+  WOOD
+  HYBRID
+  IRON
+  WEDGE
+  PUTTER
+  OTHER
+}
+
+enum DominantHand {
+  RIGHT
+  LEFT
+}
+
+enum DrillMetricType {
+  SUCCESS_RATE
+  DISTANCE_CONTROL
+  DISPERSION
+  STROKES
+  TIME_BASED
+}
+
+enum DistanceSampleSource {
+  MANUAL
+  LAUNCH_MONITOR
+  GPS
+  IMPORT
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+model User {
+  id             String                    @id @default(cuid())
+  email          String                    @unique
+  passwordHash   String
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  profile        UserProfile?
+  refreshTokens  RefreshToken[]
+  userClubs      UserClub[]
+  sessions       PracticeSession[]
+  drillAttempts  DrillAttempt[]
+  shotEntries    ShotEntry[]
+  distanceSamples UserClubDistanceSample[]
+  distanceSnapshots UserClubDistanceSnapshot[]
+  metricSnapshots UserMetricSnapshot[]
+  recommendationLogs RecommendationLog[]
+  events         DomainEvent[]
+  createdDrills  Drill[]
+}
+
+model UserProfile {
+  userId         String       @id
+  displayName    String
+  dominantHand   DominantHand?
+  handicap       Decimal?     @db.Decimal(4, 1)
+  goals          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id                String      @id @default(cuid())
+  userId            String
+  tokenId           String      @unique // JWT jti
+  tokenHash         String      @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  revokedReason     String?
+  replacedByTokenId String?
+  ip                String?
+  userAgent         String?
+  createdAt         DateTime    @default(now())
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model ClubCatalog {
+  id              String        @id @default(cuid())
+  name            String
+  category        ClubCategory
+  loft            Decimal?      @db.Decimal(4, 1)
+  manufacturer    String?
+  modelName       String?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  userClubs       UserClub[]
+
+  @@index([category, isActive])
+}
+
+model UserClub {
+  id                    String                    @id @default(cuid())
+  userId                String
+  clubCatalogId         String?
+  label                 String
+  isActive              Boolean                   @default(true)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubCatalog           ClubCatalog?              @relation(fields: [clubCatalogId], references: [id], onDelete: SetNull)
+  distanceSamples       UserClubDistanceSample[]
+  distanceSnapshots     UserClubDistanceSnapshot[]
+  shotEntries           ShotEntry[]
+
+  @@index([userId, isActive])
+  @@unique([userId, label])
+}
+
+model UserClubDistanceSample {
+  id                 String                @id @default(cuid())
+  userId             String
+  userClubId         String
+  carryMeters        Decimal               @db.Decimal(6, 2)
+  totalMeters        Decimal?              @db.Decimal(6, 2)
+  dispersionMeters   Decimal?              @db.Decimal(6, 2)
+  source             DistanceSampleSource
+  notes              String?
+  recordedAt         DateTime
+  createdAt          DateTime              @default(now())
+
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userClub           UserClub              @relation(fields: [userClubId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@index([userId, userClubId, recordedAt])
+}
+
+model UserClubDistanceSnapshot {
+  id                 String      @id @default(cuid())
+  userId             String
+  userClubId         String
+  windowKey          String      // e.g. "30d", "90d", "all"
+  sampleSize         Int
+  avgCarryMeters     Decimal     @db.Decimal(6, 2)
+  p50CarryMeters     Decimal?    @db.Decimal(6, 2)
+  p80CarryMeters     Decimal?    @db.Decimal(6, 2)
+  stdDevCarryMeters  Decimal?    @db.Decimal(6, 2)
+  lastSampleAt       DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userClub           UserClub    @relation(fields: [userClubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, userClubId, windowKey])
+  @@index([userId, updatedAt])
+}
+
+model PracticeSession {
+  id                 String        @id @default(cuid())
+  userId             String
+  title              String?
+  focusArea          String?
+  notes              String?
+  startedAt          DateTime
+  endedAt            DateTime?
+  status             SessionStatus @default(ACTIVE)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drillAttempts      DrillAttempt[]
+  shotEntries        ShotEntry[]
+
+  @@index([userId, startedAt])
+  @@index([userId, status, startedAt])
+}
+
+model Drill {
+  id                 String           @id @default(cuid())
+  userId             String?
+  name               String
+  description        String?
+  metricType         DrillMetricType
+  isPublic           Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user               User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drillAttempts      DrillAttempt[]
+
+  @@index([userId, createdAt])
+  @@index([metricType, isPublic])
+}
+
+model DrillAttempt {
+  id                 String          @id @default(cuid())
+  userId             String
+  drillId            String
+  practiceSessionId  String?
+  successCount       Int
+  attemptCount       Int
+  score              Decimal?        @db.Decimal(8, 2)
+  notes              String?
+  attemptedAt        DateTime        @default(now())
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drill              Drill           @relation(fields: [drillId], references: [id], onDelete: Restrict)
+  practiceSession    PracticeSession? @relation(fields: [practiceSessionId], references: [id], onDelete: SetNull)
+  shotEntries        ShotEntry[]
+
+  @@index([userId, attemptedAt])
+  @@index([userId, drillId, attemptedAt])
+}
+
+model ShotEntry {
+  id                 String           @id @default(cuid())
+  userId             String
+  practiceSessionId  String?
+  drillAttemptId     String?
+  userClubId         String
+  carryMeters        Decimal?         @db.Decimal(6, 2)
+  totalMeters        Decimal?         @db.Decimal(6, 2)
+  launchDirectionDeg Decimal?         @db.Decimal(6, 2)
+  curveDeg           Decimal?         @db.Decimal(6, 2)
+  lieType            String?
+  resultTag          String?
+  notes              String?
+  recordedAt         DateTime
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practiceSession    PracticeSession? @relation(fields: [practiceSessionId], references: [id], onDelete: SetNull)
+  drillAttempt       DrillAttempt?    @relation(fields: [drillAttemptId], references: [id], onDelete: SetNull)
+  userClub           UserClub         @relation(fields: [userClubId], references: [id], onDelete: Restrict)
+
+  @@index([userId, recordedAt])
+  @@index([userId, userClubId, recordedAt])
+  @@index([userId, practiceSessionId, recordedAt])
+}
+
+model UserMetricSnapshot {
+  id                 String      @id @default(cuid())
+  userId             String
+  metricKey          String
+  metricVersion      String      @default("v1")
+  periodStart        DateTime
+  periodEnd          DateTime
+  valueNumeric       Decimal     @db.Decimal(12, 4)
+  valueJson          Json?
+  createdAt          DateTime    @default(now())
+
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, metricKey, periodStart])
+  @@index([userId, createdAt])
+}
+
+model RecommendationLog {
+  id                 String      @id @default(cuid())
+  userId             String
+  contextType        String
+  contextJson        Json
+  recommendationJson Json
+  modelVersion       String
+  acceptedAt         DateTime?
+  feedbackJson       Json?
+  createdAt          DateTime    @default(now())
+
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, modelVersion])
+}
+
+model DomainEvent {
+  id                 String      @id @default(cuid())
+  userId             String
+  eventType          String
+  aggregateType      String?
+  aggregateId        String?
+  payloadJson        Json
+  occurredAt         DateTime
+  createdAt          DateTime    @default(now())
+
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, eventType, occurredAt])
+}
