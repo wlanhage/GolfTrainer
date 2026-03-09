@@ -1,5 +1,6 @@
 import { NotFoundError } from '../../common/errors/AppError.js';
 import { usersRepository } from './users.repository.js';
+import { UpdateMeInput } from './users.schema.js';
 
 export const usersService = {
   async getMe(userId: string) {
@@ -11,5 +12,10 @@ export const usersService = {
       email: user.email,
       profile: user.profile
     };
+  },
+
+  async updateMe(userId: string, input: UpdateMeInput) {
+    await usersRepository.upsertProfile(userId, input);
+    return this.getMe(userId);
   }
 };
