@@ -3,12 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "prisma": {
+    "schema": "../prisma/schema.prisma"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "node -r dotenv/config node_modules/prisma/build/index.js generate",
+    "prisma:db:push": "node -r dotenv/config node_modules/prisma/build/index.js db push",
+    "prisma:migrate:dev": "node -r dotenv/config node_modules/prisma/build/index.js migrate dev"
   },
   "dependencies": {
     "@prisma/client": "^5.19.1",

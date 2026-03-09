@@ -2,6 +2,32 @@
 
 Detta dokument beskriver en **praktisk, skalbar och enkel grundarkitektur** för en mobil golfapp med fokus på träning, statistik och framtida AI/rekommendationer.
 
+Se även: `SETUP.md` för en mer komplett “från noll till kör” guide (PostgreSQL + Prisma + backend + mobile).
+
+## Kom igång (lokalt)
+
+### Förkrav
+- Node.js + npm
+- PostgreSQL (en lokal DB du kan ansluta till via `DATABASE_URL`)
+
+### Backend
+1. Installera dependencies:
+   - `npm --prefix backend install`
+2. Skapa env:
+   - Kopiera `backend/env.example` → `backend/.env` och fyll i `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`
+3. Generera Prisma client:
+   - `npm --prefix backend run prisma:generate`
+4. Skapa tabeller från schema (ingen migration finns i repot ännu):
+   - `npm --prefix backend run prisma:db:push`
+5. Starta API:
+   - `npm --prefix backend run dev`
+
+### Mobile (Expo)
+1. Installera dependencies:
+   - `npm --prefix mobile install`
+2. Starta:
+   - `npm --prefix mobile start` (kör inte `npx expo start` i repo-roten; Expo ska köras från `mobile/`)
+
 ## 1) Övergripande arkitektur
 
 ### Arkitekturstil

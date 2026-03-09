@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 
@@ -8,12 +8,16 @@ export type RefreshTokenPayload = { sub: string; jti: string; type: 'refresh' };
 export const jwtService = {
   signAccessToken(userId: string) {
     const payload: AccessTokenPayload = { sub: userId, jti: randomUUID(), type: 'access' };
-    const token = jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_TTL });
+    const secret: Secret = env.JWT_ACCESS_SECRET;
+    const expiresIn: SignOptions['expiresIn'] = env.JWT_ACCESS_TTL as SignOptions['expiresIn'];
+    const token = jwt.sign(payload, secret, { expiresIn });
     return { token, tokenId: payload.jti };
   },
   signRefreshToken(userId: string) {
     const payload: RefreshTokenPayload = { sub: userId, jti: randomUUID(), type: 'refresh' };
-    const token = jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_TTL });
+    const secret: Secret = env.JWT_REFRESH_SECRET;
+    const expiresIn: SignOptions['expiresIn'] = env.JWT_REFRESH_TTL as SignOptions['expiresIn'];
+    const token = jwt.sign(payload, secret, { expiresIn });
     return { token, tokenId: payload.jti };
   },
   verifyAccessToken(token: string): AccessTokenPayload {

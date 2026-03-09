@@ -1,5 +1,10 @@
 generator client {
   provider = "prisma-client-js"
+  // Generate Prisma Client into backend's node_modules so TypeScript in `backend/`
+  // picks up the correct generated types (this repo is not using npm workspaces).
+  // Prisma forbids generating directly into `@prisma/client`; it will forward imports
+  // from `@prisma/client` to `.prisma/client` automatically.
+  output   = "../backend/node_modules/.prisma/client"
 }
 
 datasource db {
