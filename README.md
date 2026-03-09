@@ -312,3 +312,4 @@ Detta ger en enkel men framtidssäker grund där AI kan adderas stegvis utan att
 - Auth implementation: `docs/auth-implementation.md`
 - CRUD backend implementation: `docs/crud-implementation.md`
 - Stats layer design: `docs/stats-layer-design.md`
+- Genomförandeplan frontend + backend: `docs/frontend-backend-execution-plan.md`

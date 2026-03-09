@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "GolfTrainer",
+    "slug": "golftrainer",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "golftrainer",
+    "userInterfaceStyle": "light"
+  }
+}
