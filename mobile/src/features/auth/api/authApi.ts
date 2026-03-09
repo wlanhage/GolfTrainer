@@ -10,6 +10,10 @@ type Credentials = {
   password: string;
 };
 
+type RegisterInput = Credentials & {
+  displayName: string;
+};
+
 async function withTimeout(input: RequestInfo, init?: RequestInit) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -22,6 +26,20 @@ async function withTimeout(input: RequestInfo, init?: RequestInit) {
 }
 
 export const authApi = {
+  async register(input: RegisterInput): Promise<AuthResponse> {
+    const response = await withTimeout(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+
+    if (!response.ok) {
+      throw new Error('Registration failed');
+    }
+
+    return response.json() as Promise<AuthResponse>;
+  },
+
   async login(input: Credentials): Promise<AuthResponse> {
     const response = await withTimeout(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
