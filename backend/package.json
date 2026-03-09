@@ -11,9 +11,11 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "node -r dotenv/config node_modules/prisma/build/index.js generate",
-    "prisma:db:push": "node -r dotenv/config node_modules/prisma/build/index.js db push",
-    "prisma:migrate:dev": "node -r dotenv/config node_modules/prisma/build/index.js migrate dev"
+    "prisma:generate": "node -r dotenv/config node_modules/prisma/build/index.js generate --schema ../prisma/schema.prisma",
+    "prisma:db:push": "node -r dotenv/config node_modules/prisma/build/index.js db push --schema ../prisma/schema.prisma",
+    "prisma:migrate:dev": "node -r dotenv/config node_modules/prisma/build/index.js migrate dev --schema ../prisma/schema.prisma",
+    "prisma:studio": "node -r dotenv/config node_modules/prisma/build/index.js studio --schema ../prisma/schema.prisma --port 5555",
+    "prisma:validate": "node -r dotenv/config node_modules/prisma/build/index.js validate --schema ../prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.19.1",

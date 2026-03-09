@@ -88,6 +88,15 @@ npm --prefix backend run prisma:db:push
 
 You should see output like “Your database is now in sync with your Prisma schema”.
 
+### Prisma Studio (optional)
+To inspect your DB via a browser UI:
+
+```powershell
+npm --prefix backend run prisma:studio
+```
+
+Studio will start on `http://localhost:5555`.
+
 ### 4) Start backend
 
 ```powershell
