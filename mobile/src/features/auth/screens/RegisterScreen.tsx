@@ -1,14 +1,25 @@
 import { useNavigation } from '@react-navigation/native';
 import { Button, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useLoginForm } from '../hooks/useLoginForm';
+import { useRegisterForm } from '../hooks/useRegisterForm';
 
-export function LoginScreen() {
+export function RegisterScreen() {
   const navigation = useNavigation();
-  const { email, password, setEmail, setPassword, submitting, error, submit } = useLoginForm();
+  const {
+    displayName,
+    email,
+    password,
+    setDisplayName,
+    setEmail,
+    setPassword,
+    submitting,
+    error,
+    submit
+  } = useRegisterForm();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>GolfTrainer</Text>
+      <Text style={styles.title}>Skapa konto</Text>
+      <TextInput placeholder="Namn" value={displayName} onChangeText={setDisplayName} style={styles.input} />
       <TextInput
         autoCapitalize="none"
         keyboardType="email-address"
@@ -25,9 +36,9 @@ export function LoginScreen() {
         style={styles.input}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button title={submitting ? 'Loggar in...' : 'Logga in'} onPress={submit} disabled={submitting} />
-      <Pressable onPress={() => navigation.navigate('Register' as never)}>
-        <Text style={styles.link}>Inget konto? Registrera dig</Text>
+      <Button title={submitting ? 'Registrerar...' : 'Registrera'} onPress={submit} disabled={submitting} />
+      <Pressable onPress={() => navigation.navigate('Login' as never)}>
+        <Text style={styles.link}>Har du redan konto? Logga in</Text>
       </Pressable>
     </View>
   );

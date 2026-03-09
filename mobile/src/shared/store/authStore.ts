@@ -11,6 +11,7 @@ export type AuthStoreValue = {
   status: AuthStateStatus;
   tokens: AuthTokens | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (input: { email: string; password: string; displayName: string }) => Promise<void>;
   logout: () => Promise<void>;
   getValidAccessToken: () => Promise<string | null>;
   refreshSession: () => Promise<string | null>;

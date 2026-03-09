@@ -25,6 +25,12 @@ export function AuthProvider({ children }: Props) {
     () => ({
       status,
       tokens,
+      register: async (input: { email: string; password: string; displayName: string }) => {
+        const next = await authApi.register(input);
+        setTokens(next);
+        setStatus('authenticated');
+        await tokenStorage.save(next);
+      },
       login: async (email: string, password: string) => {
         const next = await authApi.login({ email, password });
         setTokens(next);
@@ -61,7 +67,7 @@ export function AuthProvider({ children }: Props) {
           await tokenStorage.clear();
           return null;
         }
-      },
+      }
     }),
     [status, tokens]
   );
