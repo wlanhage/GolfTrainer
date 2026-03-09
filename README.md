@@ -305,3 +305,9 @@ Tips:
 - **Observability**: strukturera loggar med request-id och user-id (utan känsliga fält).
 
 Detta ger en enkel men framtidssäker grund där AI kan adderas stegvis utan att ni behöver riva upp kärnmodellen.
+
+## Vidare läsning
+- Detaljerad databasdesign: `docs/database-design.md`
+- Detaljerad backend-arkitektur: `docs/backend-architecture.md`
+- Auth implementation: `docs/auth-implementation.md`
+- CRUD backend implementation: `docs/crud-implementation.md`
