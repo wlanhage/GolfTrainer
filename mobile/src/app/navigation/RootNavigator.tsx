@@ -2,12 +2,14 @@ import { NativeStackScreenProps, createNativeStackNavigator } from '@react-navig
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { RegisterScreen } from '../../features/auth/screens/RegisterScreen';
-import { HomeScreen } from '../../features/home/screens/HomeScreen';
 import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
+import { TrainingListScreen } from '../../features/training/screens/TrainingListScreen';
+import { TrainingMissionScreen } from '../../features/training/screens/TrainingMissionScreen';
 import { useAuth } from '../../shared/store/authStore';
 
-type AppStackParamList = {
-  Home: undefined;
+export type AppStackParamList = {
+  TrainingList: undefined;
+  TrainingMission: { missionId: string };
   Profile: undefined;
   Menu: undefined;
   Login: undefined;
@@ -22,8 +24,8 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
   return (
     <View style={styles.menuScreen}>
       <Text style={styles.menuTitle}>Navigation</Text>
-      <Pressable style={styles.menuItem} onPress={() => navigation.navigate('Home')}>
-        <Text style={styles.menuItemText}>Hem</Text>
+      <Pressable style={styles.menuItem} onPress={() => navigation.navigate('TrainingList')}>
+        <Text style={styles.menuItemText}>Träning</Text>
       </Pressable>
       <Pressable style={styles.menuItem} onPress={() => navigation.navigate('Profile')}>
         <Text style={styles.menuItemText}>Profil</Text>
@@ -60,8 +62,8 @@ export function RootNavigator() {
       {status === 'authenticated' ? (
         <>
           <Stack.Screen
-            name="Home"
-            component={HomeScreen}
+            name="TrainingList"
+            component={TrainingListScreen}
             options={({ navigation }) => ({
               headerTitle: 'GolfTrainer',
               headerLeft: () => (
@@ -75,6 +77,11 @@ export function RootNavigator() {
                 </Pressable>
               )
             })}
+          />
+          <Stack.Screen
+            name="TrainingMission"
+            component={TrainingMissionScreen}
+            options={{ title: 'Träningsmission' }}
           />
           <Stack.Screen
             name="Profile"
