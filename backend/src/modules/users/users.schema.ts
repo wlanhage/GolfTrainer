@@ -5,8 +5,19 @@ const dominantHandSchema = z.enum(['RIGHT', 'LEFT']);
 export const updateMeSchema = z
   .object({
     displayName: z.string().min(1).max(100).optional(),
+    homeClub: z.string().max(120).nullable().optional(),
+    city: z.string().max(120).nullable().optional(),
+    country: z.string().max(120).nullable().optional(),
     dominantHand: dominantHandSchema.nullable().optional(),
     handicap: z.number().min(-10).max(60).nullable().optional(),
+    targetHandicap: z.number().min(-10).max(60).nullable().optional(),
+    skillLevel: z.string().max(60).nullable().optional(),
+    yearsPlaying: z.number().int().min(0).max(100).nullable().optional(),
+    roundsLast12Months: z.number().int().min(0).max(500).nullable().optional(),
+    trainingDaysPerWeek: z.number().int().min(0).max(7).nullable().optional(),
+    favoriteClub: z.string().max(120).nullable().optional(),
+    strengthArea: z.string().max(300).nullable().optional(),
+    focusArea: z.string().max(300).nullable().optional(),
     goals: z.string().max(2000).nullable().optional()
   })
   .refine((value: Record<string, unknown>) => Object.keys(value).length > 0, {
