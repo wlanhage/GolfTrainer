@@ -14,11 +14,9 @@ export const usersRepository = {
       where: { userId },
       update: input,
       create: {
+        ...input,
         userId,
-        displayName: input.displayName ?? 'Golfer',
-        dominantHand: input.dominantHand ?? undefined,
-        handicap: input.handicap ?? undefined,
-        goals: input.goals ?? undefined
+        displayName: input.displayName ?? 'Golfer'
       }
     });
   }

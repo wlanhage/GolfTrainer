@@ -72,8 +72,19 @@ model User {
 model UserProfile {
   userId         String       @id
   displayName    String
+  homeClub       String?
+  city           String?
+  country        String?
   dominantHand   DominantHand?
   handicap       Decimal?     @db.Decimal(4, 1)
+  targetHandicap Decimal?     @db.Decimal(4, 1)
+  skillLevel     String?
+  yearsPlaying   Int?
+  roundsLast12Months Int?
+  trainingDaysPerWeek Int?
+  favoriteClub   String?
+  strengthArea   String?
+  focusArea      String?
   goals          String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
