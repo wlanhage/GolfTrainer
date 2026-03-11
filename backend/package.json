@@ -10,6 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test:watch": "tsx --test --watch \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "node -r dotenv/config node_modules/prisma/build/index.js generate --schema ../prisma/schema.prisma",
     "prisma:db:push": "node -r dotenv/config node_modules/prisma/build/index.js db push --schema ../prisma/schema.prisma",
