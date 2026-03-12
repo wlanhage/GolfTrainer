@@ -77,9 +77,11 @@ export function RootNavigator() {
             options={({ navigation }) => ({
               headerTitle: 'GolfTrainer',
               headerLeft: () => (
-                <Pressable onPress={() => navigation.navigate('Menu')} style={styles.headerButton}>
-                  <Text style={styles.headerButtonText}>☰</Text>
-                </Pressable>
+                <View style={styles.headerIconWrap}>
+                  <Pressable onPress={() => navigation.navigate('Menu')} style={styles.headerButton}>
+                    <Text style={styles.headerButtonText}>☰</Text>
+                  </Pressable>
+                </View>
               ),
               headerRight: () => (
                 <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
@@ -104,9 +106,11 @@ export function RootNavigator() {
             options={({ navigation }) => ({
               headerTitle: 'GolfTrainer',
               headerLeft: () => (
-                <Pressable onPress={() => navigation.navigate('Menu')} style={styles.headerButton}>
-                  <Text style={styles.headerButtonText}>☰</Text>
-                </Pressable>
+                <View style={styles.headerIconWrap}>
+                  <Pressable onPress={() => navigation.navigate('Menu')} style={styles.headerButton}>
+                    <Text style={styles.headerButtonText}>☰</Text>
+                  </Pressable>
+                </View>
               ),
               headerRight: () => (
                 <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
@@ -144,6 +148,9 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
+  headerIconWrap: {
+    marginTop: 4
+  },
   headerButton: {
     width: 44,
     height: 44,
