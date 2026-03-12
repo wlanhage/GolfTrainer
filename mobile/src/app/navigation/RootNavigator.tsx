@@ -123,9 +123,7 @@ export function RootNavigator() {
               headerRight: () => renderHeaderRight(() => navigation.navigate('Profile'))
             })}
           />
-          {me?.role === 'ADMIN' ? (
-            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
-          ) : null}
+          <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
           <Stack.Screen
             name="Menu"
             component={MenuScreen}
