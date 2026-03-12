@@ -7,6 +7,7 @@ import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
 import { TrainingListScreen } from '../../features/training/screens/TrainingListScreen';
 import { TrainingMissionScreen } from '../../features/training/screens/TrainingMissionScreen';
 import { useAuth } from '../../shared/store/authStore';
+import { navigateFromMenu } from './menuNavigation';
 
 export type AppStackParamList = {
   TrainingList: undefined;
@@ -23,24 +24,18 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Menu'>) {
   const { logout, me } = useAuth();
 
-  const closeMenuThenNavigate = (route: 'TrainingList' | 'Profile' | 'AdminDashboard') => {
-    navigation.goBack();
-    setTimeout(() => {
-      navigation.navigate(route);
-    }, 0);
-  };
 
   return (
     <View style={styles.menuScreen}>
       <Text style={styles.menuTitle}>Navigation</Text>
-      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('TrainingList')}>
+      <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'TrainingList')}>
         <Text style={styles.menuItemText}>Träning</Text>
       </Pressable>
-      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('Profile')}>
+      <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'Profile')}>
         <Text style={styles.menuItemText}>Profil</Text>
       </Pressable>
       {me?.role === 'ADMIN' ? (
-        <Pressable style={styles.menuItem} onPress={() => navigation.navigate('AdminDashboard')}>
+        <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
           <Text style={styles.menuItemText}>Admin dashboard</Text>
         </Pressable>
       ) : null}
