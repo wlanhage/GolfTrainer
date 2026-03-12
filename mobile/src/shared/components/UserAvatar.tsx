@@ -23,9 +23,13 @@ export function UserAvatar({ avatarImage, displayName, email, size = 40 }: UserA
 
 const styles = StyleSheet.create({
   avatarImage: {
+    borderWidth: 2,
+    borderColor: '#ffffff',
     backgroundColor: '#d1d5db'
   },
   avatarFallback: {
+    borderWidth: 2,
+    borderColor: '#ffffff',
     backgroundColor: '#1f2937',
     alignItems: 'center',
     justifyContent: 'center'

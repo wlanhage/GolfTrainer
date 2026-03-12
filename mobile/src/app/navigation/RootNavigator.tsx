@@ -34,11 +34,9 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
         <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'Profile')}>
           <Text style={styles.menuItemText}>Profil</Text>
         </Pressable>
-        {me?.role === 'ADMIN' ? (
-          <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
-            <Text style={styles.menuItemText}>Admin dashboard</Text>
-          </Pressable>
-        ) : null}
+        <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
+          <Text style={styles.menuItemText}>Admin dashboard</Text>
+        </Pressable>
         <Pressable style={styles.menuItem} onPress={() => navigation.goBack()}>
           <Text style={styles.menuItemText}>Stäng meny</Text>
         </Pressable>
@@ -86,16 +84,14 @@ export function RootNavigator() {
                 </View>
               ),
               headerRight: () => (
-                <View style={styles.headerIconWrap}>
-                  <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
-                    <UserAvatar
-                      avatarImage={me?.profile?.avatarImage}
-                      displayName={me?.profile?.displayName}
-                      email={me?.email}
-                      size={36}
-                    />
-                  </Pressable>
-                </View>
+                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
+                  <UserAvatar
+                    avatarImage={me?.profile?.avatarImage}
+                    displayName={me?.profile?.displayName}
+                    email={me?.email}
+                    size={32}
+                  />
+                </Pressable>
               )
             })}
           />
@@ -117,22 +113,18 @@ export function RootNavigator() {
                 </View>
               ),
               headerRight: () => (
-                <View style={styles.headerIconWrap}>
-                  <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
-                    <UserAvatar
-                      avatarImage={me?.profile?.avatarImage}
-                      displayName={me?.profile?.displayName}
-                      email={me?.email}
-                      size={36}
-                    />
-                  </Pressable>
-                </View>
+                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
+                  <UserAvatar
+                    avatarImage={me?.profile?.avatarImage}
+                    displayName={me?.profile?.displayName}
+                    email={me?.email}
+                    size={32}
+                  />
+                </Pressable>
               )
             })}
           />
-          {me?.role === 'ADMIN' ? (
-            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
-          ) : null}
+          <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
           <Stack.Screen
             name="Menu"
             component={MenuScreen}
@@ -160,13 +152,16 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   headerButton: {
-    padding: 0
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   headerButtonText: {
-    fontSize: 32,
-    lineHeight: 34,
+    fontSize: 28,
+    lineHeight: 30,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#1f2937'
   },
   menuOverlay: {
