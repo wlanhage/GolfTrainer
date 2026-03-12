@@ -1,4 +1,5 @@
 export type DominantHand = 'RIGHT' | 'LEFT' | null;
+export type UserRole = 'BASIC_USER' | 'USER' | 'PREMIUM_USER' | 'ADMIN';
 
 export type ProfileData = {
   displayName: string;
@@ -21,6 +22,8 @@ export type ProfileData = {
 export type MeResponse = {
   id: string;
   email: string;
+  role: UserRole;
+  isActive: boolean;
   profile: ProfileData | null;
 };
 

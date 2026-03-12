@@ -21,5 +21,22 @@ export const drillsService = {
   async removeOwned(userId: string, id: string) {
     const res = await drillsRepository.deleteOwned(userId, id);
     if (res.count === 0) throw new NotFoundError('Drill not found');
+  },
+
+  listAll() {
+    return drillsRepository.listAll();
+  },
+  createByAdmin(input: { userId?: string; name: string; description?: string; metricType: 'SUCCESS_RATE' | 'DISTANCE_CONTROL' | 'DISPERSION' | 'STROKES' | 'TIME_BASED'; isPublic?: boolean }) {
+    return drillsRepository.createAsAdmin(input);
+  },
+  async updateByAdmin(id: string, input: Record<string, unknown>) {
+    const existing = await drillsRepository.getById(id);
+    if (!existing) throw new NotFoundError('Drill not found');
+    return drillsRepository.updateById(id, input);
+  },
+  async removeByAdmin(id: string) {
+    const existing = await drillsRepository.getById(id);
+    if (!existing) throw new NotFoundError('Drill not found');
+    await drillsRepository.deleteById(id);
   }
 };
