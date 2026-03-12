@@ -3,6 +3,7 @@ export type UserRole = 'BASIC_USER' | 'USER' | 'PREMIUM_USER' | 'ADMIN';
 
 export type ProfileData = {
   displayName: string;
+  avatarImage: string | null;
   homeClub: string | null;
   city: string | null;
   country: string | null;
