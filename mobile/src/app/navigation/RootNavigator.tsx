@@ -1,5 +1,6 @@
 import { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AdminDashboardScreen } from '../../features/admin/screens/AdminDashboardScreen';
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { RegisterScreen } from '../../features/auth/screens/RegisterScreen';
 import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
@@ -11,6 +12,7 @@ export type AppStackParamList = {
   TrainingList: undefined;
   TrainingMission: { missionId: string };
   Profile: undefined;
+  AdminDashboard: undefined;
   Menu: undefined;
   Login: undefined;
   Register: undefined;
@@ -19,17 +21,29 @@ export type AppStackParamList = {
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Menu'>) {
-  const { logout } = useAuth();
+  const { logout, me } = useAuth();
+
+  const closeMenuThenNavigate = (route: 'TrainingList' | 'Profile' | 'AdminDashboard') => {
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate(route);
+    }, 0);
+  };
 
   return (
     <View style={styles.menuScreen}>
       <Text style={styles.menuTitle}>Navigation</Text>
-      <Pressable style={styles.menuItem} onPress={() => navigation.navigate('TrainingList')}>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('TrainingList')}>
         <Text style={styles.menuItemText}>Träning</Text>
       </Pressable>
-      <Pressable style={styles.menuItem} onPress={() => navigation.navigate('Profile')}>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('Profile')}>
         <Text style={styles.menuItemText}>Profil</Text>
       </Pressable>
+      {me?.role === 'ADMIN' ? (
+        <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('AdminDashboard')}>
+          <Text style={styles.menuItemText}>Admin dashboard</Text>
+        </Pressable>
+      ) : null}
       <Pressable style={styles.menuItem} onPress={() => navigation.goBack()}>
         <Text style={styles.menuItemText}>Stäng meny</Text>
       </Pressable>
@@ -47,7 +61,7 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
 }
 
 export function RootNavigator() {
-  const { status } = useAuth();
+  const { status, me } = useAuth();
 
   if (status === 'loading') {
     return (
@@ -100,6 +114,9 @@ export function RootNavigator() {
               )
             })}
           />
+          {me?.role === 'ADMIN' ? (
+            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
+          ) : null}
           <Stack.Screen
             name="Menu"
             component={MenuScreen}

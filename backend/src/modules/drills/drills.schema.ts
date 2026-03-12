@@ -10,6 +10,10 @@ export const createDrillSchema = z.object({
   isPublic: z.boolean().optional().default(false)
 });
 
+export const adminCreateDrillSchema = createDrillSchema.extend({
+  userId: z.string().cuid().optional()
+});
+
 export const updateDrillSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   description: z.string().max(2000).optional(),
