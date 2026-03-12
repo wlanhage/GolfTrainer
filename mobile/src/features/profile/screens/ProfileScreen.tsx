@@ -1,8 +1,9 @@
-import { ActivityIndicator, Button, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../shared/store/authStore';
 import { useProfile } from '../hooks/useProfile';
 import { UpdateProfileInput } from '../types/profile';
+import { UserAvatar } from '../../../shared/components/UserAvatar';
 
 type EditableFieldProps = {
   label: string;
@@ -111,8 +112,6 @@ export function ProfileScreen() {
     [profileData]
   );
 
-  const initials = (profileData?.displayName ?? profile?.email ?? 'G').trim().charAt(0).toUpperCase();
-
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -127,13 +126,12 @@ export function ProfileScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.avatarBlock}>
-        {profileData?.avatarImage ? (
-          <Image source={{ uri: profileData.avatarImage }} style={styles.avatarImage} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Text style={styles.avatarInitial}>{initials}</Text>
-          </View>
-        )}
+        <UserAvatar
+          avatarImage={profileData?.avatarImage}
+          displayName={profileData?.displayName}
+          email={profile?.email}
+          size={100}
+        />
       </View>
 
       <View style={styles.card}>
@@ -183,25 +181,6 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   avatarBlock: { alignItems: 'center', gap: 10, marginBottom: 6 },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    backgroundColor: '#d1d5db'
-  },
-  avatarFallback: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    backgroundColor: '#1f2937',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  avatarInitial: { color: '#ffffff', fontSize: 38, fontWeight: '700' },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
