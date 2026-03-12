@@ -6,6 +6,7 @@ const userRoleSchema = z.enum(['BASIC_USER', 'USER', 'PREMIUM_USER', 'ADMIN']);
 export const updateMeSchema = z
   .object({
     displayName: z.string().min(1).max(100).optional(),
+    avatarImage: z.string().max(1_500_000).nullable().optional(),
     homeClub: z.string().max(120).nullable().optional(),
     city: z.string().max(120).nullable().optional(),
     country: z.string().max(120).nullable().optional(),
