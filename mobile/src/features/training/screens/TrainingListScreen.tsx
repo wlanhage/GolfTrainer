@@ -1,11 +1,22 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppStackParamList } from '../../../app/navigation/RootNavigator';
-import { trainingMissions } from '../data/trainingMissions';
+import { useTrainingApi } from '../api/trainingApi';
+import { TrainingMission } from '../types/training';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'TrainingList'>;
 
 export function TrainingListScreen({ navigation }: Props) {
+  const trainingApi = useTrainingApi();
+  const [missions, setMissions] = useState<TrainingMission[]>([]);
+
+  useEffect(() => {
+    trainingApi.listMissions().then(setMissions).catch(() => {
+      Alert.alert('Kunde inte hämta träningsmissioner');
+    });
+  }, [trainingApi]);
+
   const onMissionPress = (missionId: string, title: string) => {
     Alert.alert('Starta träningsmission', `Är du säker att du vill starta "${title}"?`, [
       { text: 'Avbryt', style: 'cancel' },
@@ -23,7 +34,7 @@ export function TrainingListScreen({ navigation }: Props) {
       <Text style={styles.subtitle}>Välj en mission och registrera ditt resultat.</Text>
 
       <View style={styles.list}>
-        {trainingMissions.map((mission) => (
+        {missions.map((mission) => (
           <Pressable
             key={mission.id}
             onPress={() => onMissionPress(mission.id, mission.title)}

@@ -9,6 +9,8 @@ import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
 import { TrainingListScreen } from '../../features/training/screens/TrainingListScreen';
 import { TrainingMissionScreen } from '../../features/training/screens/TrainingMissionScreen';
 import { useAuth } from '../../shared/store/authStore';
+import { UserAvatar } from '../../shared/components/UserAvatar';
+import { navigateFromMenu } from './menuNavigation';
 
 export type AppStackParamList = {
   TrainingList: undefined;
@@ -50,25 +52,62 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
         <Pressable style={styles.menuItem} onPress={() => navigation.navigate('AdminDashboard')}>
           <Text style={styles.menuItemText}>Admin dashboard</Text>
         </Pressable>
-      ) : null}
-      <Pressable style={styles.menuItem} onPress={() => navigation.goBack()}>
-        <Text style={styles.menuItemText}>Stäng meny</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.menuItem, styles.dangerItem]}
-        onPress={() => {
-          navigation.goBack();
-          void logout();
-        }}
-      >
-        <Text style={[styles.menuItemText, styles.dangerText]}>Logga ut</Text>
-      </Pressable>
+        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'Profile')}>
+          <Text style={styles.menuItemText}>👤 Profil</Text>
+        </Pressable>
+        {me?.role === 'ADMIN' ? (
+          <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
+            <Text style={styles.menuItemText}>🛠️ Admin dashboard</Text>
+          </Pressable>
+        ) : null}
+        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigation.goBack()}>
+          <Text style={styles.menuItemText}>✖️ Stäng meny</Text>
+        </Pressable>
+        <View style={styles.menuBottomSpacer} />
+        <Pressable
+          style={({ pressed }) => [styles.menuItem, styles.dangerItem, styles.logoutButton, pressed && styles.menuItemPressed]}
+          onPress={() => {
+            navigation.goBack();
+            void logout();
+          }}
+        >
+          <Text style={[styles.menuItemText, styles.dangerText, styles.logoutText]}>Logga ut</Text>
+        </Pressable>
+      </View>
+      <Pressable style={styles.menuBackdrop} onPress={() => navigation.goBack()} />
     </View>
   );
 }
 
 export function RootNavigator() {
   const { status, me } = useAuth();
+
+  const renderHeaderTitle = () => (
+    <View style={styles.headerTitleWrap}>
+      <Text style={styles.headerTitleText}>GolfTrainer</Text>
+    </View>
+  );
+
+  const renderHeaderLeft = (navigateMenu: () => void) => (
+    <View style={styles.headerIconWrap}>
+      <Pressable onPress={navigateMenu} style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}>
+        <Text style={styles.headerButtonText}>☰</Text>
+      </Pressable>
+    </View>
+  );
+
+  const renderHeaderRight = (navigateProfile: () => void) => (
+    <View style={styles.headerIconWrap}>
+      <Pressable onPress={navigateProfile} style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}>
+        <UserAvatar
+          avatarImage={me?.profile?.avatarImage}
+          displayName={me?.profile?.displayName}
+          email={me?.email}
+          size={48}
+        />
+      </Pressable>
+    </View>
+  );
 
   if (status === 'loading') {
     return (
@@ -86,17 +125,9 @@ export function RootNavigator() {
             name="TrainingList"
             component={TrainingListScreen}
             options={({ navigation }) => ({
-              headerTitle: 'GolfTrainer',
-              headerLeft: () => (
-                <Pressable onPress={() => navigation.navigate('Menu')} style={styles.headerButton}>
-                  <Text style={styles.headerButtonText}>☰</Text>
-                </Pressable>
-              ),
-              headerRight: () => (
-                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
-                  <Text style={styles.headerButtonText}>Profil</Text>
-                </Pressable>
-              )
+              headerTitle: renderHeaderTitle,
+              headerLeft: () => renderHeaderLeft(() => navigation.navigate('Menu')),
+              headerRight: () => renderHeaderRight(() => navigation.navigate('Profile'))
             })}
           />
           <Stack.Screen
@@ -114,26 +145,22 @@ export function RootNavigator() {
             name="Profile"
             component={ProfileScreen}
             options={({ navigation }) => ({
-              headerTitle: 'GolfTrainer',
-              headerLeft: () => (
-                <Pressable onPress={() => navigation.navigate('Menu')} style={styles.headerButton}>
-                  <Text style={styles.headerButtonText}>☰</Text>
-                </Pressable>
-              ),
-              headerRight: () => (
-                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
-                  <Text style={styles.headerButtonText}>Profil</Text>
-                </Pressable>
-              )
+              headerTitle: renderHeaderTitle,
+              headerLeft: () => renderHeaderLeft(() => navigation.navigate('Menu')),
+              headerRight: () => renderHeaderRight(() => navigation.navigate('Profile'))
             })}
           />
-          {me?.role === 'ADMIN' ? (
-            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
-          ) : null}
+          <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
           <Stack.Screen
             name="Menu"
             component={MenuScreen}
-            options={{ presentation: 'fullScreenModal', title: 'Meny' }}
+            options={{
+              title: 'Meny',
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'slide_from_left',
+              contentStyle: { backgroundColor: 'transparent' }
+            }}
           />
         </>
       ) : (
@@ -147,25 +174,45 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
+  headerIconWrap: {
+    marginTop: 8
+  },
+  headerTitleWrap: {
+    paddingTop: 6
+  },
+  headerTitleText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827'
+  },
   headerButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4
+    padding: 2,
+    borderRadius: 999
+  },
+  headerButtonPressed: {
+    opacity: 0.65
   },
   headerButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 46,
+    lineHeight: 48,
+    textAlign: 'center',
+    fontWeight: '500',
     color: '#1f2937'
   },
-  menuScreen: {
+  menuOverlay: {
     flex: 1,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(15, 23, 42, 0.2)'
+  },
+  menuScreen: {
+    width: '75%',
+    maxWidth: 420,
     padding: 20,
     backgroundColor: '#f8fafc',
     gap: 12
   },
-  menuTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8
+  menuBackdrop: {
+    flex: 1
   },
   menuItem: {
     borderWidth: 1,
@@ -175,6 +222,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: '#ffffff'
   },
+  menuItemPressed: {
+    opacity: 0.72
+  },
   menuItemText: {
     fontSize: 16,
     color: '#111827',
@@ -182,6 +232,16 @@ const styles = StyleSheet.create({
   },
   dangerItem: {
     borderColor: '#fecaca'
+  },
+  logoutButton: {
+    paddingVertical: 16
+  },
+  logoutText: {
+    fontSize: 22,
+    textAlign: 'center'
+  },
+  menuBottomSpacer: {
+    flex: 1
   },
   dangerText: {
     color: '#dc2626'

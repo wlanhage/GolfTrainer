@@ -1,18 +1,29 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppStackParamList } from '../../../app/navigation/RootNavigator';
 import { Leaderboard } from '../components/Leaderboard';
-import { getTrainingMissionById } from '../data/trainingMissions';
-import { LeaderboardFilter } from '../types/training';
+import { useTrainingApi } from '../api/trainingApi';
+import { LeaderboardFilter, TrainingMission } from '../types/training';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'TrainingMission'>;
 
 export function TrainingMissionScreen({ route }: Props) {
-  const mission = getTrainingMissionById(route.params.missionId);
+  const trainingApi = useTrainingApi();
+  const [mission, setMission] = useState<TrainingMission | null>(null);
   const [filter, setFilter] = useState<LeaderboardFilter>('all');
-  const [stepperScore, setStepperScore] = useState(mission?.defaultScore ?? 0);
-  const [manualScore, setManualScore] = useState(String(mission?.defaultScore ?? ''));
+  const [stepperScore, setStepperScore] = useState(0);
+  const [manualScore, setManualScore] = useState('');
+
+  useEffect(() => {
+    trainingApi.getMissionById(route.params.missionId).then((response) => {
+      setMission(response);
+      setStepperScore(response.defaultScore ?? 0);
+      setManualScore(String(response.defaultScore ?? ''));
+    }).catch(() => {
+      setMission(null);
+    });
+  }, [route.params.missionId, trainingApi]);
 
   const filteredEntries = useMemo(() => {
     if (!mission) {
@@ -66,14 +77,17 @@ export function TrainingMissionScreen({ route }: Props) {
           <View style={styles.stepperWrap}>
             <Pressable
               style={styles.stepperButton}
-              onPress={() => setStepperScore((prev) => Math.max(0, prev - 1))}
+              onPress={() => setStepperScore((prev) => Math.max(mission.stepperMin ?? 0, prev - 1))}
             >
               <Text style={styles.stepperText}>−</Text>
             </Pressable>
             <View style={styles.stepperValueBox}>
               <Text style={styles.stepperValue}>{stepperScore}</Text>
             </View>
-            <Pressable style={styles.stepperButton} onPress={() => setStepperScore((prev) => prev + 1)}>
+            <Pressable
+              style={styles.stepperButton}
+              onPress={() => setStepperScore((prev) => Math.min(mission.stepperMax ?? 10, prev + 1))}
+            >
               <Text style={styles.stepperText}>+</Text>
             </Pressable>
           </View>
