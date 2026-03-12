@@ -3,6 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { AdminDashboardScreen } from '../../features/admin/screens/AdminDashboardScreen';
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { RegisterScreen } from '../../features/auth/screens/RegisterScreen';
+import { CaddyClubDetailScreen } from '../../features/caddy/screens/CaddyClubDetailScreen';
+import { CaddyClubGridScreen } from '../../features/caddy/screens/CaddyClubGridScreen';
 import { ProfileScreen } from '../../features/profile/screens/ProfileScreen';
 import { TrainingListScreen } from '../../features/training/screens/TrainingListScreen';
 import { TrainingMissionScreen } from '../../features/training/screens/TrainingMissionScreen';
@@ -13,6 +15,8 @@ import { navigateFromMenu } from './menuNavigation';
 export type AppStackParamList = {
   TrainingList: undefined;
   TrainingMission: { missionId: string };
+  CaddyClubGrid: undefined;
+  CaddyClubDetail: { clubId: string };
   Profile: undefined;
   AdminDashboard: undefined;
   Menu: undefined;
@@ -25,11 +29,28 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Menu'>) {
   const { logout, me } = useAuth();
 
+  const closeMenuThenNavigate = (route: 'TrainingList' | 'Profile' | 'CaddyClubGrid' | 'AdminDashboard') => {
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate(route);
+    }, 0);
+  };
+
   return (
-    <View style={styles.menuOverlay}>
-      <View style={styles.menuScreen}>
-        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'TrainingList')}>
-          <Text style={styles.menuItemText}>⛳ Träning</Text>
+    <View style={styles.menuScreen}>
+      <Text style={styles.menuTitle}>Navigation</Text>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('TrainingList')}>
+        <Text style={styles.menuItemText}>Träning</Text>
+      </Pressable>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('Profile')}>
+        <Text style={styles.menuItemText}>Profil</Text>
+      </Pressable>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('CaddyClubGrid')}>
+        <Text style={styles.menuItemText}>Caddy</Text>
+      </Pressable>
+      {me?.role === 'ADMIN' ? (
+        <Pressable style={styles.menuItem} onPress={() => navigation.navigate('AdminDashboard')}>
+          <Text style={styles.menuItemText}>Admin dashboard</Text>
         </Pressable>
         <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'Profile')}>
           <Text style={styles.menuItemText}>👤 Profil</Text>
@@ -113,6 +134,12 @@ export function RootNavigator() {
             name="TrainingMission"
             component={TrainingMissionScreen}
             options={{ title: 'Träningsmission' }}
+          />
+          <Stack.Screen name="CaddyClubGrid" component={CaddyClubGridScreen} options={{ title: 'Caddy' }} />
+          <Stack.Screen
+            name="CaddyClubDetail"
+            component={CaddyClubDetailScreen}
+            options={{ title: 'Klubbdata' }}
           />
           <Stack.Screen
             name="Profile"
