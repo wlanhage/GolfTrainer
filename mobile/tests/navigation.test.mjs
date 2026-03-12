@@ -63,8 +63,11 @@ describe('navigateFromMenu', () => {
       }
     };
 
-    navigateFromMenu(menuNavigation, 'TrainingList');
+    navigateFromMenu(menuNavigation, 'TrainingList', (callback) => {
+      callOrder.push('scheduled');
+      callback();
+    });
 
-    assert.deepEqual(callOrder, ['local:TrainingList', 'goBack']);
+    assert.deepEqual(callOrder, ['goBack', 'scheduled', 'local:TrainingList']);
   });
 });

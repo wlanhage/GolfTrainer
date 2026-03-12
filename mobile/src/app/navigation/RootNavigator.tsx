@@ -28,23 +28,23 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
   return (
     <View style={styles.menuOverlay}>
       <View style={styles.menuScreen}>
-        <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'TrainingList')}>
-          <Text style={styles.menuItemText}>Träning</Text>
+        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'TrainingList')}>
+          <Text style={styles.menuItemText}>⛳ Träning</Text>
         </Pressable>
-        <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'Profile')}>
-          <Text style={styles.menuItemText}>Profil</Text>
+        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'Profile')}>
+          <Text style={styles.menuItemText}>👤 Profil</Text>
         </Pressable>
         {me?.role === 'ADMIN' ? (
-          <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
-            <Text style={styles.menuItemText}>Admin dashboard</Text>
+          <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
+            <Text style={styles.menuItemText}>🛠️ Admin dashboard</Text>
           </Pressable>
         ) : null}
-        <Pressable style={styles.menuItem} onPress={() => navigation.goBack()}>
-          <Text style={styles.menuItemText}>Stäng meny</Text>
+        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigation.goBack()}>
+          <Text style={styles.menuItemText}>✖️ Stäng meny</Text>
         </Pressable>
         <View style={styles.menuBottomSpacer} />
         <Pressable
-          style={[styles.menuItem, styles.dangerItem, styles.logoutButton]}
+          style={({ pressed }) => [styles.menuItem, styles.dangerItem, styles.logoutButton, pressed && styles.menuItemPressed]}
           onPress={() => {
             navigation.goBack();
             void logout();
@@ -69,7 +69,7 @@ export function RootNavigator() {
 
   const renderHeaderLeft = (navigateMenu: () => void) => (
     <View style={styles.headerIconWrap}>
-      <Pressable onPress={navigateMenu} style={styles.headerButton}>
+      <Pressable onPress={navigateMenu} style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}>
         <Text style={styles.headerButtonText}>☰</Text>
       </Pressable>
     </View>
@@ -77,12 +77,12 @@ export function RootNavigator() {
 
   const renderHeaderRight = (navigateProfile: () => void) => (
     <View style={styles.headerIconWrap}>
-      <Pressable onPress={navigateProfile} style={styles.headerButton}>
+      <Pressable onPress={navigateProfile} style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}>
         <UserAvatar
           avatarImage={me?.profile?.avatarImage}
           displayName={me?.profile?.displayName}
           email={me?.email}
-          size={42}
+          size={48}
         />
       </Pressable>
     </View>
@@ -148,7 +148,7 @@ export function RootNavigator() {
 
 const styles = StyleSheet.create({
   headerIconWrap: {
-    marginTop: 10
+    marginTop: 8
   },
   headerTitleWrap: {
     paddingTop: 6
@@ -159,11 +159,15 @@ const styles = StyleSheet.create({
     color: '#111827'
   },
   headerButton: {
-    padding: 0
+    padding: 2,
+    borderRadius: 999
+  },
+  headerButtonPressed: {
+    opacity: 0.65
   },
   headerButtonText: {
-    fontSize: 38,
-    lineHeight: 40,
+    fontSize: 46,
+    lineHeight: 48,
     textAlign: 'center',
     fontWeight: '500',
     color: '#1f2937'
@@ -190,6 +194,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     backgroundColor: '#ffffff'
+  },
+  menuItemPressed: {
+    opacity: 0.72
   },
   menuItemText: {
     fontSize: 16,
