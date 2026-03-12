@@ -23,13 +23,20 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Menu'>) {
   const { logout, me } = useAuth();
 
+  const closeMenuThenNavigate = (route: 'TrainingList' | 'Profile' | 'AdminDashboard') => {
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate(route);
+    }, 0);
+  };
+
   return (
     <View style={styles.menuScreen}>
       <Text style={styles.menuTitle}>Navigation</Text>
-      <Pressable style={styles.menuItem} onPress={() => navigation.navigate('TrainingList')}>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('TrainingList')}>
         <Text style={styles.menuItemText}>Träning</Text>
       </Pressable>
-      <Pressable style={styles.menuItem} onPress={() => navigation.navigate('Profile')}>
+      <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('Profile')}>
         <Text style={styles.menuItemText}>Profil</Text>
       </Pressable>
       {me?.role === 'ADMIN' ? (
