@@ -19,5 +19,7 @@ export type TrainingMission = {
   scoreLabel: string;
   scoreInputType: ScoreInputType;
   defaultScore?: number;
+  stepperMin?: number;
+  stepperMax?: number;
   leaderboard: LeaderboardEntry[];
 };
