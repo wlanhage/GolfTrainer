@@ -40,7 +40,7 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
         <Text style={styles.menuItemText}>Profil</Text>
       </Pressable>
       {me?.role === 'ADMIN' ? (
-        <Pressable style={styles.menuItem} onPress={() => closeMenuThenNavigate('AdminDashboard')}>
+        <Pressable style={styles.menuItem} onPress={() => navigation.navigate('AdminDashboard')}>
           <Text style={styles.menuItemText}>Admin dashboard</Text>
         </Pressable>
       ) : null}

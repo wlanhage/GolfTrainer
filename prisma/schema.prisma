@@ -95,6 +95,7 @@ model User {
 model UserProfile {
   userId              String        @id
   displayName         String
+  avatarImage         String?
   homeClub            String?
   city                String?
   country             String?
