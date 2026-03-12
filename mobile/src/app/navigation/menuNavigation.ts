@@ -8,8 +8,22 @@ type MenuNavigationProp = Pick<
   'goBack' | 'navigate' | 'getParent'
 >;
 
-export function navigateFromMenu(navigation: MenuNavigationProp, route: MenuNavigationRoute) {
+type ScheduleNavigation = (cb: () => void) => void;
+
+export function navigateFromMenu(
+  navigation: MenuNavigationProp,
+  route: MenuNavigationRoute,
+  scheduleNavigation: ScheduleNavigation = (cb) => {
+    setTimeout(cb, 0);
+  }
+) {
   const rootNavigation = navigation.getParent?.<NativeStackNavigationProp<AppStackParamList>>() ?? navigation;
+
+  if (rootNavigation === navigation) {
+    navigation.goBack();
+    scheduleNavigation(() => navigation.navigate(route));
+    return;
+  }
 
   rootNavigation.navigate(route);
   navigation.goBack();
