@@ -34,11 +34,9 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
         <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'Profile')}>
           <Text style={styles.menuItemText}>Profil</Text>
         </Pressable>
-        {me?.role === 'ADMIN' ? (
-          <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
-            <Text style={styles.menuItemText}>Admin dashboard</Text>
-          </Pressable>
-        ) : null}
+        <Pressable style={styles.menuItem} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
+          <Text style={styles.menuItemText}>Admin dashboard</Text>
+        </Pressable>
         <Pressable style={styles.menuItem} onPress={() => navigation.goBack()}>
           <Text style={styles.menuItemText}>Stäng meny</Text>
         </Pressable>
@@ -122,9 +120,7 @@ export function RootNavigator() {
               )
             })}
           />
-          {me?.role === 'ADMIN' ? (
-            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
-          ) : null}
+          <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
           <Stack.Screen
             name="Menu"
             component={MenuScreen}
