@@ -3,7 +3,7 @@
 This guide gets you from zero → running **backend + mobile** locally.
 
 ### Prerequisites
-- **Node.js + npm** (Node 18+ recommended; this repo also works on newer Node)
+- **Node.js + npm** (Node 18+)
 - **PostgreSQL 16+**
 - (Optional) Android Studio emulator / iOS simulator
 
@@ -12,40 +12,19 @@ This guide gets you from zero → running **backend + mobile** locally.
 - **`mobile/`**: Expo (React Native) + TypeScript
 - **`prisma/schema.prisma`**: shared Prisma schema (used by backend)
 
-## PostgreSQL (Windows)
+## PostgreSQL
 
-### Install
-If you don’t have Postgres yet:
+Use any local PostgreSQL setup you prefer (installer, Docker, package manager, etc.).
 
-```powershell
-winget install -e --id PostgreSQL.PostgreSQL.16
-```
+### Connection string options
 
-### Ensure service is running
-
-```powershell
-Get-Service postgresql-x64-16
-```
-
-### Create database (two options)
-
-#### Option A (easiest): use the default `postgres` database + separate schema
-You don’t need to create a database; Prisma will create tables in a dedicated schema namespace:
-
-- Use this `DATABASE_URL` pattern:
+#### Option A: use default `postgres` DB + separate schema
 
 ```text
 postgresql://postgres:<PASSWORD>@localhost:5432/postgres?schema=golftrainer
 ```
 
-#### Option B: create a dedicated database `golftrainer`
-Create the database in **pgAdmin** (recommended for beginners):
-- Open **pgAdmin 4**
-- Connect to your local server
-- Right click **Databases** → **Create** → **Database…**
-- Name: `golftrainer`
-
-- Use this `DATABASE_URL` pattern:
+#### Option B: create dedicated DB `golftrainer`
 
 ```text
 postgresql://postgres:<PASSWORD>@localhost:5432/golftrainer?schema=public
@@ -55,7 +34,7 @@ postgresql://postgres:<PASSWORD>@localhost:5432/golftrainer?schema=public
 
 ### 1) Install dependencies
 
-```powershell
+```bash
 npm --prefix backend install
 ```
 
@@ -63,11 +42,11 @@ npm --prefix backend install
 Create `backend/.env` (do not commit it). You can start by copying `backend/env.example`.
 
 Minimum required variables:
-- **`DATABASE_URL`**: see examples above
-- **`JWT_ACCESS_SECRET`**: at least 32 characters
-- **`JWT_REFRESH_SECRET`**: at least 32 characters
+- `DATABASE_URL`
+- `JWT_ACCESS_SECRET` (32+ chars)
+- `JWT_REFRESH_SECRET` (32+ chars)
 
-Example (values are placeholders):
+Example:
 
 ```env
 NODE_ENV=development
@@ -79,27 +58,21 @@ JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL=30d
 ```
 
-### 3) Create tables from Prisma schema
-This repo currently uses `db push` for local bootstrap (no migrations committed yet).
+### 3) Generate Prisma client
 
-```powershell
+```bash
+npm --prefix backend run prisma:generate
+```
+
+### 4) Create/update database tables
+
+```bash
 npm --prefix backend run prisma:db:push
 ```
 
-You should see output like “Your database is now in sync with your Prisma schema”.
+### 5) Start backend
 
-### Prisma Studio (optional)
-To inspect your DB via a browser UI:
-
-```powershell
-npm --prefix backend run prisma:studio
-```
-
-Studio will start on `http://localhost:5555`.
-
-### 4) Start backend
-
-```powershell
+```bash
 npm --prefix backend run dev
 ```
 
@@ -111,47 +84,38 @@ Backend listens on:
 
 ### 1) Install dependencies
 
-```powershell
+```bash
 npm --prefix mobile install
 ```
 
 ### 2) Start Metro / Expo
 
-```powershell
+```bash
 npm --prefix mobile start
 ```
 
-**Important:** run Expo from the `mobile/` project (either `npm --prefix mobile ...` from repo root, or `cd mobile` first).
-If you run `npx expo start` from the repo root, Expo will look for `./package.json` and fail because this repo is not a single root Expo project.
+> Important: run Expo from the `mobile/` project (or use `npm --prefix mobile ...` from repo root).
 
 ### API base URL notes
 The app uses `mobile/src/shared/api/config.ts`.
 
-- **Android emulator** cannot reach your host via `localhost`. It must use **`10.0.2.2`**.
+- Android emulator uses `10.0.2.2` for host machine APIs.
 - iOS simulator / web can use `localhost`.
 
-This repo is already set up to choose the correct host automatically.
+This repo is already set up to choose the host automatically.
+
+## Useful commands
+
+```bash
+npm --prefix backend test
+npm --prefix backend run typecheck
+npm --prefix mobile run typecheck
+```
 
 ## Common issues
 
-### Port already in use (Expo / Metro)
-If Expo says a port is already in use, find the PID and kill it:
-
-```powershell
-netstat -ano | findstr :8081
-taskkill /PID <PID> /F
-```
-
-Then start Expo again.
-
 ### Prisma error: “Environment variable not found: DATABASE_URL”
-Prisma requires `DATABASE_URL` when running `db push`.
-- Put `DATABASE_URL=...` in `backend/.env` and rerun:
+Prisma commands require `DATABASE_URL` in `backend/.env`.
 
-```powershell
-npm --prefix backend run prisma:db:push
-```
-
-### Can’t remember the `postgres` password
-You need the password you set during installation. If you don’t know it, you must reset it (safe approach is to temporarily adjust `pg_hba.conf` and then set a new password). If you want, paste the error you get when connecting and we’ll walk through the reset step-by-step.
-
+### Expo port already in use
+Stop the process using Metro’s port (typically `8081`) and restart Expo.
