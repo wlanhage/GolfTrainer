@@ -9,6 +9,7 @@ import { drillsRoutes } from './modules/drills/drills.routes.js';
 import { drillAttemptsRoutes } from './modules/drill-attempts/drillAttempts.routes.js';
 import { shotsRoutes } from './modules/shots/shots.routes.js';
 import { statsRoutes } from './modules/stats/stats.routes.js';
+import { caddyRoutes } from './modules/caddy/caddy.routes.js';
 
 export const buildApp = () => {
   const app = Fastify({ logger: true });
@@ -21,6 +22,7 @@ export const buildApp = () => {
   app.register(drillAttemptsRoutes, { prefix: '/api/v1/drill-attempts' });
   app.register(shotsRoutes, { prefix: '/api/v1/shots' });
   app.register(statsRoutes, { prefix: '/api/v1/stats' });
+  app.register(caddyRoutes, { prefix: '/api/v1/caddy' });
 
   app.setErrorHandler((err, request, reply) => {
     request.log.error({ err }, 'request_failed');
