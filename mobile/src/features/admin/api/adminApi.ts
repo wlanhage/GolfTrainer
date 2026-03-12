@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ApiClient } from '../../../shared/api/apiClient';
 import { useAuth } from '../../../shared/store/authStore';
-import { AdminDrill, AdminUser } from '../types/admin';
+import { AdminMission, AdminUser } from '../types/admin';
 
 export function useAdminApi() {
   const { getValidAccessToken, refreshSession } = useAuth();
@@ -23,24 +23,19 @@ export function useAdminApi() {
           method: 'PATCH',
           body: JSON.stringify(payload)
         }),
-      listDrills: () => client.request<AdminDrill[]>('/drills/admin/all'),
-      createDrill: (payload: {
-        name: string;
-        description?: string;
-        metricType: AdminDrill['metricType'];
-        isPublic?: boolean;
-      }) =>
-        client.request<AdminDrill>('/drills/admin/all', {
+      listMissions: () => client.request<AdminMission[]>('/missions/admin/all'),
+      createMission: (payload: Partial<Omit<AdminMission, 'id' | 'leaderboard'>> & { leaderboardTitle?: string; leaderboardActive?: boolean }) =>
+        client.request<AdminMission>('/missions/admin/all', {
           method: 'POST',
           body: JSON.stringify(payload)
         }),
-      updateDrill: (drillId: string, payload: Partial<Pick<AdminDrill, 'name' | 'description' | 'metricType' | 'isPublic'>>) =>
-        client.request<AdminDrill>(`/drills/admin/all/${drillId}`, {
+      updateMission: (missionId: string, payload: Partial<Omit<AdminMission, 'id' | 'leaderboard'>> & { leaderboardTitle?: string; leaderboardActive?: boolean }) =>
+        client.request<AdminMission>(`/missions/admin/all/${missionId}`, {
           method: 'PATCH',
           body: JSON.stringify(payload)
         }),
-      deleteDrill: (drillId: string) =>
-        client.request<null>(`/drills/admin/all/${drillId}`, {
+      deleteMission: (missionId: string) =>
+        client.request<null>(`/missions/admin/all/${missionId}`, {
           method: 'DELETE'
         })
     }),

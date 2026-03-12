@@ -13,11 +13,28 @@ export type AdminUser = {
   } | null;
 };
 
-export type AdminDrill = {
+export type MissionStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type MissionScoreInputType = 'STEPPER' | 'MANUAL_NUMBER';
+
+export type AdminMission = {
   id: string;
-  userId: string | null;
+  slug: string;
   name: string;
-  description: string | null;
-  metricType: 'SUCCESS_RATE' | 'DISTANCE_CONTROL' | 'DISPERSION' | 'STROKES' | 'TIME_BASED';
-  isPublic: boolean;
+  description: string;
+  icon: string;
+  objective: string;
+  scoreLabel: string;
+  scoreInputType: MissionScoreInputType;
+  stepperMin: number | null;
+  stepperMax: number | null;
+  defaultScore: number | null;
+  maxScore: number | null;
+  status: MissionStatus;
+  startsAt: string | null;
+  endsAt: string | null;
+  leaderboard: {
+    id: string;
+    title: string | null;
+    isActive: boolean;
+  } | null;
 };
