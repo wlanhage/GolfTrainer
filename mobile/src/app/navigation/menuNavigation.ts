@@ -1,12 +1,9 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AppStackParamList } from './RootNavigator';
 
-export type MenuNavigationRoute = 'TrainingList' | 'Profile' | 'AdminDashboard';
+export type MenuNavigationRoute = 'Play' | 'TrainingList' | 'Profile' | 'CaddyClubGrid' | 'AdminDashboard';
 
-type MenuNavigationProp = Pick<
-  NativeStackNavigationProp<AppStackParamList>,
-  'goBack' | 'navigate' | 'getParent'
->;
+type MenuNavigationProp = Pick<NativeStackNavigationProp<AppStackParamList>, 'goBack' | 'navigate' | 'getParent'>;
 
 type ScheduleNavigation = (cb: () => void) => void;
 
