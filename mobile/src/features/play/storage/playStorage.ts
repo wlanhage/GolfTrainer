@@ -104,6 +104,33 @@ export const playStorage = {
     return course;
   },
 
+  async updateCourse(courseId: string, input: Partial<CreateCourseInput>) {
+    const db = await readDatabase();
+    const course = db.courses.find((entry) => entry.id === courseId);
+    if (!course) throw new Error('Banan hittades inte.');
+
+    const nextCourse: CreateCourseInput = {
+      clubName: input.clubName ?? course.clubName,
+      courseName: input.courseName ?? course.courseName,
+      teeName: input.teeName ?? course.teeName ?? undefined,
+      holeCount: input.holeCount ?? course.holeCount
+    };
+
+    const error = validateCourseInput(nextCourse);
+    if (error) {
+      throw new Error(error);
+    }
+
+    course.clubName = nextCourse.clubName.trim();
+    course.courseName = nextCourse.courseName.trim();
+    course.teeName = nextCourse.teeName?.trim() || null;
+    course.holeCount = nextCourse.holeCount;
+    course.updatedAt = nowIso();
+
+    await saveDatabase(db);
+    return course;
+  },
+
   async getCourseWithHoles(courseId: string) {
     const db = await readDatabase();
     const course = db.courses.find((entry) => entry.id === courseId);
@@ -116,39 +143,92 @@ export const playStorage = {
     return { course, holes };
   },
 
-  async createHolesForCourse(courseId: string, holeCount: 9 | 18) {
+  async getCourseAdminDetails(courseId: string) {
     const db = await readDatabase();
-    const existing = db.holes.filter((hole) => hole.courseId === courseId);
-    if (existing.length > 0) {
-      return existing.sort((a, b) => a.holeNumber - b.holeNumber);
+    const course = db.courses.find((entry) => entry.id === courseId);
+    if (!course) return null;
+
+    const holes = db.holes
+      .filter((hole) => hole.courseId === courseId)
+      .sort((a, b) => a.holeNumber - b.holeNumber)
+      .map((hole) => ({
+        ...hole,
+        layout: db.holeLayouts.find((layout) => layout.holeId === hole.id) ?? null
+      }));
+
+    return { course, holes };
+  },
+
+  async getHoleWithLayout(courseId: string, holeNumber: number) {
+    const db = await readDatabase();
+    const course = db.courses.find((entry) => entry.id === courseId);
+    if (!course) return null;
+
+    const hole = db.holes.find((entry) => entry.courseId === courseId && entry.holeNumber === holeNumber);
+    if (!hole) return null;
+
+    let layout = db.holeLayouts.find((entry) => entry.holeId === hole.id) ?? null;
+    if (!layout) {
+      const timestamp = nowIso();
+      layout = {
+        id: createLocalId(`layout_${hole.holeNumber}`),
+        holeId: hole.id,
+        geometry: createEmptyLayoutGeometry(),
+        mappingStatus: 'not_started',
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      db.holeLayouts.push(layout);
+      await saveDatabase(db);
     }
 
+    return { course, hole, layout };
+  },
+
+  async createHolesForCourse(courseId: string, holeCount: 9 | 18) {
+    const db = await readDatabase();
+    const existing = db.holes
+      .filter((hole) => hole.courseId === courseId)
+      .sort((a, b) => a.holeNumber - b.holeNumber);
+
     const timestamp = nowIso();
-    const holes: Hole[] = Array.from({ length: holeCount }, (_, index) => {
-      const holeId = createLocalId(`hole_${index + 1}`);
-      return {
-        id: holeId,
+    const existingByNumber = new Set(existing.map((hole) => hole.holeNumber));
+    const holesToCreate: Hole[] = [];
+
+    for (let holeNumber = 1; holeNumber <= holeCount; holeNumber += 1) {
+      if (existingByNumber.has(holeNumber)) continue;
+
+      holesToCreate.push({
+        id: createLocalId(`hole_${holeNumber}`),
         courseId,
-        holeNumber: index + 1,
+        holeNumber,
         par: null,
         length: null,
         hcpIndex: null,
         createdAt: timestamp,
         updatedAt: timestamp
-      };
-    });
+      });
+    }
 
-    const layouts: HoleLayout[] = holes.map((hole) => ({
-      id: createLocalId(`layout_${hole.holeNumber}`),
-      holeId: hole.id,
-      geometry: createEmptyLayoutGeometry(),
-      mappingStatus: 'not_started',
-      createdAt: timestamp,
-      updatedAt: timestamp
-    }));
+    const allCourseHoles = [...existing, ...holesToCreate].sort((a, b) => a.holeNumber - b.holeNumber);
+    const existingLayoutHoleIds = new Set(db.holeLayouts.map((layout) => layout.holeId));
+    const layoutsToCreate: HoleLayout[] = allCourseHoles
+      .filter((hole) => !existingLayoutHoleIds.has(hole.id))
+      .map((hole) => ({
+        id: createLocalId(`layout_${hole.holeNumber}`),
+        holeId: hole.id,
+        geometry: createEmptyLayoutGeometry(),
+        mappingStatus: 'not_started',
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }));
 
-    db.holes.push(...holes);
-    db.holeLayouts.push(...layouts);
+    if (holesToCreate.length === 0 && layoutsToCreate.length === 0) {
+      return allCourseHoles;
+    }
+
+    db.holes.push(...holesToCreate);
+    db.holeLayouts.push(...layoutsToCreate);
 
     const course = db.courses.find((entry) => entry.id === courseId);
     if (course) {
@@ -156,7 +236,7 @@ export const playStorage = {
     }
 
     await saveDatabase(db);
-    return holes;
+    return allCourseHoles;
   },
 
   async updateHoleMeta(holeId: string, input: Partial<Pick<Hole, 'par' | 'length' | 'hcpIndex'>>) {
@@ -293,7 +373,6 @@ export const playStorage = {
     roundHole.strokes = strokes;
     roundHole.notes = notes?.trim() || null;
     roundHole.completedAt = strokes === null ? null : nowIso();
-    // Snapshot uppdateras när hålet sparas så metadata som fylls i under rundan bevaras i historiken.
     roundHole.parSnapshot = sourceHole?.par ?? roundHole.parSnapshot;
     roundHole.lengthSnapshot = sourceHole?.length ?? roundHole.lengthSnapshot;
     roundHole.hcpIndexSnapshot = sourceHole?.hcpIndex ?? roundHole.hcpIndexSnapshot;

@@ -1,11 +1,15 @@
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppStackParamList } from '../../../app/navigation/RootNavigator';
 import { useAdminApi } from '../api/adminApi';
 import { AdminMission, AdminUser, MissionScoreInputType, MissionStatus } from '../types/admin';
 
 type Subject = 'users' | 'trainings';
 
-export function AdminDashboardScreen() {
+type Props = NativeStackScreenProps<AppStackParamList, 'AdminDashboard'>;
+
+export function AdminDashboardScreen({ navigation }: Props) {
   const adminApi = useAdminApi();
   const [subject, setSubject] = useState<Subject>('users');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -174,6 +178,8 @@ export function AdminDashboardScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Admin dashboard</Text>
 
+
+      <Pressable style={styles.courseNavButton} onPress={() => navigation.navigate('AdminCourses')}><Text style={styles.courseNavButtonText}>Hantera banor & hål</Text></Pressable>
       <View>
         <Pressable style={styles.subjectTrigger} onPress={() => setShowDropdown((v) => !v)}>
           <Text style={styles.subjectTriggerText}>{subject === 'users' ? 'Användare' : 'Trainings / Missions'} ▾</Text>
@@ -333,5 +339,7 @@ const styles = StyleSheet.create({
   subjectTrigger: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, backgroundColor: '#fff', padding: 12 },
   subjectTriggerText: { fontWeight: '600' },
   dropdownList: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, backgroundColor: '#fff', marginTop: 4 },
-  dropdownListItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }
+  dropdownListItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  courseNavButton: { borderRadius: 10, backgroundColor: '#0f766e', paddingVertical: 10, paddingHorizontal: 12, alignSelf: 'flex-start' },
+  courseNavButtonText: { color: '#fff', fontWeight: '700' }
 });

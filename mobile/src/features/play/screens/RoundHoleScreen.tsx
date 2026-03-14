@@ -83,7 +83,7 @@ export function RoundHoleScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <HoleHeader roundHole={roundHole} />
+      <HoleHeader holeNumber={roundHole.holeNumber} par={roundHole.parSnapshot} length={roundHole.lengthSnapshot} hcpIndex={roundHole.hcpIndexSnapshot} />
       <HoleScoreInput value={score} onChange={setScore} />
       <HoleMetaForm
         par={meta.par}
