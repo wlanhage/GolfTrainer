@@ -21,6 +21,15 @@ Technical and architecture details have been moved into the `docs/` folder.
    - `npm --prefix mobile install`
    - `npm --prefix mobile start`
 
+### DB target switching (local vs Supabase)
+
+Use dedicated backend env files (`backend/.env.local` and `backend/.env.supabase`) and run:
+
+- `npm --prefix backend run dev` (default: Supabase)
+- `npm --prefix backend run dev:local` (local override)
+
+Detailed setup and migration flow: **[`SETUP.md`](./SETUP.md)**.
+
 ## Project structure
 
 - `backend/` – API server
