@@ -1,13 +1,17 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { RoundHole } from '../types/play';
 
-type Props = { roundHole: RoundHole };
+type Props = {
+  holeNumber: number;
+  par: number | null;
+  length: number | null;
+  hcpIndex: number | null;
+};
 
-export function HoleHeader({ roundHole }: Props) {
+export function HoleHeader({ holeNumber, par, length, hcpIndex }: Props) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>Hål {roundHole.holeNumber}</Text>
-      <Text style={styles.meta}>Par: {roundHole.parSnapshot ?? '-'} • Längd: {roundHole.lengthSnapshot ?? '-'} • HCP: {roundHole.hcpIndexSnapshot ?? '-'}</Text>
+      <Text style={styles.title}>Hål {holeNumber}</Text>
+      <Text style={styles.meta}>Par: {par ?? '-'} • Längd: {length ?? '-'} • HCP: {hcpIndex ?? '-'}</Text>
     </View>
   );
 }

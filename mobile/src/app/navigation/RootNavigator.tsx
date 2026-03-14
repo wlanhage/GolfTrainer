@@ -1,6 +1,9 @@
 import { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AdminCourseDetailsScreen } from '../../features/admin/screens/AdminCourseDetailsScreen';
+import { AdminCoursesScreen } from '../../features/admin/screens/AdminCoursesScreen';
 import { AdminDashboardScreen } from '../../features/admin/screens/AdminDashboardScreen';
+import { AdminHoleEditScreen } from '../../features/admin/screens/AdminHoleEditScreen';
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { RegisterScreen } from '../../features/auth/screens/RegisterScreen';
 import { CaddyClubDetailScreen } from '../../features/caddy/screens/CaddyClubDetailScreen';
@@ -29,6 +32,9 @@ export type AppStackParamList = {
   CaddyClubDetail: { clubId: string };
   Profile: undefined;
   AdminDashboard: undefined;
+  AdminCourses: undefined;
+  AdminCourseDetails: { courseId: string };
+  AdminHoleEdit: { courseId: string; holeNumber: number };
   Menu: undefined;
   Login: undefined;
   Register: undefined;
@@ -55,11 +61,9 @@ function MenuScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'M
         <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'Profile')}>
           <Text style={styles.menuItemText}>👤 Profil</Text>
         </Pressable>
-        {me?.role === 'ADMIN' ? (
-          <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
-            <Text style={styles.menuItemText}>🛠️ Admin dashboard</Text>
-          </Pressable>
-        ) : null}
+        <Pressable style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]} onPress={() => navigateFromMenu(navigation, 'AdminDashboard')}>
+          <Text style={styles.menuItemText}>🛠️ Admin dashboard</Text>
+        </Pressable>
         <View style={styles.menuBottomSpacer} />
         <Pressable
           style={({ pressed }) => [styles.menuItem, styles.dangerItem, styles.logoutButton, pressed && styles.menuItemPressed]}
@@ -118,6 +122,9 @@ export function RootNavigator() {
           <Stack.Screen name="CaddyClubDetail" component={CaddyClubDetailScreen} options={{ title: 'Klubbdata' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profil' }} />
           <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
+          <Stack.Screen name="AdminCourses" component={AdminCoursesScreen} options={{ title: 'Admin banor' }} />
+          <Stack.Screen name="AdminCourseDetails" component={AdminCourseDetailsScreen} options={{ title: 'Bana detaljer' }} />
+          <Stack.Screen name="AdminHoleEdit" component={AdminHoleEditScreen} options={{ title: 'Redigera hål' }} />
           <Stack.Screen name="Menu" component={MenuScreen} options={{ headerShown: false, presentation: 'transparentModal' }} />
         </>
       ) : (
