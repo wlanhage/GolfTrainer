@@ -117,6 +117,23 @@ model User {
   leaderboardEntries      MissionLeaderboardEntry[]
   courses                 Course[]
   rounds                  Round[]
+  followers               UserFollow[]             @relation("UserFollowers")
+  following               UserFollow[]             @relation("UserFollowing")
+}
+
+model UserFollow {
+  id              String   @id @default(cuid())
+  followerUserId  String   @map("follower_user_id")
+  followingUserId String   @map("following_user_id")
+  createdAt       DateTime @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerUserId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingUserId], references: [id], onDelete: Cascade)
+
+  @@unique([followerUserId, followingUserId])
+  @@index([followerUserId, createdAt])
+  @@index([followingUserId, createdAt])
+  @@map("user_follows")
 }
 
 model UserProfile {
@@ -520,6 +537,7 @@ model Round {
   teeNameSnapshot    String?
   courseNameSnapshot String
   clubNameSnapshot   String
+  totalScore         Int?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
@@ -528,6 +546,8 @@ model Round {
   roundHoles RoundHole[]
 
   @@index([userId, startedAt])
+  @@index([courseId, totalScore, startedAt])
+  @@index([status, startedAt])
 }
 
 model RoundHole {
