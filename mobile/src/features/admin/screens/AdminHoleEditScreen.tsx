@@ -73,7 +73,7 @@ export function AdminHoleEditScreen({ route, navigation }: Props) {
         onChange={(field, value) => setMeta((prev) => ({ ...prev, [field]: value }))}
         onSave={() => void save()}
       />
-      <HoleLayoutEditor geometry={layout} onChange={setLayout} />
+      <HoleLayoutEditor geometry={layout} onChange={setLayout} onSave={() => void save()} />
 
       <View style={styles.row}>
         <Pressable style={styles.secondaryAction} onPress={() => navigation.navigate('AdminCourseDetails', { courseId })}>

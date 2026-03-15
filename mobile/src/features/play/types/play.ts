@@ -1,21 +1,36 @@
 export type SyncStatus = 'pending' | 'synced' | 'failed';
 export type CourseSource = 'manual' | 'imported' | 'user_created';
 export type RoundStatus = 'in_progress' | 'completed' | 'abandoned';
-export type LayoutMappingStatus = 'not_started' | 'partial' | 'complete';
+export type LayoutMappingStatus = 'not_started' | 'partial' | 'required_complete' | 'full';
 
-export type CoordinatePoint = {
-  x: number;
-  y: number;
+export type GeoPoint = {
+  lat: number;
+  lng: number;
 };
 
+export type HoleLayoutLayer = 'tee' | 'green' | 'fairway' | 'bunker' | 'trees' | 'ob';
+
 export type HoleLayoutGeometry = {
-  teePosition: CoordinatePoint | null;
-  greenPosition: CoordinatePoint | null;
-  fairwayShape: CoordinatePoint[];
-  waterShapes: CoordinatePoint[][];
-  treeShapes: CoordinatePoint[][];
-  bunkerShapes: CoordinatePoint[][];
-  notes: string;
+  teePoint: GeoPoint | null;
+  greenPolygon: GeoPoint[];
+  fairwayPolygon: GeoPoint[];
+  bunkerPolygons: GeoPoint[][];
+  treesPolygons: GeoPoint[][];
+  obPolygons: GeoPoint[][];
+};
+
+export type HoleAxis = {
+  origin: GeoPoint;
+  target: GeoPoint;
+  bearing: number;
+  lengthMeters: number;
+  teeToGreenCenterline: GeoPoint[];
+};
+
+export type HoleLayoutDerived = {
+  hole_bearing: number | null;
+  hole_length_meters: number | null;
+  tee_to_green_centerline: GeoPoint[];
 };
 
 export type Course = {
@@ -48,6 +63,8 @@ export type HoleLayout = {
   holeId: string;
   geometry: HoleLayoutGeometry;
   mappingStatus: LayoutMappingStatus;
+  layout_status?: LayoutMappingStatus;
+  derived: HoleLayoutDerived;
   createdAt: string;
   updatedAt: string;
 };

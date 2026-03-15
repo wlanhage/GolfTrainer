@@ -66,7 +66,6 @@ enum MissionStatus {
   ARCHIVED
 }
 
-
 enum CourseSource {
   MANUAL
   IMPORTED
@@ -82,7 +81,8 @@ enum SyncStatus {
 enum HoleLayoutMappingStatus {
   NOT_STARTED
   PARTIAL
-  COMPLETE
+  REQUIRED_COMPLETE
+  FULL
 }
 
 enum RoundPlayStatus {
@@ -117,8 +117,8 @@ model User {
   leaderboardEntries      MissionLeaderboardEntry[]
   courses                 Course[]
   rounds                  Round[]
-  followers               UserFollow[]             @relation("UserFollowers")
-  following               UserFollow[]             @relation("UserFollowing")
+  followers               UserFollow[]               @relation("UserFollowers")
+  following               UserFollow[]               @relation("UserFollowing")
 }
 
 model UserFollow {
@@ -468,7 +468,6 @@ model MissionLeaderboardEntry {
   @@index([userId, submittedAt])
 }
 
-
 model Course {
   id         String       @id @default(cuid())
   userId     String
@@ -483,7 +482,7 @@ model Course {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   holes  Hole[]
   rounds Round[]
 
@@ -508,24 +507,43 @@ model Hole {
 }
 
 model HoleLayout {
-  id            String                  @id @default(cuid())
-  holeId         String                  @unique
-  teePosition    Json?
-  greenPosition  Json?
-  fairwayShape   Json?
-  waterShapes    Json?
-  treeShapes     Json?
-  bunkerShapes   Json?
-  notes          String?
-  mappingStatus  HoleLayoutMappingStatus @default(NOT_STARTED)
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  id     String @id @default(cuid())
+  holeId String @unique
+
+  /// Legacy V0 fields kept temporarily for migration compatibility.
+  teePosition   Json?
+  greenPosition Json?
+  fairwayShape  Json?
+  waterShapes   Json?
+  treeShapes    Json?
+  bunkerShapes  Json?
+  notes         String?
+
+  /// V1 provider-agnostic geometry model.
+  teePoint       Json?
+  greenPolygon   Json?
+  fairwayPolygon Json?
+  bunkerPolygons Json?
+  treesPolygons  Json?
+  obPolygons     Json?
+
+  /// Derived V1 metadata.
+  holeBearing          Decimal? @map("hole_bearing") @db.Decimal(7, 3)
+  holeLengthMeters     Decimal? @map("hole_length_meters") @db.Decimal(8, 2)
+  teeToGreenCenterline Json?    @map("tee_to_green_centerline")
+
+  /// Legacy and V1 status columns.
+  mappingStatus HoleLayoutMappingStatus @default(NOT_STARTED)
+  layoutStatus  HoleLayoutMappingStatus @default(NOT_STARTED) @map("layout_status")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   hole Hole @relation(fields: [holeId], references: [id], onDelete: Cascade)
 }
 
 model Round {
-  id                String           @id @default(cuid())
+  id                 String          @id @default(cuid())
   userId             String
   courseId           String
   startedAt          DateTime        @default(now())
@@ -541,8 +559,8 @@ model Round {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course    Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
   roundHoles RoundHole[]
 
   @@index([userId, startedAt])
@@ -551,7 +569,7 @@ model Round {
 }
 
 model RoundHole {
-  id              String   @id @default(cuid())
+  id               String    @id @default(cuid())
   roundId          String
   holeId           String
   holeNumber       Int
@@ -561,8 +579,8 @@ model RoundHole {
   hcpIndexSnapshot Int?
   notes            String?
   completedAt      DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
   hole  Hole  @relation(fields: [holeId], references: [id], onDelete: Restrict)

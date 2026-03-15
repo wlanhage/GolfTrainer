@@ -13,7 +13,9 @@ import {
   ScorecardSetupMode
 } from '../types/play';
 import { createLocalId } from '../utils/id';
-import { createEmptyLayoutGeometry, resolveLayoutMappingStatus } from '../utils/layout';
+import { resolveHoleAxis } from '../services/holeAxis';
+import { createEmptyLayoutGeometry, normalizeLayoutGeometry } from '../services/holeLayoutGeometry';
+import { resolveLayoutMappingStatus } from '../services/holeLayoutStatus';
 import { getRelativeToPar } from '../utils/roundLogic';
 import { validateCourseInput, validateHoleMetaValues } from '../utils/validation';
 
@@ -27,6 +29,19 @@ const createEmptyDatabase = (): PlayDatabase => ({
   roundHoles: []
 });
 
+
+const resolveDerivedFromGeometry = (geometry: HoleLayoutGeometry) => {
+  const axis = resolveHoleAxis(geometry);
+  if (!axis) {
+    return { hole_bearing: null, hole_length_meters: null, tee_to_green_centerline: [] };
+  }
+
+  return {
+    hole_bearing: axis.bearing,
+    hole_length_meters: axis.lengthMeters,
+    tee_to_green_centerline: axis.teeToGreenCenterline
+  };
+};
 const nowIso = () => new Date().toISOString();
 
 async function readDatabase(): Promise<PlayDatabase> {
@@ -34,7 +49,21 @@ async function readDatabase(): Promise<PlayDatabase> {
   if (!raw) return createEmptyDatabase();
 
   try {
-    return JSON.parse(raw) as PlayDatabase;
+    const parsed = JSON.parse(raw) as PlayDatabase;
+    return {
+      ...createEmptyDatabase(),
+      ...parsed,
+      holeLayouts: (parsed.holeLayouts ?? []).map((layout) => {
+        const geometry = normalizeLayoutGeometry(layout.geometry);
+        return {
+          ...layout,
+          geometry,
+          mappingStatus: resolveLayoutMappingStatus(geometry),
+          layout_status: resolveLayoutMappingStatus(geometry),
+          derived: layout.derived ?? resolveDerivedFromGeometry(geometry)
+        };
+      })
+    };
   } catch {
     return createEmptyDatabase();
   }
@@ -175,6 +204,8 @@ export const playStorage = {
         holeId: hole.id,
         geometry: createEmptyLayoutGeometry(),
         mappingStatus: 'not_started',
+        layout_status: 'not_started',
+        derived: resolveDerivedFromGeometry(createEmptyLayoutGeometry()),
         createdAt: timestamp,
         updatedAt: timestamp
       };
@@ -219,6 +250,8 @@ export const playStorage = {
         holeId: hole.id,
         geometry: createEmptyLayoutGeometry(),
         mappingStatus: 'not_started',
+        layout_status: 'not_started',
+        derived: resolveDerivedFromGeometry(createEmptyLayoutGeometry()),
         createdAt: timestamp,
         updatedAt: timestamp
       }));
@@ -263,8 +296,11 @@ export const playStorage = {
     const layout = db.holeLayouts.find((entry) => entry.holeId === holeId);
     if (!layout) throw new Error('Layout hittades inte.');
 
-    layout.geometry = geometry;
-    layout.mappingStatus = resolveLayoutMappingStatus(geometry);
+    const normalizedGeometry = normalizeLayoutGeometry(geometry);
+    layout.geometry = normalizedGeometry;
+    layout.mappingStatus = resolveLayoutMappingStatus(normalizedGeometry);
+    layout.layout_status = layout.mappingStatus;
+    layout.derived = resolveDerivedFromGeometry(normalizedGeometry);
     layout.updatedAt = nowIso();
 
     await saveDatabase(db);
