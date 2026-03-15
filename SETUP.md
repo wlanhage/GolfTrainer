@@ -113,7 +113,7 @@ Then run targeted commands:
 npm --prefix backend run dev:local
 
 # backend against supabase DB
-npm --prefix backend run dev:supabase
+npm --prefix backend run dev
 
 # push schema to local DB
 npm --prefix backend run prisma:db:push:local
