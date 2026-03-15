@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { ZodError } from 'zod';
 import { AppError } from './common/errors/AppError.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -15,6 +16,29 @@ import { followsRoutes } from './modules/follows/follows.routes.js';
 
 export const buildApp = () => {
   const app = Fastify({ logger: true });
+
+  void app.register(cors, {
+    origin: (origin, cb) => {
+      // Allow Expo web dev origins and mobile (no origin)
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+
+      const allowedOrigins = [
+        'http://localhost:19006', // Expo web default
+        'http://localhost:8081',  // Alternative dev ports
+        'http://localhost:8082'
+      ];
+
+      if (allowedOrigins.includes(origin)) {
+        cb(null, true);
+      } else {
+        cb(null, false);
+      }
+    },
+    credentials: true
+  });
 
   app.register(authRoutes, { prefix: '/api/v1/auth' });
   app.register(usersRoutes, { prefix: '/api/v1/users' });
