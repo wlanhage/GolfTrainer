@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Component, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { resolveHoleAxis } from '../services/holeAxis';
 import { applyPolygonToLayer, clearLayer, convertStrokeToPolygon } from '../services/holeLayoutGeometry';
 import { hasRequiredLayout, resolveLayoutMappingStatus } from '../services/holeLayoutStatus';
@@ -8,11 +8,25 @@ import { GeoPoint, HoleLayoutGeometry, HoleLayoutLayer } from '../types/play';
 import { HoleLayoutToolbar } from './HoleLayoutToolbar';
 import { HoleMapCanvasOverlay } from './HoleMapCanvasOverlay';
 
-let MapLibre: any;
-try {
-  MapLibre = require('@maplibre/maplibre-react-native');
-} catch {
-  MapLibre = null;
+function getMapLibre(): any {
+  try {
+    return require('@maplibre/maplibre-react-native');
+  } catch {
+    return null;
+  }
+}
+
+type MapErrorBoundaryProps = { onError: () => void; fallback: ReactNode; children: ReactNode };
+class MapErrorBoundary extends Component<MapErrorBoundaryProps, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError = () => ({ hasError: true });
+  componentDidCatch() {
+    this.props.onError();
+  }
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
 }
 
 const DEFAULT_CENTER = { lat: 59.3293, lng: 18.0686 };
@@ -72,8 +86,14 @@ export function HoleLayoutEditor({ geometry, onChange, onSave }: Props) {
   const [center, setCenter] = useState<GeoPoint>(resolveInitialCenter(geometry));
   const [zoom, setZoom] = useState(16);
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
+  const [MapLibre, setMapLibre] = useState<any>(null);
+  const [mapNativeFailed, setMapNativeFailed] = useState(false);
 
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
+
+  useEffect(() => {
+    setMapLibre(getMapLibre());
+  }, []);
 
   useEffect(() => {
     if (geometry.teePoint) {
@@ -149,36 +169,53 @@ export function HoleLayoutEditor({ geometry, onChange, onSave }: Props) {
         style={styles.mapWrap}
         onLayout={(event) => setMapSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}
       >
-        {!MapLibre ? (
-          <View style={styles.missingWrap}><Text style={styles.warning}>MapLibre native module missing in this build. Use an Expo dev build with MapLibre + Skia.</Text></View>
+        {!MapLibre || mapNativeFailed ? (
+          <View style={styles.missingWrap}>
+            <Text style={Platform.OS === 'web' ? styles.info : styles.warning}>
+              {Platform.OS === 'web'
+                ? 'Kartvy för banlayout finns i mobilappen. Använd verktygsfältet ovan för att sätta tee och green.'
+                : 'Kartvy kräver en development build (MapLibre finns inte i Expo Go). Använd verktygsfältet för tee och green.'}
+            </Text>
+          </View>
         ) : (
-          <>
-            <MapLibre.MapView
-              style={StyleSheet.absoluteFill}
-              logoEnabled={false}
-              compassEnabled
-              scrollEnabled={mode === 'navigate'}
-              zoomEnabled={mode === 'navigate'}
-              rotateEnabled={mode === 'navigate'}
-              styleURL="https://demotiles.maplibre.org/style.json"
-              onRegionDidChange={(event: any) => {
-                const [lng, lat] = event.geometry?.coordinates ?? [center.lng, center.lat];
-                setCenter({ lat, lng });
-                setZoom(event.properties?.zoomLevel ?? zoom);
-              }}
-            >
-              <MapLibre.Camera
-                centerCoordinate={[center.lng, center.lat]}
-                zoomLevel={zoom}
-                heading={axis ? axis.bearing : 0}
-                animationDuration={300}
-              />
-              <MapLibre.ShapeSource id="hole-layout-shapes" shape={toFeatureCollection(geometry)}>
-                <MapLibre.FillLayer id="hole-layout-fill" style={{ fillColor: ['get', 'color'] }} />
-              </MapLibre.ShapeSource>
-            </MapLibre.MapView>
-            <HoleMapCanvasOverlay enabled={mode === 'draw'} onStrokeComplete={onStrokeComplete} projectTouchToGeo={projectTouchToGeo} />
-          </>
+          <MapErrorBoundary
+            onError={() => setMapNativeFailed(true)}
+            fallback={
+              <View style={styles.missingWrap}>
+                <Text style={styles.info}>
+                  Kartvy kräver en development build (MapLibre finns inte i Expo Go). Använd verktygsfältet för tee och green.
+                </Text>
+              </View>
+            }
+          >
+            <>
+              <MapLibre.MapView
+                style={StyleSheet.absoluteFill}
+                logoEnabled={false}
+                compassEnabled
+                scrollEnabled={mode === 'navigate'}
+                zoomEnabled={mode === 'navigate'}
+                rotateEnabled={mode === 'navigate'}
+                styleURL="https://demotiles.maplibre.org/style.json"
+                onRegionDidChange={(event: any) => {
+                  const [lng, lat] = event.geometry?.coordinates ?? [center.lng, center.lat];
+                  setCenter({ lat, lng });
+                  setZoom(event.properties?.zoomLevel ?? zoom);
+                }}
+              >
+                <MapLibre.Camera
+                  centerCoordinate={[center.lng, center.lat]}
+                  zoomLevel={zoom}
+                  heading={axis ? axis.bearing : 0}
+                  animationDuration={300}
+                />
+                <MapLibre.ShapeSource id="hole-layout-shapes" shape={toFeatureCollection(geometry)}>
+                  <MapLibre.FillLayer id="hole-layout-fill" style={{ fillColor: ['get', 'color'] }} />
+                </MapLibre.ShapeSource>
+              </MapLibre.MapView>
+              <HoleMapCanvasOverlay enabled={mode === 'draw'} onStrokeComplete={onStrokeComplete} projectTouchToGeo={projectTouchToGeo} />
+            </>
+          </MapErrorBoundary>
         )}
       </View>
 

@@ -146,6 +146,28 @@ The app uses `mobile/src/shared/api/config.ts`.
 
 This repo is already set up to choose the host automatically.
 
+### MapLibre (hole layout)
+
+The hole layout editor can show an interactive map (MapLibre) for placing tee, green, fairway, bunkers, etc. MapLibre is a **native module** and is not available everywhere:
+
+| Environment        | Map visible? | Behaviour |
+|--------------------|--------------|-----------|
+| **Expo Go**        | No           | MapLibre is not included in Expo Go. The app shows a fallback message; you can still use the toolbar to set tee/green and layers. |
+| **Web**            | No           | A web stub is used; the message says the map is available in the mobile app. |
+| **Development build** | Yes       | Run `npx expo prebuild` and build the app; the native MapLibre (and Skia) code is included and the map works. |
+
+**What is a “development build”?**
+
+- **Expo Go** is a generic app from the store with a fixed set of native modules. Your JavaScript runs inside it, but you cannot add native code (e.g. MapLibre, Skia).
+- A **development build** is **your own** compiled app (iOS/Android) that includes your project’s native dependencies. Create it with `npx expo prebuild` and then build with Xcode/Android Studio or [EAS Build](https://docs.expo.dev/build/introduction/). Install it on your device or simulator to test the map and other native features.
+- You do **not** need to deploy or publish a development build to use the map; it’s for running on your own device. When you ship to users, you create a **production** build (same idea: your binary with your native code) and submit that to the App Store / Play Store.
+
+**Implementation (for reference)**
+
+- MapLibre is lazy-loaded when the hole layout screen mounts (`getMapLibre()` in `HoleLayoutEditor`), not at app startup.
+- An error boundary wraps the map; if the native module is missing or fails (e.g. in Expo Go), the fallback UI is shown instead of crashing.
+- On web, `HoleMapCanvasOverlay.web.tsx` is used so Skia is never loaded in the browser (avoids React 19 issues).
+
 ### Prisma migrations for Supabase
 
 Recommended flow:

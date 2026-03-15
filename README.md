@@ -37,6 +37,10 @@ Detailed setup and migration flow: **[`SETUP.md`](./SETUP.md)**.
 - `prisma/schema.prisma` – database schema
 - `docs/` – architecture/design/implementation docs
 
+## MapLibre (hole layout)
+
+The hole layout map only runs in a **development build**; in Expo Go and on web a fallback is shown. More in SETUP.md & MapLibre docs.
+
 ## Documentation map
 
 If you want the technical breakdown, start here:
