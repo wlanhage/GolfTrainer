@@ -28,7 +28,9 @@ export const buildApp = () => {
       const allowedOrigins = [
         'http://localhost:19006', // Expo web default
         'http://localhost:8081',  // Alternative dev ports
-        'http://localhost:8082'
+        'http://localhost:8082',
+        'http://localhost:3001', // Admin web default dev port
+        'http://127.0.0.1:3001'
       ];
 
       if (allowedOrigins.includes(origin)) {
