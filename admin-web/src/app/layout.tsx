@@ -1,5 +1,6 @@
 import './globals.css';
 import { AuthGuard } from '../components/AuthGuard';
+import { ToastProvider } from '../components/common/ToastProvider';
 
 export const metadata = {
   title: 'GolfTrainer Admin Web',
@@ -10,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="sv">
       <body>
-        <AuthGuard>{children}</AuthGuard>
+        <ToastProvider><AuthGuard>{children}</AuthGuard></ToastProvider>
       </body>
     </html>
   );
