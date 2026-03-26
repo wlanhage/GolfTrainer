@@ -15,6 +15,30 @@ export function useAutosave<T>({ value, onSave, delay = 800, enabled = true }: O
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const previousValueRef = useRef(JSON.stringify(value));
+  const timerRef = useRef<number | null>(null);
+
+  const saveNow = async () => {
+    const next = JSON.stringify(value);
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+
+    if (next === previousValueRef.current) {
+      setSaveState('saved');
+      return true;
+    }
+
+    setSaveState('saving');
+    try {
+      await onSave(value);
+      previousValueRef.current = next;
+      setLastSavedAt(new Date());
+      setSaveState('saved');
+      return true;
+    } catch {
+      setSaveState('error');
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (!enabled) return;
@@ -23,7 +47,7 @@ export function useAutosave<T>({ value, onSave, delay = 800, enabled = true }: O
 
     setSaveState('unsaved');
 
-    const timer = window.setTimeout(async () => {
+    timerRef.current = window.setTimeout(async () => {
       setSaveState('saving');
       try {
         await onSave(value);
@@ -35,8 +59,11 @@ export function useAutosave<T>({ value, onSave, delay = 800, enabled = true }: O
       }
     }, delay);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    };
   }, [delay, enabled, onSave, value]);
 
-  return { saveState, lastSavedAt, setSaveState };
+  return { saveState, lastSavedAt, setSaveState, saveNow };
 }

@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { computeHoleLength } from '../lib/holeMetrics';
 import { courseRepo } from '../lib/storage';
 import { Course } from '../lib/types';
+import { ConfirmDialog } from './common/ConfirmDialog';
 import { EmptyState } from './common/EmptyState';
 import { ExportImportDialog } from './common/ExportImportDialog';
 import { PageHeader } from './common/PageHeader';
@@ -17,6 +19,8 @@ export function CourseBuilder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
+  const [overviewCourse, setOverviewCourse] = useState<Course | null>(null);
   const [form, setForm] = useState({ clubName: '', courseName: '', teeName: '', holeCount: 18 as 9 | 18 });
 
   const reload = () => {
@@ -48,6 +52,15 @@ export function CourseBuilder() {
     push('Bana skapad', 'success');
     router.push(`/courses/${created.id}`);
   };
+
+  const hasLayerData = (course: Course['holes'][number]) => ({
+    tee: Boolean(course.layout.teePoint),
+    green: course.layout.greenPolygon.length > 2,
+    fairway: course.layout.fairwayPolygon.length > 2,
+    bunker: course.layout.bunkerPolygons.length > 0,
+    trees: course.layout.treesPolygons.length > 0,
+    ob: course.layout.obPolygons.length > 0
+  });
 
   return (
     <>
@@ -89,10 +102,15 @@ export function CourseBuilder() {
             <EmptyState title="Inga banor ännu" description="Skapa din första bana i formuläret till vänster." />
           ) : null}
           {courses.map((course) => (
-            <Link key={course.id} href={`/courses/${course.id}`} className="list-row">
+            <div key={course.id} className="list-row static-row">
               <strong>{course.courseName}</strong>
               <span>{course.clubName} · {course.teeName} · {course.holeCount} hål</span>
-            </Link>
+              <div className="hole-list">
+                <Link href={`/courses/${course.id}`} className="chip">Edit</Link>
+                <button className="chip" onClick={() => setOverviewCourse(course)}>Översikt</button>
+                <button className="chip" onClick={() => setDeleteTarget(course)}>Delete</button>
+              </div>
+            </div>
           ))}
         </section>
       </div>
@@ -107,6 +125,48 @@ export function CourseBuilder() {
           push('Import klar', 'success');
         }}
       />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Ta bort bana"
+        message={`Är du säker på att du vill ta bort "${deleteTarget?.courseName ?? ''}"?`}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          courseRepo.remove(deleteTarget.id);
+          setDeleteTarget(null);
+          reload();
+          push('Bana borttagen', 'info');
+        }}
+      />
+
+      {overviewCourse ? (
+        <div className="dialog-overlay">
+          <div className="dialog-box wide">
+            <h3>{overviewCourse.courseName} · Översikt</h3>
+            <p className="small-note">{overviewCourse.clubName} · {overviewCourse.teeName} · {overviewCourse.holeCount} hål</p>
+            <div className="card-grid">
+              {overviewCourse.holes.map((hole) => {
+                const lengthMeters = hole.length ?? computeHoleLength(hole);
+                const exists = hasLayerData(hole);
+                return (
+                  <div key={hole.id} className="list-row static-row">
+                    <strong>Hål {hole.holeNumber}</strong>
+                    <span>Par: {hole.par ?? '-'} · HCP: {hole.hcpIndex ?? '-'} · Längd: {lengthMeters ? `${lengthMeters} m` : '-'}</span>
+                    <span className="small-note">
+                      Data: {exists.tee ? 'Tee' : '-'} · {exists.green ? 'Green' : '-'} · {exists.fairway ? 'Fairway' : '-'} ·
+                      {' '}Bunker ({hole.layout.bunkerPolygons.length}) · Träd ({hole.layout.treesPolygons.length}) · OB ({hole.layout.obPolygons.length})
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="dialog-actions">
+              <button className="chip" onClick={() => setOverviewCourse(null)}>Stäng</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
