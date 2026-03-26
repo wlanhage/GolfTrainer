@@ -76,14 +76,14 @@ const layerPalette: Record<Layer, string> = { tee: '#ef4444', green: '#22c55e', 
 const rasterStyle = {
   version: 8,
   sources: {
-    osm: {
+    satellite: {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: 'Tiles &copy; Esri'
     }
   },
-  layers: [{ id: 'osm-base', type: 'raster', source: 'osm' }]
+  layers: [{ id: 'satellite-base', type: 'raster', source: 'satellite' }]
 };
 
 const loadMapLibre = async () => {
@@ -445,7 +445,7 @@ export function HoleManager({ initialCourse }: Props) {
             <input placeholder="Längd" value={hole.length ?? ''} onChange={(event) => setMeta('length', event.target.value)} />
             <input placeholder="HCP" value={hole.hcpIndex ?? ''} onChange={(event) => setMeta('hcpIndex', event.target.value)} />
             <p>Tee → Green (Turf.js): <strong>{teeToGreenMeters ? `${teeToGreenMeters} m` : 'saknas data'}</strong></p>
-            <p className="small-note">Kartkälla: MapLibre GL + OpenStreetMap.</p>
+            <p className="small-note">Kartkälla: MapLibre GL + Esri World Imagery (satellit).</p>
           </div>
 
           <LayerPanel
