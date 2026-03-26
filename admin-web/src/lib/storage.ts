@@ -1,6 +1,23 @@
+import { api } from './api';
 import { Course, HoleLayoutGeometry } from './types';
 
-const COURSE_KEY = 'gt_admin_courses_v1';
+type ApiCourse = {
+  id: string;
+  clubName: string;
+  courseName: string;
+  teeName: string | null;
+  holeCount: 9 | 18;
+  holes: Array<{
+    id: string;
+    holeNumber: number;
+    par: number | null;
+    length: number | null;
+    hcpIndex: number | null;
+    layout?: {
+      geometry: HoleLayoutGeometry;
+    } | null;
+  }>;
+};
 
 const emptyLayout = (): HoleLayoutGeometry => ({
   teePoint: null,
@@ -11,63 +28,118 @@ const emptyLayout = (): HoleLayoutGeometry => ({
   obPolygons: []
 });
 
-const createHole = (holeNumber: number) => ({
-  id: `${holeNumber}_${Math.random().toString(36).slice(2, 10)}`,
-  holeNumber,
-  par: null,
-  length: null,
-  hcpIndex: null,
-  layout: emptyLayout()
+const toCourse = (course: ApiCourse): Course => ({
+  id: course.id,
+  clubName: course.clubName,
+  courseName: course.courseName,
+  teeName: course.teeName ?? '',
+  holeCount: course.holeCount,
+  holes: (course.holes ?? [])
+    .sort((a, b) => a.holeNumber - b.holeNumber)
+    .map((hole) => ({
+      id: hole.id,
+      holeNumber: hole.holeNumber,
+      par: hole.par,
+      length: hole.length,
+      hcpIndex: hole.hcpIndex,
+      layout: hole.layout?.geometry ?? emptyLayout()
+    }))
 });
 
 export const courseRepo = {
-  list(): Course[] {
-    if (typeof window === 'undefined') return [];
-    const raw = window.localStorage.getItem(COURSE_KEY);
-    if (!raw) return [];
+  async list(search = ''): Promise<Course[]> {
+    const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+    const rows = await api.request<ApiCourse[]>(`/courses${query}`);
+    return rows.map(toCourse);
+  },
+
+  async find(courseId: string): Promise<Course | null> {
     try {
-      return JSON.parse(raw) as Course[];
+      const row = await api.request<ApiCourse>(`/courses/${courseId}`);
+      return toCourse(row);
     } catch {
-      return [];
+      return null;
     }
   },
-  saveAll(courses: Course[]) {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(COURSE_KEY, JSON.stringify(courses));
-  },
-  create(input: { clubName: string; courseName: string; teeName: string; holeCount: 9 | 18 }) {
-    const courses = this.list();
-    const course: Course = {
-      id: `course_${Math.random().toString(36).slice(2, 10)}`,
-      ...input,
-      holes: Array.from({ length: input.holeCount }, (_, idx) => createHole(idx + 1))
-    };
-    this.saveAll([course, ...courses]);
-    return course;
-  },
-  update(courseId: string, patch: Partial<Omit<Course, 'id' | 'holes'>>) {
-    const updated = this.list().map((course) => (course.id === courseId ? { ...course, ...patch } : course));
-    this.saveAll(updated);
-    return updated.find((course) => course.id === courseId) ?? null;
-  },
-  remove(courseId: string) {
-    const next = this.list().filter((course) => course.id !== courseId);
-    this.saveAll(next);
-    return next;
-  },
-  find(courseId: string) {
-    return this.list().find((course) => course.id === courseId) ?? null;
-  },
-  updateHole(courseId: string, holeNumber: number, patch: Partial<Course['holes'][number]>) {
-    const courses = this.list();
-    const updated = courses.map((course) => {
-      if (course.id !== courseId) return course;
-      return {
-        ...course,
-        holes: course.holes.map((hole) => (hole.holeNumber === holeNumber ? { ...hole, ...patch } : hole))
-      };
+
+  async create(input: { clubName: string; courseName: string; teeName: string; holeCount: 9 | 18 }) {
+    const created = await api.request<ApiCourse>('/courses', {
+      method: 'POST',
+      body: JSON.stringify(input)
     });
-    this.saveAll(updated);
-    return updated.find((course) => course.id === courseId) ?? null;
+
+    await api.request(`/courses/${created.id}/holes`, {
+      method: 'POST',
+      body: JSON.stringify({ holeCount: input.holeCount })
+    });
+
+    return this.find(created.id) as Promise<Course>;
+  },
+
+  async update(courseId: string, patch: Partial<Omit<Course, 'id' | 'holes'>>) {
+    const payload = {
+      ...(patch.clubName !== undefined ? { clubName: patch.clubName } : {}),
+      ...(patch.courseName !== undefined ? { courseName: patch.courseName } : {}),
+      ...(patch.teeName !== undefined ? { teeName: patch.teeName } : {}),
+      ...(patch.holeCount !== undefined ? { holeCount: patch.holeCount } : {})
+    };
+
+    if (Object.keys(payload).length > 0) {
+      await api.request(`/courses/${courseId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+    }
+
+    return this.find(courseId);
+  },
+
+  async remove(courseId: string) {
+    await api.request(`/courses/${courseId}`, { method: 'DELETE' });
+    return this.list();
+  },
+
+  async updateHole(courseId: string, holeNumber: number, patch: Partial<Course['holes'][number]>) {
+    const holeMetaPayload = {
+      ...(patch.par !== undefined ? { par: patch.par } : {}),
+      ...(patch.length !== undefined ? { length: patch.length } : {}),
+      ...(patch.hcpIndex !== undefined ? { hcpIndex: patch.hcpIndex } : {})
+    };
+
+    if (Object.keys(holeMetaPayload).length > 0) {
+      await api.request(`/courses/${courseId}/holes/${holeNumber}`, {
+        method: 'PATCH',
+        body: JSON.stringify(holeMetaPayload)
+      });
+    }
+
+    if (patch.layout) {
+      await api.request(`/courses/${courseId}/holes/${holeNumber}/layout`, {
+        method: 'PATCH',
+        body: JSON.stringify({ geometry: patch.layout })
+      });
+    }
+
+    return this.find(courseId);
+  },
+
+  async saveAll(courses: Course[]) {
+    for (const course of courses) {
+      const created = await this.create({
+        clubName: course.clubName,
+        courseName: course.courseName,
+        teeName: course.teeName,
+        holeCount: course.holeCount
+      });
+
+      for (const hole of course.holes) {
+        await this.updateHole(created.id, hole.holeNumber, {
+          par: hole.par,
+          length: hole.length,
+          hcpIndex: hole.hcpIndex,
+          layout: hole.layout
+        });
+      }
+    }
   }
 };
