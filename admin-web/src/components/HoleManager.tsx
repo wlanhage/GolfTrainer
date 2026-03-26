@@ -231,7 +231,7 @@ export function HoleManager({ initialCourse }: Props) {
     courseRepo.saveAll(courseRepo.list().map((item) => (item.id === nextCourse.id ? nextCourse : item)));
   };
 
-  const { saveState, lastSavedAt } = useAutosave({ value: course, onSave: saveCourse, delay: 700 });
+  const { saveState, lastSavedAt, saveNow } = useAutosave({ value: course, onSave: saveCourse, delay: 700 });
   useUnsavedChanges({ hasUnsavedChanges: saveState === 'unsaved' || saveState === 'saving' });
 
   useEffect(() => {
@@ -485,6 +485,10 @@ export function HoleManager({ initialCourse }: Props) {
               setManualCenter(null);
               setZoom(17);
               map?.flyTo({ center: [nextCenter.lng, nextCenter.lat], zoom: 17, essential: true });
+            }}
+            onSaveNow={async () => {
+              const ok = await saveNow();
+              push(ok ? 'Banan sparad' : 'Kunde inte spara banan', ok ? 'success' : 'error');
             }}
             saveState={saveState}
             lastSavedAt={lastSavedAt}

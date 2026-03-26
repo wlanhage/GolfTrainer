@@ -9,6 +9,7 @@ export function EditorToolbar({
   onUndo,
   onRedo,
   onResetView,
+  onSaveNow,
   canUndo,
   canRedo,
   saveState,
@@ -19,6 +20,7 @@ export function EditorToolbar({
   onUndo: () => void;
   onRedo: () => void;
   onResetView: () => void;
+  onSaveNow: () => void;
   canUndo: boolean;
   canRedo: boolean;
   saveState: SaveState;
@@ -31,6 +33,7 @@ export function EditorToolbar({
         {tools.map((tool) => <button key={tool} className={active === tool ? 'active-chip' : 'chip'} onClick={() => onSelect(tool)}>{tool.toUpperCase()}</button>)}
         <button className="chip" disabled={!canUndo} onClick={onUndo}>Undo</button>
         <button className="chip" disabled={!canRedo} onClick={onRedo}>Redo</button>
+        <button className="chip" onClick={onSaveNow}>Spara nu</button>
         <button className="chip" onClick={onResetView}>Reset view</button>
       </div>
       <SaveStatusBadge state={saveState} lastSavedAt={lastSavedAt} />
