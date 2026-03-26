@@ -19,6 +19,34 @@ type Props = { initialCourse: Course };
 type Layer = 'tee' | 'green' | 'fairway' | 'bunker' | 'trees' | 'ob';
 type Tool = 'pan' | Layer;
 type Selection = { layer: Layer; index: number; pointIndex?: number } | null;
+type MapCenter = { lng: number; lat: number };
+type MapPoint = { x: number; y: number };
+
+type MapLibreMap = {
+  on: (event: string, handler: () => void) => void;
+  remove: () => void;
+  getZoom: () => number;
+  getCenter: () => MapCenter;
+  project: (lngLat: [number, number]) => MapPoint;
+  unproject: (point: [number, number]) => MapCenter;
+  dragPan: { enable: () => void; disable: () => void };
+  scrollZoom: { enable: () => void; disable: () => void };
+  doubleClickZoom: { enable: () => void; disable: () => void };
+  flyTo: (options: { center: [number, number]; zoom?: number; essential?: boolean }) => void;
+  zoomTo: (zoom: number, options?: { around?: MapCenter; duration?: number }) => void;
+};
+
+type MapLibreCtor = new (options: {
+  container: HTMLDivElement;
+  style: unknown;
+  center: [number, number];
+  zoom: number;
+  attributionControl?: boolean;
+}) => MapLibreMap;
+
+const MAPLIBRE_CDN_VERSION = '5.3.0';
+const MAPLIBRE_SCRIPT_ID = 'maplibre-gl-script';
+const MAPLIBRE_CSS_ID = 'maplibre-gl-css';
 
 const DEFAULT_CENTER: GeoPoint = { lat: 59.3293, lng: 18.0686 };
 const TOOLTIP_KEY = 'gt_admin_editor_seen_tooltips_v1';
@@ -43,6 +71,56 @@ const applyToLayer = (layout: HoleLayoutGeometry, layer: Layer, points: GeoPoint
 
 const layerPalette: Record<Layer, string> = { tee: '#ef4444', green: '#22c55e', fairway: '#16a34a', bunker: '#f59e0b', trees: '#15803d', ob: '#dc2626' };
 
+const rasterStyle = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '&copy; OpenStreetMap contributors'
+    }
+  },
+  layers: [{ id: 'osm-base', type: 'raster', source: 'osm' }]
+};
+
+const loadMapLibre = async () => {
+  if (typeof window === 'undefined') return null;
+  const win = window as Window & { maplibregl?: { Map: MapLibreCtor } };
+  if (win.maplibregl?.Map) return win.maplibregl;
+
+  if (!document.getElementById(MAPLIBRE_CSS_ID)) {
+    const link = document.createElement('link');
+    link.id = MAPLIBRE_CSS_ID;
+    link.rel = 'stylesheet';
+    link.href = `https://unpkg.com/maplibre-gl@${MAPLIBRE_CDN_VERSION}/dist/maplibre-gl.css`;
+    document.head.appendChild(link);
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById(MAPLIBRE_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existing) {
+      if ((window as Window & { maplibregl?: { Map: MapLibreCtor } }).maplibregl?.Map) {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Kunde inte ladda MapLibre-script.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = MAPLIBRE_SCRIPT_ID;
+    script.src = `https://unpkg.com/maplibre-gl@${MAPLIBRE_CDN_VERSION}/dist/maplibre-gl.js`;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Kunde inte ladda MapLibre-script.'));
+    document.head.appendChild(script);
+  });
+
+  return win.maplibregl ?? null;
+};
+
 export function HoleManager({ initialCourse }: Props) {
   const { push } = useToast();
   const [course, setCourse] = useState<Course>(initialCourse);
@@ -51,7 +129,6 @@ export function HoleManager({ initialCourse }: Props) {
   const [stroke, setStroke] = useState<GeoPoint[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [zoom, setZoom] = useState(17);
-  const [panStart, setPanStart] = useState<{ x: number; y: number; center: GeoPoint } | null>(null);
   const [manualCenter, setManualCenter] = useState<GeoPoint | null>(null);
   const [undoStack, setUndoStack] = useState<HoleLayoutGeometry[]>([]);
   const [redoStack, setRedoStack] = useState<HoleLayoutGeometry[]>([]);
@@ -62,6 +139,8 @@ export function HoleManager({ initialCourse }: Props) {
   const [visibility, setVisibility] = useState<Record<Layer, boolean>>({ tee: true, green: true, fairway: true, bunker: true, trees: true, ob: true });
   const [locks, setLocks] = useState<Record<Layer, boolean>>({ tee: false, green: false, fairway: false, bunker: false, trees: false, ob: false });
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const mapCanvasRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
 
   useEffect(() => {
     const seen = window.localStorage.getItem(TOOLTIP_KEY);
@@ -70,7 +149,67 @@ export function HoleManager({ initialCourse }: Props) {
 
   const hole = useMemo(() => course.holes.find((candidate) => candidate.holeNumber === selectedHole)!, [course.holes, selectedHole]);
   const center = manualCenter ?? hole.layout.teePoint ?? DEFAULT_CENTER;
-  const degreeSpan = 0.007 / Math.max(1, zoom / 10);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootMap = async () => {
+      if (!mapCanvasRef.current || mapRef.current) return;
+      const maplibre = await loadMapLibre().catch(() => null);
+      if (!maplibre?.Map || !mapCanvasRef.current || cancelled) {
+        push('MapLibre kunde inte laddas.', 'error');
+        return;
+      }
+
+      const map = new maplibre.Map({
+        container: mapCanvasRef.current,
+        style: rasterStyle,
+        center: [center.lng, center.lat],
+        zoom,
+        attributionControl: true
+      });
+
+      mapRef.current = map;
+      map.on('move', () => {
+        const movedCenter = map.getCenter();
+        setManualCenter({ lat: movedCenter.lat, lng: movedCenter.lng });
+        setZoom(map.getZoom());
+      });
+
+      map.on('load', () => {
+        map.scrollZoom.enable();
+      });
+    };
+
+    void bootMap();
+
+    return () => {
+      cancelled = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (activeTool === 'pan') {
+      map.dragPan.enable();
+      map.doubleClickZoom.enable();
+    } else {
+      map.dragPan.disable();
+      map.doubleClickZoom.disable();
+    }
+  }, [activeTool]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const targetCenter = hole.layout.teePoint ?? DEFAULT_CENTER;
+    setManualCenter(targetCenter);
+    setZoom(17);
+    map.flyTo({ center: [targetCenter.lng, targetCenter.lat], zoom: 17, essential: true });
+  }, [selectedHole]);
 
   const saveCourse = async (nextCourse: Course) => {
     courseRepo.saveAll(courseRepo.list().map((item) => (item.id === nextCourse.id ? nextCourse : item)));
@@ -98,17 +237,19 @@ export function HoleManager({ initialCourse }: Props) {
 
   const toGeo = (clientX: number, clientY: number): GeoPoint | null => {
     const rect = boardRef.current?.getBoundingClientRect();
-    if (!rect) return null;
+    const map = mapRef.current;
+    if (!rect || !map) return null;
     const x = Math.min(Math.max(clientX - rect.left, 0), rect.width);
     const y = Math.min(Math.max(clientY - rect.top, 0), rect.height);
-    return { lng: center.lng + (x / rect.width - 0.5) * degreeSpan, lat: center.lat - (y / rect.height - 0.5) * degreeSpan };
+    const next = map.unproject([x, y]);
+    return { lng: next.lng, lat: next.lat };
   };
 
   const toCanvas = (point: GeoPoint) => {
-    const rect = boardRef.current?.getBoundingClientRect();
-    const width = rect?.width ?? 1;
-    const height = rect?.height ?? 1;
-    return { x: ((point.lng - center.lng) / degreeSpan + 0.5) * width, y: ((center.lat - point.lat) / degreeSpan + 0.5) * height };
+    const map = mapRef.current;
+    if (!map) return { x: -1000, y: -1000 };
+    const projected = map.project([point.lng, point.lat]);
+    return { x: projected.x, y: projected.y };
   };
 
   const readSelectedPolygon = (): GeoPoint[] | null => {
@@ -138,11 +279,7 @@ export function HoleManager({ initialCourse }: Props) {
       push(`${activeTool.toUpperCase()} är låst`, 'error');
       return;
     }
-
-    if (activeTool === 'pan') {
-      setPanStart({ x: event.clientX, y: event.clientY, center });
-      return;
-    }
+    if (activeTool === 'pan') return;
     const geo = toGeo(event.clientX, event.clientY);
     if (!geo) return;
     setIsDrawing(true);
@@ -160,15 +297,7 @@ export function HoleManager({ initialCourse }: Props) {
       return;
     }
 
-    if (activeTool === 'pan') {
-      if (!panStart) return;
-      const rect = boardRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const dx = event.clientX - panStart.x;
-      const dy = event.clientY - panStart.y;
-      setManualCenter({ lat: panStart.center.lat - (dy / rect.height) * degreeSpan, lng: panStart.center.lng - (dx / rect.width) * degreeSpan });
-      return;
-    }
+    if (activeTool === 'pan') return;
 
     if (!isDrawing) return;
     const geo = toGeo(event.clientX, event.clientY);
@@ -246,11 +375,6 @@ export function HoleManager({ initialCourse }: Props) {
     return Math.round(length(track, { units: 'meters' }));
   }, [hole.layout.greenPolygon, hole.layout.teePoint]);
 
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  const staticMapUrl = mapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${center.lng},${center.lat},${zoom}/1600x900?access_token=${mapboxToken}`
-    : `https://staticmap.openstreetmap.de/staticmap.php?center=${center.lat},${center.lng}&zoom=${zoom}&size=1600x900&maptype=mapnik`;
-
   const drawPolygon = (polygon: GeoPoint[], color: string, key: string, onClick: () => void, selected: boolean) => {
     if (polygon.length < 3) return null;
     const points = polygon.map((p) => { const pos = toCanvas(p); return `${pos.x},${pos.y}`; }).join(' ');
@@ -305,7 +429,7 @@ export function HoleManager({ initialCourse }: Props) {
             <input placeholder="Längd" value={hole.length ?? ''} onChange={(event) => setMeta('length', event.target.value)} />
             <input placeholder="HCP" value={hole.hcpIndex ?? ''} onChange={(event) => setMeta('hcpIndex', event.target.value)} />
             <p>Tee → Green (Turf.js): <strong>{teeToGreenMeters ? `${teeToGreenMeters} m` : 'saknas data'}</strong></p>
-            <p className="small-note">Kartkälla: {mapboxToken ? 'Mapbox Static' : 'OpenStreetMap fallback'}.</p>
+            <p className="small-note">Kartkälla: MapLibre GL + OpenStreetMap.</p>
           </div>
 
           <LayerPanel
@@ -340,8 +464,11 @@ export function HoleManager({ initialCourse }: Props) {
               persistHole(next);
             }}
             onResetView={() => {
+              const nextCenter = hole.layout.teePoint ?? DEFAULT_CENTER;
+              const map = mapRef.current;
               setManualCenter(null);
               setZoom(17);
+              map?.flyTo({ center: [nextCenter.lng, nextCenter.lat], zoom: 17, essential: true });
             }}
             saveState={saveState}
             lastSavedAt={lastSavedAt}
@@ -367,9 +494,21 @@ export function HoleManager({ initialCourse }: Props) {
             onPointerUp={completeStroke}
             onPointerLeave={completeStroke}
             onDoubleClick={completeStroke}
-            style={{ backgroundImage: `url(${staticMapUrl})` }}
             tabIndex={0}
             onClick={() => setSelection(null)}
+            style={{ cursor: activeTool === 'pan' ? 'grab' : 'crosshair' }}
+            onWheel={(event) => {
+              const map = mapRef.current;
+              if (!map || !boardRef.current) return;
+              event.preventDefault();
+              const rect = boardRef.current.getBoundingClientRect();
+              const x = event.clientX - rect.left;
+              const y = event.clientY - rect.top;
+              const around = map.unproject([x, y]);
+              const delta = event.deltaY > 0 ? -0.35 : 0.35;
+              const nextZoom = Math.max(13, Math.min(20, map.getZoom() + delta));
+              map.zoomTo(nextZoom, { around, duration: 0 });
+            }}
             onKeyDown={(event) => {
               if (event.key.toLowerCase() === 'v') setActiveTool('pan');
               if (event.key.toLowerCase() === 't') setActiveTool('tee');
@@ -388,7 +527,8 @@ export function HoleManager({ initialCourse }: Props) {
               }
             }}
           >
-            <svg>
+            <div ref={mapCanvasRef} className="map-canvas" />
+            <svg style={{ pointerEvents: activeTool === 'pan' ? 'none' : 'auto' }}>
               {visibility.green ? drawPolygon(hole.layout.greenPolygon, layerPalette.green, 'green', () => setSelection({ layer: 'green', index: 0 }), selection?.layer === 'green') : null}
               {visibility.fairway ? drawPolygon(hole.layout.fairwayPolygon, layerPalette.fairway, 'fairway', () => setSelection({ layer: 'fairway', index: 0 }), selection?.layer === 'fairway') : null}
               {visibility.bunker ? hole.layout.bunkerPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.bunker, `bunker_${index}`, () => setSelection({ layer: 'bunker', index }), selection?.layer === 'bunker' && selection.index === index)) : null}
@@ -407,8 +547,16 @@ export function HoleManager({ initialCourse }: Props) {
           </div>
 
           <div className="hole-list">
-            <button className="chip" onClick={() => setZoom((z) => Math.max(13, z - 1))}>- Zoom</button>
-            <button className="chip" onClick={() => setZoom((z) => Math.min(20, z + 1))}>+ Zoom</button>
+            <button className="chip" onClick={() => {
+              const map = mapRef.current;
+              if (!map) return;
+              map.zoomTo(Math.max(13, map.getZoom() - 1));
+            }}>- Zoom</button>
+            <button className="chip" onClick={() => {
+              const map = mapRef.current;
+              if (!map) return;
+              map.zoomTo(Math.min(20, map.getZoom() + 1));
+            }}>+ Zoom</button>
             <button className="chip" disabled={!selection || selection.layer === 'tee'} onClick={insertPoint}>Insert point</button>
             <button className="chip" disabled={!selection || selection.pointIndex === undefined} onClick={deletePoint}>Delete point</button>
             <button className="chip" disabled={!selection} onClick={deleteSelected}>Delete selected</button>

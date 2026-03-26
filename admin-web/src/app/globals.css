@@ -96,14 +96,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border-radius: 12px;
   overflow: hidden;
   touch-action: none;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   min-height: 360px;
   position: relative;
 }
 .draw-board.large { min-height: 720px; }
-.draw-board svg { width: 100%; height: 100%; display: block; position: absolute; inset: 0; }
+.draw-board .map-canvas { position: absolute; inset: 0; z-index: 1; }
+.draw-board svg { width: 100%; height: 100%; display: block; position: absolute; inset: 0; z-index: 2; }
 
 .status-badge { border-radius: 999px; padding: 4px 8px; font-size: 12px; font-weight: 700; display: inline-block; }
 .status-badge.saved { background: #dcfce7; color: #166534; }
