@@ -130,6 +130,7 @@ export function HoleManager({ initialCourse }: Props) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [zoom, setZoom] = useState(17);
   const [manualCenter, setManualCenter] = useState<GeoPoint | null>(null);
+  const [userPosition, setUserPosition] = useState<GeoPoint | null>(null);
   const [undoStack, setUndoStack] = useState<HoleLayoutGeometry[]>([]);
   const [redoStack, setRedoStack] = useState<HoleLayoutGeometry[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -148,7 +149,20 @@ export function HoleManager({ initialCourse }: Props) {
   }, []);
 
   const hole = useMemo(() => course.holes.find((candidate) => candidate.holeNumber === selectedHole)!, [course.holes, selectedHole]);
-  const center = manualCenter ?? hole.layout.teePoint ?? DEFAULT_CENTER;
+  const center = manualCenter ?? userPosition ?? DEFAULT_CENTER;
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextPos = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setUserPosition(nextPos);
+        setManualCenter((prev) => prev ?? nextPos);
+      },
+      () => undefined,
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 5000 }
+    );
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,11 +219,11 @@ export function HoleManager({ initialCourse }: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const targetCenter = hole.layout.teePoint ?? DEFAULT_CENTER;
+    const targetCenter = userPosition ?? DEFAULT_CENTER;
     setManualCenter(targetCenter);
     setZoom(17);
     map.flyTo({ center: [targetCenter.lng, targetCenter.lat], zoom: 17, essential: true });
-  }, [selectedHole]);
+  }, [selectedHole, userPosition]);
 
   const saveCourse = async (nextCourse: Course) => {
     courseRepo.saveAll(courseRepo.list().map((item) => (item.id === nextCourse.id ? nextCourse : item)));
@@ -464,7 +478,7 @@ export function HoleManager({ initialCourse }: Props) {
               persistHole(next);
             }}
             onResetView={() => {
-              const nextCenter = hole.layout.teePoint ?? DEFAULT_CENTER;
+              const nextCenter = userPosition ?? DEFAULT_CENTER;
               const map = mapRef.current;
               setManualCenter(null);
               setZoom(17);
