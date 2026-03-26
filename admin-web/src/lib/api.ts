@@ -8,7 +8,7 @@ const tokenStorage = {
   clear: () => typeof window !== 'undefined' && window.localStorage.removeItem('gt_admin_token')
 };
 
-async function request<T>(path: string, options: RequestInit = {}, withAuth = true): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}, withAuth = true): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
   if (withAuth) {
@@ -27,6 +27,7 @@ async function request<T>(path: string, options: RequestInit = {}, withAuth = tr
 
 export const api = {
   tokenStorage,
+  request,
   async login(email: string, password: string) {
     const payload = await request<{ accessToken: string; refreshToken: string }>('/auth/login', {
       method: 'POST',

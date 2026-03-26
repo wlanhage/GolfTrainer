@@ -23,18 +23,21 @@ export function CourseBuilder() {
   const [overviewCourse, setOverviewCourse] = useState<Course | null>(null);
   const [form, setForm] = useState({ clubName: '', courseName: '', teeName: '', holeCount: 18 as 9 | 18 });
 
-  const reload = () => {
+  const reload = async () => {
+    setLoading(true);
     try {
-      setCourses(courseRepo.list());
+      setCourses(await courseRepo.list());
       setError(null);
     } catch {
-      setError('Kunde inte läsa lokalt sparade banor.');
+      setError('Kunde inte läsa banor från servern.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => reload(), []);
+  useEffect(() => {
+    void reload();
+  }, []);
 
   const validation = useMemo(() => ({
     clubName: form.clubName.trim().length >= 2,
@@ -44,13 +47,18 @@ export function CourseBuilder() {
 
   const canCreate = validation.clubName && validation.courseName && validation.teeName;
 
-  const create = () => {
+  const create = async () => {
     if (!canCreate) return;
-    const created = courseRepo.create({ ...form, clubName: form.clubName.trim(), courseName: form.courseName.trim(), teeName: form.teeName.trim() });
-    setForm({ clubName: '', courseName: '', teeName: '', holeCount: 18 });
-    reload();
-    push('Bana skapad', 'success');
-    router.push(`/courses/${created.id}`);
+
+    try {
+      const created = await courseRepo.create({ ...form, clubName: form.clubName.trim(), courseName: form.courseName.trim(), teeName: form.teeName.trim() });
+      setForm({ clubName: '', courseName: '', teeName: '', holeCount: 18 });
+      await reload();
+      push('Bana skapad', 'success');
+      router.push(`/courses/${created.id}`);
+    } catch {
+      push('Kunde inte skapa bana', 'error');
+    }
   };
 
   const hasLayerData = (course: Course['holes'][number]) => ({
@@ -70,7 +78,7 @@ export function CourseBuilder() {
         action={<button onClick={() => setDialogOpen(true)}>Export / Import</button>}
       />
 
-      <div className="local-banner">Data sparas lokalt i denna webbläsare.</div>
+      <div className="local-banner">Data synkas via backend och delas mellan klienter.</div>
 
       <div className="card-grid">
         <section className="card">
@@ -86,7 +94,7 @@ export function CourseBuilder() {
             <option value={9}>9 hål</option>
             <option value={18}>18 hål</option>
           </select>
-          <button disabled={!canCreate} onClick={create}>Skapa bana</button>
+          <button disabled={!canCreate} onClick={() => void create()}>Skapa bana</button>
           <div className="empty-state">
             <h3>Preview</h3>
             <p><strong>{form.courseName || 'Banans namn'}</strong> · {form.teeName || 'Tee'} · {form.holeCount} hål</p>
@@ -120,9 +128,15 @@ export function CourseBuilder() {
         courses={courses}
         onClose={() => setDialogOpen(false)}
         onImport={(payload) => {
-          courseRepo.saveAll(payload);
-          reload();
-          push('Import klar', 'success');
+          void (async () => {
+            try {
+              await courseRepo.saveAll(payload);
+              await reload();
+              push('Import klar', 'success');
+            } catch {
+              push('Import misslyckades', 'error');
+            }
+          })();
         }}
       />
 
@@ -133,10 +147,16 @@ export function CourseBuilder() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => {
           if (!deleteTarget) return;
-          courseRepo.remove(deleteTarget.id);
-          setDeleteTarget(null);
-          reload();
-          push('Bana borttagen', 'info');
+          void (async () => {
+            try {
+              await courseRepo.remove(deleteTarget.id);
+              setDeleteTarget(null);
+              await reload();
+              push('Bana borttagen', 'info');
+            } catch {
+              push('Kunde inte ta bort bana', 'error');
+            }
+          })();
         }}
       />
 

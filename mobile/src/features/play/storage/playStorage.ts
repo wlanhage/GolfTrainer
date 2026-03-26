@@ -18,6 +18,8 @@ import { createEmptyLayoutGeometry, normalizeLayoutGeometry } from '../services/
 import { resolveLayoutMappingStatus } from '../services/holeLayoutStatus';
 import { getRelativeToPar } from '../utils/roundLogic';
 import { validateCourseInput, validateHoleMetaValues } from '../utils/validation';
+import { tokenStorage } from '../../../shared/api/tokenStorage';
+import { API_BASE_URL } from '../../../shared/api/config';
 
 const PLAY_STORAGE_KEY = 'golftrainer.play.v1';
 
@@ -43,6 +45,92 @@ const resolveDerivedFromGeometry = (geometry: HoleLayoutGeometry) => {
   };
 };
 const nowIso = () => new Date().toISOString();
+
+async function requestBackend<T>(path: string, init?: RequestInit): Promise<T> {
+  const tokens = await tokenStorage.load();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string> | undefined)
+  };
+
+  if (tokens?.accessToken) {
+    headers.Authorization = `Bearer ${tokens.accessToken}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  return response.json() as Promise<T>;
+}
+
+const toLocalCourse = (course: any): Course => ({
+  id: course.id,
+  clubName: course.clubName,
+  courseName: course.courseName,
+  teeName: course.teeName ?? null,
+  holeCount: course.holeCount,
+  createdAt: typeof course.createdAt === 'string' ? course.createdAt : new Date(course.createdAt).toISOString(),
+  updatedAt: typeof course.updatedAt === 'string' ? course.updatedAt : new Date(course.updatedAt).toISOString(),
+  source: (String(course.source ?? 'manual').toLowerCase() as Course['source']),
+  isDraft: Boolean(course.isDraft),
+  localOnly: Boolean(course.localOnly),
+  syncStatus: (String(course.syncStatus ?? 'synced').toLowerCase() as Course['syncStatus'])
+});
+
+const syncCourseToLocalDb = async (course: any, includeLayouts = false): Promise<PlayDatabase> => {
+  const db = await readDatabase();
+  const normalizedCourse = toLocalCourse(course);
+  db.courses = db.courses.filter((entry) => entry.id !== normalizedCourse.id);
+  db.courses.push(normalizedCourse);
+
+  if (Array.isArray(course.holes)) {
+    db.holes = db.holes.filter((entry) => entry.courseId !== normalizedCourse.id);
+
+    const syncedHoles: Hole[] = course.holes.map((hole: any) => ({
+      id: hole.id,
+      courseId: normalizedCourse.id,
+      holeNumber: hole.holeNumber,
+      par: hole.par ?? null,
+      length: hole.length ?? null,
+      hcpIndex: hole.hcpIndex ?? null,
+      createdAt: typeof hole.createdAt === 'string' ? hole.createdAt : new Date(hole.createdAt).toISOString(),
+      updatedAt: typeof hole.updatedAt === 'string' ? hole.updatedAt : new Date(hole.updatedAt).toISOString()
+    }));
+
+    db.holes.push(...syncedHoles);
+
+    if (includeLayouts) {
+      db.holeLayouts = db.holeLayouts.filter((entry) => !syncedHoles.some((hole) => hole.id === entry.holeId));
+      for (const hole of course.holes) {
+        const geometry = normalizeLayoutGeometry(hole.layout?.geometry ?? createEmptyLayoutGeometry());
+        db.holeLayouts.push({
+          id: hole.layout?.id ?? createLocalId(`layout_${hole.holeNumber}`),
+          holeId: hole.id,
+          geometry,
+          mappingStatus: hole.layout?.mappingStatus ?? resolveLayoutMappingStatus(geometry),
+          layout_status: hole.layout?.layout_status ?? resolveLayoutMappingStatus(geometry),
+          derived: hole.layout?.derived ?? resolveDerivedFromGeometry(geometry),
+          createdAt: hole.layout?.createdAt ?? hole.createdAt ?? nowIso(),
+          updatedAt: hole.layout?.updatedAt ?? hole.updatedAt ?? nowIso()
+        });
+      }
+    }
+  }
+
+  await saveDatabase(db);
+  return db;
+};
+
 
 async function readDatabase(): Promise<PlayDatabase> {
   const raw = await AsyncStorage.getItem(PLAY_STORAGE_KEY);
@@ -75,19 +163,30 @@ async function saveDatabase(database: PlayDatabase) {
 
 export const playStorage = {
   async listCourses(search = '') {
-    const db = await readDatabase();
     const query = search.trim().toLowerCase();
 
-    return db.courses
-      .filter((course) => {
-        if (!query) return true;
-        return (
-          course.clubName.toLowerCase().includes(query) ||
-          course.courseName.toLowerCase().includes(query) ||
-          course.teeName?.toLowerCase().includes(query)
-        );
-      })
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    try {
+      const suffix = query ? `?search=${encodeURIComponent(query)}` : '';
+      const courses = await requestBackend<any[]>(`/courses${suffix}`);
+      let db = await readDatabase();
+      for (const course of courses) {
+        db = await syncCourseToLocalDb(course, false);
+      }
+
+      return courses.map(toLocalCourse).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    } catch {
+      const db = await readDatabase();
+      return db.courses
+        .filter((course) => {
+          if (!query) return true;
+          return (
+            course.clubName.toLowerCase().includes(query) ||
+            course.courseName.toLowerCase().includes(query) ||
+            course.teeName?.toLowerCase().includes(query)
+          );
+        })
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    }
   },
 
   async listInProgressRounds(): Promise<InProgressRoundSummary[]> {
@@ -112,10 +211,29 @@ export const playStorage = {
       throw new Error(error);
     }
 
-    const db = await readDatabase();
-    const timestamp = nowIso();
-    const course: Course = {
-      id: createLocalId('course'),
+    try {
+      const created = await requestBackend<any>('/courses', {
+        method: 'POST',
+        body: JSON.stringify({
+          clubName: input.clubName.trim(),
+          courseName: input.courseName.trim(),
+          teeName: input.teeName?.trim() || null,
+          holeCount: input.holeCount
+        })
+      });
+
+      await requestBackend(`/courses/${created.id}/holes`, {
+        method: 'POST',
+        body: JSON.stringify({ holeCount: input.holeCount })
+      });
+
+      await syncCourseToLocalDb(await requestBackend<any>(`/courses/${created.id}`), true);
+      return toLocalCourse(created);
+    } catch {
+      const db = await readDatabase();
+      const timestamp = nowIso();
+      const course: Course = {
+        id: createLocalId('course'),
       clubName: input.clubName.trim(),
       courseName: input.courseName.trim(),
       teeName: input.teeName?.trim() || null,
@@ -128,9 +246,10 @@ export const playStorage = {
       syncStatus: 'pending'
     };
 
-    db.courses.push(course);
-    await saveDatabase(db);
-    return course;
+      db.courses.push(course);
+      await saveDatabase(db);
+      return course;
+    }
   },
 
   async updateCourse(courseId: string, input: Partial<CreateCourseInput>) {
@@ -150,6 +269,23 @@ export const playStorage = {
       throw new Error(error);
     }
 
+    try {
+      await requestBackend(`/courses/${courseId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          clubName: nextCourse.clubName.trim(),
+          courseName: nextCourse.courseName.trim(),
+          teeName: nextCourse.teeName?.trim() || null,
+          holeCount: nextCourse.holeCount
+        })
+      });
+      const synced = await requestBackend<any>(`/courses/${courseId}`);
+      await syncCourseToLocalDb(synced, true);
+      return toLocalCourse(synced);
+    } catch {
+      // fallback to local-only update below
+    }
+
     course.clubName = nextCourse.clubName.trim();
     course.courseName = nextCourse.courseName.trim();
     course.teeName = nextCourse.teeName?.trim() || null;
@@ -161,18 +297,28 @@ export const playStorage = {
   },
 
   async getCourseWithHoles(courseId: string) {
-    const db = await readDatabase();
-    const course = db.courses.find((entry) => entry.id === courseId);
-    if (!course) return null;
+    try {
+      const synced = await requestBackend<any>(`/courses/${courseId}`);
+      const db = await syncCourseToLocalDb(synced, true);
+      const course = db.courses.find((entry) => entry.id === courseId);
+      if (!course) return null;
+      const holes = db.holes.filter((hole) => hole.courseId === courseId).sort((a, b) => a.holeNumber - b.holeNumber);
+      return { course, holes };
+    } catch {
+      const db = await readDatabase();
+      const course = db.courses.find((entry) => entry.id === courseId);
+      if (!course) return null;
 
-    const holes = db.holes
-      .filter((hole) => hole.courseId === courseId)
-      .sort((a, b) => a.holeNumber - b.holeNumber);
+      const holes = db.holes
+        .filter((hole) => hole.courseId === courseId)
+        .sort((a, b) => a.holeNumber - b.holeNumber);
 
-    return { course, holes };
+      return { course, holes };
+    }
   },
 
   async getCourseAdminDetails(courseId: string) {
+    await this.getCourseWithHoles(courseId);
     const db = await readDatabase();
     const course = db.courses.find((entry) => entry.id === courseId);
     if (!course) return null;
@@ -217,7 +363,16 @@ export const playStorage = {
   },
 
   async createHolesForCourse(courseId: string, holeCount: 9 | 18) {
-    const db = await readDatabase();
+    try {
+      await requestBackend(`/courses/${courseId}/holes`, {
+        method: 'POST',
+        body: JSON.stringify({ holeCount })
+      });
+      const synced = await requestBackend<any>(`/courses/${courseId}`);
+      const dbSynced = await syncCourseToLocalDb(synced, true);
+      return dbSynced.holes.filter((hole) => hole.courseId === courseId).sort((a, b) => a.holeNumber - b.holeNumber);
+    } catch {
+      const db = await readDatabase();
     const existing = db.holes
       .filter((hole) => hole.courseId === courseId)
       .sort((a, b) => a.holeNumber - b.holeNumber);
@@ -270,10 +425,22 @@ export const playStorage = {
 
     await saveDatabase(db);
     return allCourseHoles;
+    }
   },
 
   async updateHoleMeta(holeId: string, input: Partial<Pick<Hole, 'par' | 'length' | 'hcpIndex'>>) {
     const validationError = validateHoleMetaValues(input);
+    const existing = await this.getHoleById(holeId);
+    if (existing) {
+      try {
+        await requestBackend(`/courses/${existing.courseId}/holes/${existing.holeNumber}`, {
+          method: 'PATCH',
+          body: JSON.stringify(input)
+        });
+      } catch {
+        // local fallback below
+      }
+    }
     if (validationError) {
       throw new Error(validationError);
     }
@@ -292,6 +459,18 @@ export const playStorage = {
   },
 
   async updateHoleLayout(holeId: string, geometry: HoleLayoutGeometry) {
+    const existing = await this.getHoleById(holeId);
+    if (existing) {
+      try {
+        await requestBackend(`/courses/${existing.courseId}/holes/${existing.holeNumber}/layout`, {
+          method: 'PATCH',
+          body: JSON.stringify({ geometry })
+        });
+      } catch {
+        // local fallback below
+      }
+    }
+
     const db = await readDatabase();
     const layout = db.holeLayouts.find((entry) => entry.holeId === holeId);
     if (!layout) throw new Error('Layout hittades inte.');
@@ -515,6 +694,11 @@ export const playStorage = {
         hcpIndex: hole.holeNumber
       });
     }
+  },
+
+  async getHoleById(holeId: string) {
+    const db = await readDatabase();
+    return db.holes.find((entry) => entry.id === holeId) ?? null;
   },
 
   async clearAll() {

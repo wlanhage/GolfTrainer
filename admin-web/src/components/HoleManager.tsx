@@ -232,7 +232,15 @@ export function HoleManager({ initialCourse }: Props) {
   }, [mapReady, selectedHole, userPosition]);
 
   const saveCourse = async (nextCourse: Course) => {
-    courseRepo.saveAll(courseRepo.list().map((item) => (item.id === nextCourse.id ? nextCourse : item)));
+    const nextHole = nextCourse.holes.find((entry) => entry.holeNumber === selectedHole);
+    if (!nextHole) return;
+
+    await courseRepo.updateHole(nextCourse.id, nextHole.holeNumber, {
+      par: nextHole.par,
+      length: nextHole.length,
+      hcpIndex: nextHole.hcpIndex,
+      layout: nextHole.layout
+    });
   };
 
   const { saveState, lastSavedAt, saveNow } = useAutosave({ value: course, onSave: saveCourse, delay: 700 });

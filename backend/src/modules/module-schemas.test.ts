@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createClubSchema, updateClubSchema } from './clubs/clubs.schema.js';
+import { createCourseSchema, updateHoleLayoutSchema } from './courses/courses.schema.js';
 import { createDrillAttemptSchema } from './drill-attempts/drillAttempts.schema.js';
 import { createDrillSchema } from './drills/drills.schema.js';
 import { createSessionSchema } from './practice-sessions/practiceSessions.schema.js';
@@ -40,4 +41,19 @@ test('stats query defaults are applied', () => {
 test('user update schema rejects empty payload', () => {
   assert.equal(updateMeSchema.safeParse({}).success, false);
   assert.equal(updateMeSchema.safeParse({ displayName: 'Player' }).success, true);
+});
+
+
+test('course schemas accept valid course + layout payloads', () => {
+  assert.equal(createCourseSchema.safeParse({ clubName: 'Club', courseName: 'Course', teeName: 'White', holeCount: 18 }).success, true);
+  assert.equal(updateHoleLayoutSchema.safeParse({
+    geometry: {
+      teePoint: { lat: 59.33, lng: 18.06 },
+      greenPolygon: [{ lat: 59.33, lng: 18.07 }, { lat: 59.34, lng: 18.07 }, { lat: 59.34, lng: 18.06 }],
+      fairwayPolygon: [],
+      bunkerPolygons: [],
+      treesPolygons: [],
+      obPolygons: []
+    }
+  }).success, true);
 });
