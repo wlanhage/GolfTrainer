@@ -133,6 +133,7 @@ export function HoleManager({ initialCourse }: Props) {
   const [zoom, setZoom] = useState(17);
   const [manualCenter, setManualCenter] = useState<GeoPoint | null>(null);
   const [userPosition, setUserPosition] = useState<GeoPoint | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [undoStack, setUndoStack] = useState<HoleLayoutGeometry[]>([]);
   const [redoStack, setRedoStack] = useState<HoleLayoutGeometry[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -187,6 +188,7 @@ export function HoleManager({ initialCourse }: Props) {
       });
 
       mapRef.current = map;
+      setMapReady(true);
       map.on('move', () => {
         const movedCenter = map.getCenter();
         setManualCenter({ lat: movedCenter.lat, lng: movedCenter.lng });
@@ -204,6 +206,7 @@ export function HoleManager({ initialCourse }: Props) {
       cancelled = true;
       mapRef.current?.remove();
       mapRef.current = null;
+      setMapReady(false);
     };
   }, []);
 
@@ -226,7 +229,7 @@ export function HoleManager({ initialCourse }: Props) {
     setManualCenter(targetCenter);
     setZoom(17);
     map.flyTo({ center: [targetCenter.lng, targetCenter.lat], zoom: 17, essential: true });
-  }, [selectedHole, userPosition]);
+  }, [mapReady, selectedHole, userPosition]);
 
   const saveCourse = async (nextCourse: Course) => {
     courseRepo.saveAll(courseRepo.list().map((item) => (item.id === nextCourse.id ? nextCourse : item)));
