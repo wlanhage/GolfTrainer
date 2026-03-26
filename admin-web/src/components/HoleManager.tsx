@@ -47,6 +47,8 @@ type MapLibreCtor = new (options: {
 const MAPLIBRE_CDN_VERSION = '5.3.0';
 const MAPLIBRE_SCRIPT_ID = 'maplibre-gl-script';
 const MAPLIBRE_CSS_ID = 'maplibre-gl-css';
+const MIN_EDITOR_ZOOM = 2;
+const MAX_EDITOR_ZOOM = 20;
 
 const DEFAULT_CENTER: GeoPoint = { lat: 59.3293, lng: 18.0686 };
 const TOOLTIP_KEY = 'gt_admin_editor_seen_tooltips_v1';
@@ -520,7 +522,7 @@ export function HoleManager({ initialCourse }: Props) {
               const y = event.clientY - rect.top;
               const around = map.unproject([x, y]);
               const delta = event.deltaY > 0 ? -0.35 : 0.35;
-              const nextZoom = Math.max(13, Math.min(20, map.getZoom() + delta));
+              const nextZoom = Math.max(MIN_EDITOR_ZOOM, Math.min(MAX_EDITOR_ZOOM, map.getZoom() + delta));
               map.zoomTo(nextZoom, { around, duration: 0 });
             }}
             onKeyDown={(event) => {
@@ -564,12 +566,12 @@ export function HoleManager({ initialCourse }: Props) {
             <button className="chip" onClick={() => {
               const map = mapRef.current;
               if (!map) return;
-              map.zoomTo(Math.max(13, map.getZoom() - 1));
+              map.zoomTo(Math.max(MIN_EDITOR_ZOOM, map.getZoom() - 1));
             }}>- Zoom</button>
             <button className="chip" onClick={() => {
               const map = mapRef.current;
               if (!map) return;
-              map.zoomTo(Math.min(20, map.getZoom() + 1));
+              map.zoomTo(Math.min(MAX_EDITOR_ZOOM, map.getZoom() + 1));
             }}>+ Zoom</button>
             <button className="chip" disabled={!selection || selection.layer === 'tee'} onClick={insertPoint}>Insert point</button>
             <button className="chip" disabled={!selection || selection.pointIndex === undefined} onClick={deletePoint}>Delete point</button>
