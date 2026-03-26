@@ -8,7 +8,7 @@ export function EditorToolbar({
   onSelect,
   onUndo,
   onRedo,
-  onResetView,
+  onClearActiveLayer,
   onSaveNow,
   canUndo,
   canRedo,
@@ -19,7 +19,7 @@ export function EditorToolbar({
   onSelect: (layer: Layer) => void;
   onUndo: () => void;
   onRedo: () => void;
-  onResetView: () => void;
+  onClearActiveLayer: () => void;
   onSaveNow: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -33,10 +33,12 @@ export function EditorToolbar({
         {tools.map((tool) => <button key={tool} className={active === tool ? 'active-chip' : 'chip'} onClick={() => onSelect(tool)}>{tool.toUpperCase()}</button>)}
         <button className="chip" disabled={!canUndo} onClick={onUndo}>Undo</button>
         <button className="chip" disabled={!canRedo} onClick={onRedo}>Redo</button>
-        <button className="chip" onClick={onSaveNow}>Spara nu</button>
-        <button className="chip" onClick={onResetView}>Reset view</button>
+        <button className="chip" onClick={onClearActiveLayer}>Rensa aktivt lager</button>
       </div>
-      <SaveStatusBadge state={saveState} lastSavedAt={lastSavedAt} />
+      <div className="save-status-wrap">
+        <SaveStatusBadge state={saveState} lastSavedAt={lastSavedAt} />
+        <button className="chip" onClick={onSaveNow}>Spara nu</button>
+      </div>
     </div>
   );
 }

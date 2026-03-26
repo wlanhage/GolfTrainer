@@ -136,6 +136,7 @@ export function HoleManager({ initialCourse }: Props) {
   const [undoStack, setUndoStack] = useState<HoleLayoutGeometry[]>([]);
   const [redoStack, setRedoStack] = useState<HoleLayoutGeometry[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmResetAll, setConfirmResetAll] = useState(false);
   const [selection, setSelection] = useState<Selection>(null);
   const [dragVertex, setDragVertex] = useState<Selection>(null);
   const [showTooltips, setShowTooltips] = useState(false);
@@ -479,13 +480,7 @@ export function HoleManager({ initialCourse }: Props) {
               setUndoStack((stack) => [...stack, hole.layout]);
               persistHole(next);
             }}
-            onResetView={() => {
-              const nextCenter = userPosition ?? DEFAULT_CENTER;
-              const map = mapRef.current;
-              setManualCenter(null);
-              setZoom(17);
-              map?.flyTo({ center: [nextCenter.lng, nextCenter.lat], zoom: 17, essential: true });
-            }}
+            onClearActiveLayer={() => setConfirmClear(true)}
             onSaveNow={async () => {
               const ok = await saveNow();
               push(ok ? 'Banan sparad' : 'Kunde inte spara banan', ok ? 'success' : 'error');
@@ -577,10 +572,7 @@ export function HoleManager({ initialCourse }: Props) {
               if (!map) return;
               map.zoomTo(Math.min(MAX_EDITOR_ZOOM, map.getZoom() + 1));
             }}>+ Zoom</button>
-            <button className="chip" disabled={!selection || selection.layer === 'tee'} onClick={insertPoint}>Insert point</button>
-            <button className="chip" disabled={!selection || selection.pointIndex === undefined} onClick={deletePoint}>Delete point</button>
-            <button className="chip" disabled={!selection} onClick={deleteSelected}>Delete selected</button>
-            <button className="chip" onClick={() => setConfirmClear(true)}>Rensa aktivt lager</button>
+            <button className="chip" onClick={() => setConfirmResetAll(true)}>Reset view</button>
           </div>
         </section>
       </div>
@@ -603,6 +595,34 @@ export function HoleManager({ initialCourse }: Props) {
           if (activeTool === 'ob') next.obPolygons = [];
           persistHole(next);
           push('Lager rensat', 'info');
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmResetAll}
+        title="Reset view"
+        message="Är du säker? Detta tar bort all ritad data för hålet (tee, green, fairway, bunker, träd och OB)."
+        onCancel={() => setConfirmResetAll(false)}
+        onConfirm={() => {
+          setConfirmResetAll(false);
+          snapshotUndo();
+          const map = mapRef.current;
+          const nextCenter = userPosition ?? DEFAULT_CENTER;
+          persistHole({
+            teePoint: null,
+            greenPolygon: [],
+            fairwayPolygon: [],
+            bunkerPolygons: [],
+            treesPolygons: [],
+            obPolygons: []
+          });
+          setSelection(null);
+          setStroke([]);
+          setIsDrawing(false);
+          setManualCenter(null);
+          setZoom(17);
+          map?.flyTo({ center: [nextCenter.lng, nextCenter.lat], zoom: 17, essential: true });
+          push('Hålet har återställts', 'info');
         }}
       />
     </>
