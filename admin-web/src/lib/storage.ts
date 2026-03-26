@@ -50,6 +50,11 @@ export const courseRepo = {
     this.saveAll(updated);
     return updated.find((course) => course.id === courseId) ?? null;
   },
+  remove(courseId: string) {
+    const next = this.list().filter((course) => course.id !== courseId);
+    this.saveAll(next);
+    return next;
+  },
   find(courseId: string) {
     return this.list().find((course) => course.id === courseId) ?? null;
   },

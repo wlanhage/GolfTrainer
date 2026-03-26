@@ -1,9 +1,9 @@
 'use client';
 
-import { centroid, lineString, length } from '@turf/turf';
 import { PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useAutosave } from '../hooks/useAutosave';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { computeHoleLength } from '../lib/holeMetrics';
 import { courseRepo } from '../lib/storage';
 import { Course, GeoPoint, HoleLayoutGeometry } from '../lib/types';
 import { EditorToolbar } from './EditorToolbar';
@@ -385,12 +385,12 @@ export function HoleManager({ initialCourse }: Props) {
     persistHole(hole.layout, { [field]: parsed });
   };
 
-  const teeToGreenMeters = useMemo(() => {
-    if (!hole.layout.teePoint || hole.layout.greenPolygon.length < 3) return null;
-    const greenCenter = centroid({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [hole.layout.greenPolygon.map((p) => [p.lng, p.lat])] }, properties: {} });
-    const track = lineString([[hole.layout.teePoint.lng, hole.layout.teePoint.lat], [greenCenter.geometry.coordinates[0], greenCenter.geometry.coordinates[1]]]);
-    return Math.round(length(track, { units: 'meters' }));
-  }, [hole.layout.greenPolygon, hole.layout.teePoint]);
+  const teeToGreenMeters = useMemo(() => computeHoleLength(hole), [hole]);
+
+  useEffect(() => {
+    if (hole.length !== null || teeToGreenMeters === null) return;
+    persistHole(hole.layout, { length: teeToGreenMeters });
+  }, [hole.holeNumber, hole.layout, hole.length, teeToGreenMeters]);
 
   const drawPolygon = (polygon: GeoPoint[], color: string, key: string, onClick: () => void, selected: boolean) => {
     if (polygon.length < 3) return null;
