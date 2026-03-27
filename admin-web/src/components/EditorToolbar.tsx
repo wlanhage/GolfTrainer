@@ -10,6 +10,7 @@ export function EditorToolbar({
   onRedo,
   onClearActiveLayer,
   onSaveNow,
+  onOpenShortcuts,
   canUndo,
   canRedo,
   saveState,
@@ -21,6 +22,7 @@ export function EditorToolbar({
   onRedo: () => void;
   onClearActiveLayer: () => void;
   onSaveNow: () => void;
+  onOpenShortcuts: () => void;
   canUndo: boolean;
   canRedo: boolean;
   saveState: SaveState;
@@ -34,6 +36,7 @@ export function EditorToolbar({
         <button className="chip" disabled={!canUndo} onClick={onUndo}>Undo</button>
         <button className="chip" disabled={!canRedo} onClick={onRedo}>Redo</button>
         <button className="chip" onClick={onClearActiveLayer}>Rensa aktivt lager</button>
+        <button className="chip" onClick={onOpenShortcuts}>Shortcuts</button>
       </div>
       <div className="save-status-wrap">
         <SaveStatusBadge state={saveState} lastSavedAt={lastSavedAt} />

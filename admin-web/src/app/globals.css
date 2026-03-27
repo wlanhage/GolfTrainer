@@ -76,6 +76,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   flex-direction: column;
   gap: 10px;
 }
+.workflow-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+}
+.workflow-toggle {
+  width: 100%;
+  text-align: left;
+  background: #f8fafc;
+  color: var(--text);
+}
 .builder-panel {
   background: #fff;
   border: 1px solid var(--border);
@@ -116,6 +128,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .save-status-wrap { display: flex; align-items: center; gap: 8px; }
 .small-note { font-size: 12px; color: var(--muted); margin: 0; }
+.shortcut-panel { background: #eff6ff; border: 1px solid #bfdbfe; padding: 8px 10px; border-radius: 10px; }
+.layer-legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
 .empty-state { border: 1px dashed var(--border); border-radius: 10px; padding: 16px; background: #f8fafc; }
 .empty-state h3 { margin: 0 0 4px; }

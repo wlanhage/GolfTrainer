@@ -23,10 +23,36 @@ const emptyLayout = (): HoleLayoutGeometry => ({
   teePoint: null,
   greenPolygon: [],
   fairwayPolygon: [],
+  fairwayPolygons: [],
   bunkerPolygons: [],
   treesPolygons: [],
   obPolygons: []
 });
+
+const isGeoPoint = (value: unknown): value is { lat: number; lng: number } => {
+  if (!value || typeof value !== 'object') return false;
+  const maybe = value as { lat?: unknown; lng?: unknown };
+  return typeof maybe.lat === 'number' && typeof maybe.lng === 'number';
+};
+
+const normalizeFairways = (layout: HoleLayoutGeometry): HoleLayoutGeometry => {
+  const fairwayRaw = layout.fairwayPolygon as unknown;
+  const fairwayPolygons = Array.isArray(layout.fairwayPolygons)
+    ? layout.fairwayPolygons
+    : Array.isArray(fairwayRaw) && fairwayRaw.length > 0 && Array.isArray(fairwayRaw[0])
+      ? (fairwayRaw as unknown[][])
+          .map((polygon) => polygon.filter(isGeoPoint))
+          .filter((polygon) => polygon.length > 0)
+      : Array.isArray(fairwayRaw) && fairwayRaw.some(isGeoPoint)
+        ? [(fairwayRaw as unknown[]).filter(isGeoPoint)]
+        : [];
+
+  return {
+    ...layout,
+    fairwayPolygons,
+    fairwayPolygon: fairwayPolygons[0] ?? []
+  };
+};
 
 const toCourse = (course: ApiCourse): Course => ({
   id: course.id,
@@ -42,7 +68,7 @@ const toCourse = (course: ApiCourse): Course => ({
       par: hole.par,
       length: hole.length,
       hcpIndex: hole.hcpIndex,
-      layout: hole.layout?.geometry ?? emptyLayout()
+      layout: normalizeFairways(hole.layout?.geometry ?? emptyLayout())
     }))
 });
 

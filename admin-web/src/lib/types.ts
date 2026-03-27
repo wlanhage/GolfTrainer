@@ -52,6 +52,7 @@ export type HoleLayoutGeometry = {
   teePoint: GeoPoint | null;
   greenPolygon: GeoPoint[];
   fairwayPolygon: GeoPoint[];
+  fairwayPolygons?: GeoPoint[][];
   bunkerPolygons: GeoPoint[][];
   treesPolygons: GeoPoint[][];
   obPolygons: GeoPoint[][];

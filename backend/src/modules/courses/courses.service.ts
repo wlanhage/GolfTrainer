@@ -7,10 +7,29 @@ type GeoPoint = { lat: number; lng: number };
 type HoleLayoutGeometry = {
   teePoint: GeoPoint | null;
   greenPolygon: GeoPoint[];
-  fairwayPolygon: GeoPoint[];
+  fairwayPolygon?: GeoPoint[];
+  fairwayPolygons?: GeoPoint[][];
   bunkerPolygons: GeoPoint[][];
   treesPolygons: GeoPoint[][];
   obPolygons: GeoPoint[][];
+};
+
+const isGeoPoint = (value: unknown): value is GeoPoint => {
+  if (!value || typeof value !== 'object') return false;
+  const maybe = value as { lat?: unknown; lng?: unknown };
+  return typeof maybe.lat === 'number' && typeof maybe.lng === 'number';
+};
+
+const normalizeFairwayPolygons = (raw: unknown): GeoPoint[][] => {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  if (Array.isArray(raw[0])) {
+    return (raw as unknown[][])
+      .map((polygon) => polygon.filter(isGeoPoint))
+      .filter((polygon) => polygon.length > 0)
+      .slice(0, 3);
+  }
+  const polygon = (raw as unknown[]).filter(isGeoPoint);
+  return polygon.length > 0 ? [polygon] : [];
 };
 
 const toMobileStatus = (status: HoleLayoutMappingStatus): 'not_started' | 'partial' | 'required_complete' | 'full' => {
@@ -72,10 +91,12 @@ const mapCourse = (course: any) => ({
 });
 
 const mapHoleWithLayout = (hole: any) => {
+  const fairwayPolygons = normalizeFairwayPolygons(hole.holeLayout?.fairwayPolygon);
   const geometry = {
     teePoint: (hole.holeLayout?.teePoint as GeoPoint | null) ?? null,
     greenPolygon: (hole.holeLayout?.greenPolygon as GeoPoint[]) ?? [],
-    fairwayPolygon: (hole.holeLayout?.fairwayPolygon as GeoPoint[]) ?? [],
+    fairwayPolygons,
+    fairwayPolygon: fairwayPolygons[0] ?? [],
     bunkerPolygons: (hole.holeLayout?.bunkerPolygons as GeoPoint[][]) ?? [],
     treesPolygons: (hole.holeLayout?.treesPolygons as GeoPoint[][]) ?? [],
     obPolygons: (hole.holeLayout?.obPolygons as GeoPoint[][]) ?? []
@@ -179,10 +200,13 @@ export const coursesService = {
     const length = geometry.teePoint && greenCenter ? haversineMeters(geometry.teePoint, greenCenter) : null;
     const centerline = geometry.teePoint && greenCenter ? [geometry.teePoint, greenCenter] : [];
 
+    const fairwayPolygons = geometry.fairwayPolygons?.slice(0, 3)
+      ?? (geometry.fairwayPolygon && geometry.fairwayPolygon.length > 0 ? [geometry.fairwayPolygon] : []);
+
     return coursesRepository.updateHoleLayout(hole.id, {
       teePoint: geometry.teePoint,
       greenPolygon: geometry.greenPolygon,
-      fairwayPolygon: geometry.fairwayPolygon,
+      fairwayPolygon: fairwayPolygons,
       bunkerPolygons: geometry.bunkerPolygons,
       treesPolygons: geometry.treesPolygons,
       obPolygons: geometry.obPolygons,

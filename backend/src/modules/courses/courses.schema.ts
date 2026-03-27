@@ -12,7 +12,8 @@ const polygonSchema = z.array(geoPointSchema);
 export const holeLayoutGeometrySchema = z.object({
   teePoint: geoPointSchema.nullable(),
   greenPolygon: polygonSchema,
-  fairwayPolygon: polygonSchema,
+  fairwayPolygon: polygonSchema.optional(),
+  fairwayPolygons: z.array(polygonSchema).max(3).optional(),
   bunkerPolygons: z.array(polygonSchema),
   treesPolygons: z.array(polygonSchema),
   obPolygons: z.array(polygonSchema)
