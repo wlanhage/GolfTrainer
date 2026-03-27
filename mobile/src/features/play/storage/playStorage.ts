@@ -630,6 +630,24 @@ export const playStorage = {
     return round;
   },
 
+  async abandonRound(roundId: string, action: 'save' | 'delete') {
+    const db = await readDatabase();
+    const round = db.rounds.find((entry) => entry.id === roundId);
+    if (!round) throw new Error('Rundan hittades inte.');
+
+    if (action === 'save') {
+      round.status = 'abandoned';
+      round.finishedAt = nowIso();
+      round.syncStatus = 'pending';
+    } else {
+      db.rounds = db.rounds.filter((entry) => entry.id !== roundId);
+      db.roundHoles = db.roundHoles.filter((entry) => entry.roundId !== roundId);
+    }
+
+    await saveDatabase(db);
+    return true;
+  },
+
   async getRoundOverview(roundId: string): Promise<RoundOverview> {
     const db = await readDatabase();
     const round = db.rounds.find((entry) => entry.id === roundId);

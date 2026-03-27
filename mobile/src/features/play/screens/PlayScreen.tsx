@@ -43,11 +43,57 @@ export function PlayScreen({ navigation }: Props) {
     navigation.navigate('RoundHole', { roundId: round.roundId, holeNumber: round.currentHoleNumber });
   };
 
+  const endRound = (round: InProgressRoundSummary) => {
+    Alert.alert('Avsluta runda', 'Vill du avsluta rundan och spara eller avsluta och ta bort?', [
+      {
+        text: 'Avbryt',
+        style: 'cancel'
+      },
+      {
+        text: 'Avsluta och spara',
+        onPress: () => {
+          Alert.alert('Bekräfta avslut', 'Är du säker på att du vill avsluta och spara rundan?', [
+            { text: 'Nej', style: 'cancel' },
+            {
+              text: 'Ja',
+              style: 'destructive',
+              onPress: () => {
+                playStorage
+                  .abandonRound(round.roundId, 'save')
+                  .then(refresh)
+                  .catch(() => Alert.alert('Kunde inte avsluta rundan.'));
+              }
+            }
+          ]);
+        }
+      },
+      {
+        text: 'Avsluta och ta bort',
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert('Bekräfta borttagning', 'Är du säker på att du vill avsluta och ta bort rundan?', [
+            { text: 'Nej', style: 'cancel' },
+            {
+              text: 'Ja',
+              style: 'destructive',
+              onPress: () => {
+                playStorage
+                  .abandonRound(round.roundId, 'delete')
+                  .then(refresh)
+                  .catch(() => Alert.alert('Kunde inte ta bort rundan.'));
+              }
+            }
+          ]);
+        }
+      }
+    ]);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Spela</Text>
       <Text style={styles.subtitle}>Välj bana eller lägg till en ny direkt från flödet.</Text>
-      <InProgressRoundList rounds={inProgressRounds} onContinueRound={continueRound} />
+      <InProgressRoundList rounds={inProgressRounds} onContinueRound={continueRound} onEndRound={endRound} />
       <CourseSearchInput value={search} onChangeText={setSearch} />
       <AddCourseButton onPress={() => navigation.navigate('AddCourse')} />
       <View style={styles.listWrap}>
