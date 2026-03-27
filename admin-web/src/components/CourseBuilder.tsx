@@ -64,7 +64,7 @@ export function CourseBuilder() {
   const hasLayerData = (course: Course['holes'][number]) => ({
     tee: Boolean(course.layout.teePoint),
     green: course.layout.greenPolygon.length > 2,
-    fairway: course.layout.fairwayPolygon.length > 2,
+    fairway: (course.layout.fairwayPolygons?.some((polygon) => polygon.length > 2) ?? course.layout.fairwayPolygon.length > 2),
     bunker: course.layout.bunkerPolygons.length > 0,
     trees: course.layout.treesPolygons.length > 0,
     ob: course.layout.obPolygons.length > 0

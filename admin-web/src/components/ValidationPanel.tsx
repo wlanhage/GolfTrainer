@@ -1,10 +1,11 @@
 import { HoleLayoutGeometry } from '../lib/types';
 
 export function ValidationPanel({ layout, length }: { layout: HoleLayoutGeometry; length: number | null }) {
+  const fairwayPolygons = layout.fairwayPolygons ?? (layout.fairwayPolygon.length ? [layout.fairwayPolygon] : []);
   const items = [
     { ok: Boolean(layout.teePoint), text: 'Tee satt' },
     { ok: layout.greenPolygon.length >= 3, text: 'Green polygon finns' },
-    { ok: layout.fairwayPolygon.length >= 3, text: 'Fairway polygon finns' },
+    { ok: fairwayPolygons.some((polygon) => polygon.length >= 3), text: 'Fairway polygon finns' },
     { ok: length === null || (length > 30 && length < 900), text: 'Rimlig hållängd' }
   ];
 

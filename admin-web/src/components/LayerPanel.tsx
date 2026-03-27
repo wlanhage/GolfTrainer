@@ -16,7 +16,7 @@ export function LayerPanel({
   const rows = [
     { key: 'tee', count: layout.teePoint ? 1 : 0 },
     { key: 'green', count: layout.greenPolygon.length ? 1 : 0 },
-    { key: 'fairway', count: layout.fairwayPolygon.length ? 1 : 0 },
+    { key: 'fairway', count: layout.fairwayPolygons?.length ?? (layout.fairwayPolygon.length ? 1 : 0) },
     { key: 'bunker', count: layout.bunkerPolygons.length },
     { key: 'trees', count: layout.treesPolygons.length },
     { key: 'ob', count: layout.obPolygons.length }
