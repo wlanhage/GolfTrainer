@@ -1,5 +1,5 @@
 import { Component, type ReactNode, useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { resolveHoleAxis } from '../services/holeAxis';
 import { GeoPoint, HoleLayoutGeometry } from '../types/play';
 
@@ -27,7 +27,6 @@ class MapErrorBoundary extends Component<MapErrorBoundaryProps, { hasError: bool
 type Props = {
   geometry: HoleLayoutGeometry;
   playerPosition: GeoPoint | null;
-  useFallbackBackground?: boolean;
 };
 
 const toPolygonFeature = (id: string, polygon: GeoPoint[], color: string) => ({
@@ -57,10 +56,7 @@ const toFeatureCollection = (geometry: HoleLayoutGeometry, playerPosition: GeoPo
   return { type: 'FeatureCollection', features };
 };
 
-const FALLBACK_IMAGE_URI =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/OSM_Seattle_Mapnik.png/1024px-OSM_Seattle_Mapnik.png';
-
-export function HolePlayMap({ geometry, playerPosition, useFallbackBackground = false }: Props) {
+export function HolePlayMap({ geometry, playerPosition }: Props) {
   const [MapLibre, setMapLibre] = useState<any>(null);
   const [mapNativeFailed, setMapNativeFailed] = useState(false);
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
@@ -72,17 +68,6 @@ export function HolePlayMap({ geometry, playerPosition, useFallbackBackground = 
   const center = playerPosition ?? geometry.teePoint ?? axis?.origin ?? { lat: 59.3293, lng: 18.0686 };
 
   if (!MapLibre || mapNativeFailed) {
-    if (useFallbackBackground) {
-      return (
-        <ImageBackground source={{ uri: FALLBACK_IMAGE_URI }} resizeMode="cover" style={styles.fallbackImage}>
-          <View style={styles.fallbackBadge}>
-            <Text style={styles.fallbackTitle}>Dev fallback-karta aktiv</Text>
-            <Text style={styles.fallbackInfo}>Byt av i inställningar när MapLibre fungerar.</Text>
-          </View>
-        </ImageBackground>
-      );
-    }
-
     return (
       <View style={styles.missingWrap}>
         <Text style={styles.info}>
@@ -115,10 +100,6 @@ export function HolePlayMap({ geometry, playerPosition, useFallbackBackground = 
 }
 
 const styles = StyleSheet.create({
-  fallbackImage: { flex: 1, justifyContent: 'flex-end' },
-  fallbackBadge: { margin: 12, backgroundColor: 'rgba(15,23,42,0.75)', borderRadius: 10, padding: 10, gap: 2 },
-  fallbackTitle: { color: '#fff', fontWeight: '700' },
-  fallbackInfo: { color: '#e2e8f0', fontSize: 12 },
   missingWrap: { flex: 1, justifyContent: 'center', padding: 12, backgroundColor: '#e2e8f0' },
   info: { color: '#334155', fontSize: 12 }
 });

@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppStackParamList } from '../../../app/navigation/RootNavigator';
 import { HolePlayMap } from '../components/HolePlayMap';
 import { getDistanceToGreenMeters } from '../services/holeDistance';
@@ -20,7 +20,6 @@ export function RoundHoleScreen({ route, navigation }: Props) {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [playerPosition, setPlayerPosition] = useState<GeoPoint | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [useFallbackBackground, setUseFallbackBackground] = useState(false);
 
   const load = () => {
     playStorage.getRoundHole(roundId, holeNumber).then((result) => {
@@ -81,7 +80,7 @@ export function RoundHoleScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.mapWrap}>
-        <HolePlayMap geometry={layout} playerPosition={playerPosition} useFallbackBackground={useFallbackBackground} />
+        <HolePlayMap geometry={layout} playerPosition={playerPosition} />
       </View>
 
       <View style={styles.overlayTop}>
@@ -90,11 +89,6 @@ export function RoundHoleScreen({ route, navigation }: Props) {
         <Text style={styles.distance}>
           {distanceToGreen === null ? 'Avstånd till green: saknas layout eller GPS' : `Avstånd till green: ${Math.round(distanceToGreen)} m`}
         </Text>
-        {courseId ? (
-          <Pressable style={styles.editCourseButton} onPress={() => navigation.navigate('AdminCourseDetails', { courseId })}>
-            <Text style={styles.editCourseButtonText}>Edit course</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       <View style={styles.controls}>
@@ -114,13 +108,18 @@ export function RoundHoleScreen({ route, navigation }: Props) {
           <Pressable style={styles.modalDismissArea} onPress={() => setSettingsVisible(false)} />
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Inställningar</Text>
-            <View style={styles.toggleRow}>
-              <View style={styles.toggleTextWrap}>
-                <Text style={styles.toggleTitle}>Visa fallback-bakgrundsbild</Text>
-                <Text style={styles.toggleSubtitle}>Använd en demo-bild när kartan inte fungerar i development.</Text>
-              </View>
-              <Switch value={useFallbackBackground} onValueChange={setUseFallbackBackground} />
-            </View>
+            <Text style={styles.toggleSubtitle}>Kartvyn används alltid i fullskärm under spel.</Text>
+            {courseId ? (
+              <Pressable
+                style={styles.editViewButton}
+                onPress={() => {
+                  setSettingsVisible(false);
+                  navigation.navigate('AdminHoleEdit', { courseId, holeNumber });
+                }}
+              >
+                <Text style={styles.editViewButtonText}>Öppna edit view för hål {holeNumber}</Text>
+              </Pressable>
+            ) : null}
             <Pressable style={styles.closeButton} onPress={() => setSettingsVisible(false)}>
               <Text style={styles.closeButtonText}>Stäng</Text>
             </Pressable>
@@ -139,8 +138,6 @@ const styles = StyleSheet.create({
   holeTitle: { fontSize: 30, fontWeight: '800', color: '#fff', textShadowColor: 'rgba(15,23,42,0.7)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   holeMeta: { color: '#e2e8f0', fontWeight: '600', textShadowColor: 'rgba(15,23,42,0.7)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   distance: { color: '#fff', fontSize: 13, fontWeight: '600', textShadowColor: 'rgba(15,23,42,0.7)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
-  editCourseButton: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  editCourseButtonText: { color: '#0f172a', fontWeight: '700' },
   controls: {
     marginTop: 'auto',
     padding: 14,
@@ -177,10 +174,9 @@ const styles = StyleSheet.create({
   modalDismissArea: { flex: 1 },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 14 },
   modalTitle: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
-  toggleRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  toggleTextWrap: { flex: 1, gap: 2 },
-  toggleTitle: { fontWeight: '700', color: '#0f172a' },
   toggleSubtitle: { color: '#475569', fontSize: 12 },
+  editViewButton: { backgroundColor: '#1d4ed8', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  editViewButtonText: { color: '#fff', fontWeight: '700' },
   closeButton: { marginTop: 4, backgroundColor: '#0f766e', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   closeButtonText: { color: '#fff', fontWeight: '700' }
 });
