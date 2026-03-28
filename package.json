@@ -1,4 +1,11 @@
 {
+  "name": "golftrainer",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix backend",
+    "build": "npm --prefix backend run build",
+    "start": "npm --prefix backend start"
+  },
   "devDependencies": {
     "prisma": "^5.22.0"
   },
