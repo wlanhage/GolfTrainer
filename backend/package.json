@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "cross-env ENV_FILE=.env.supabase tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "prisma generate --schema ../prisma/schema.prisma && tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "test:watch": "tsx --test --watch \"src/**/*.test.ts\"",
