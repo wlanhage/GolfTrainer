@@ -7,6 +7,7 @@ import { AdminHoleEditScreen } from '../../features/admin/screens/AdminHoleEditS
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { RegisterScreen } from '../../features/auth/screens/RegisterScreen';
 import { CaddyClubDetailScreen } from '../../features/caddy/screens/CaddyClubDetailScreen';
+import { CaddyClubEditGridScreen } from '../../features/caddy/screens/CaddyClubEditGridScreen';
 import { CaddyClubGridScreen } from '../../features/caddy/screens/CaddyClubGridScreen';
 import { AddCourseScreen } from '../../features/play/screens/AddCourseScreen';
 import { CourseScorecardSetupScreen } from '../../features/play/screens/CourseScorecardSetupScreen';
@@ -29,6 +30,7 @@ export type AppStackParamList = {
   TrainingList: undefined;
   TrainingMission: { missionId: string };
   CaddyClubGrid: undefined;
+  CaddyClubEditGrid: undefined;
   CaddyClubDetail: { clubId: string };
   Profile: undefined;
   AdminDashboard: undefined;
@@ -106,7 +108,7 @@ export function RootNavigator() {
                 </Pressable>
               ),
               headerRight: () => (
-                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
+                <Pressable android_ripple={{ color: 'transparent' }} onPress={() => navigation.navigate('Profile')} style={styles.profileHeaderButton}>
                   <UserAvatar avatarImage={me?.profile?.avatarImage} displayName={me?.profile?.displayName} email={me?.email} size={40} />
                 </Pressable>
               )
@@ -114,11 +116,12 @@ export function RootNavigator() {
           />
           <Stack.Screen name="AddCourse" component={AddCourseScreen} options={{ title: 'Lägg till bana' }} />
           <Stack.Screen name="CourseScorecardSetup" component={CourseScorecardSetupScreen} options={{ title: 'Scorekort' }} />
-          <Stack.Screen name="RoundHole" component={RoundHoleScreen} options={{ title: 'Hål' }} />
+          <Stack.Screen name="RoundHole" component={RoundHoleScreen} options={{ headerShown: false }} />
           <Stack.Screen name="RoundOverview" component={RoundOverviewScreen} options={{ title: 'Översikt' }} />
           <Stack.Screen name="TrainingList" component={TrainingListScreen} options={{ title: 'Träning' }} />
           <Stack.Screen name="TrainingMission" component={TrainingMissionScreen} options={{ title: 'Träningsmission' }} />
           <Stack.Screen name="CaddyClubGrid" component={CaddyClubGridScreen} options={{ title: 'Caddy' }} />
+          <Stack.Screen name="CaddyClubEditGrid" component={CaddyClubEditGridScreen} options={{ title: 'Edit caddy' }} />
           <Stack.Screen name="CaddyClubDetail" component={CaddyClubDetailScreen} options={{ title: 'Klubbdata' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profil' }} />
           <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin dashboard' }} />
@@ -139,6 +142,7 @@ export function RootNavigator() {
 
 const styles = StyleSheet.create({
   headerButton: { padding: 4 },
+  profileHeaderButton: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', outlineWidth: 0 },
   headerButtonText: { fontSize: 34, lineHeight: 34 },
   menuOverlay: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(15, 23, 42, 0.2)' },
   menuScreen: { width: '75%', maxWidth: 420, padding: 20, backgroundColor: '#f8fafc', gap: 12 },

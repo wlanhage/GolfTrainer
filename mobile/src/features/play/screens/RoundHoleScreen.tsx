@@ -1,7 +1,8 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, InputAccessoryView, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppStackParamList } from '../../../app/navigation/RootNavigator';
 import { HolePlayMap } from '../components/HolePlayMap';
 import { getDistanceToGreenMeters } from '../services/holeDistance';
@@ -15,6 +16,8 @@ const scoreInputAccessoryId = 'round-hole-score-input-accessory';
 
 export function RoundHoleScreen({ route, navigation }: Props) {
   const { roundId, holeNumber } = route.params;
+  const insets = useSafeAreaInsets();
+  const scoreInputRef = useRef<TextInput>(null);
   const [roundHole, setRoundHole] = useState<RoundHole | null>(null);
   const [score, setScore] = useState('');
   const [layout, setLayout] = useState<HoleLayoutGeometry | null>(null);
@@ -87,7 +90,23 @@ export function RoundHoleScreen({ route, navigation }: Props) {
         <HolePlayMap geometry={layout} playerPosition={playerPosition} />
       </View>
 
-      <View style={styles.overlayTop}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Gå tillbaka"
+        style={[styles.backButton, { top: insets.top + 8 }]}
+        onPress={() => {
+          Keyboard.dismiss();
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+          }
+          navigation.navigate('Play');
+        }}
+      >
+        <Text style={styles.backButtonText}>‹</Text>
+      </Pressable>
+
+      <View style={[styles.overlayTop, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.holeTitle}>Hål {roundHole.holeNumber}</Text>
         <Text style={styles.holeMeta}>Par: {roundHole.parSnapshot ?? '-'} • Längd: {roundHole.lengthSnapshot ?? '-'} • HCP: {roundHole.hcpIndexSnapshot ?? '-'}</Text>
         <Text style={styles.distance}>
@@ -95,34 +114,47 @@ export function RoundHoleScreen({ route, navigation }: Props) {
         </Text>
       </View>
 
-      <View style={styles.controls}>
-        <Text style={styles.scoreLabel}>Antal slag</Text>
-        <TextInput
-          value={score}
-          onChangeText={setScore}
+      <View style={[styles.controls, { paddingBottom: Math.max(insets.bottom + 12, 18) }]}>
+        <Pressable
+          style={styles.scoreControl}
+          hitSlop={8}
+          onPress={() => {
+            setScore('');
+            scoreInputRef.current?.focus();
+          }}
+        >
+          <Text style={styles.scoreLabel}>Antal slag</Text>
+          <TextInput
+            ref={scoreInputRef}
+            value={score}
+            onChangeText={setScore}
           keyboardType="number-pad"
-          inputAccessoryViewID={Platform.OS === 'ios' ? scoreInputAccessoryId : undefined}
-          onSubmitEditing={() => Keyboard.dismiss()}
+            inputAccessoryViewID={Platform.OS === 'ios' ? scoreInputAccessoryId : undefined}
+            onFocus={() => setScore('')}
+            onPressIn={() => setScore('')}
+            onSubmitEditing={() => Keyboard.dismiss()}
           returnKeyType="done"
           blurOnSubmit
-          placeholder="0"
-          style={styles.scoreInput}
-        />
-        {Platform.OS === 'ios' ? (
-          <InputAccessoryView nativeID={scoreInputAccessoryId}>
-            <View style={styles.keyboardAccessory}>
-              <Pressable style={styles.keyboardDoneButton} onPress={() => Keyboard.dismiss()}>
-                <Text style={styles.keyboardDoneButtonText}>Klar</Text>
-              </Pressable>
-            </View>
-          </InputAccessoryView>
-        ) : null}
+            placeholder="0"
+            style={styles.scoreInput}
+          />
+        </Pressable>
         <Pressable style={styles.nextButton} onPress={() => void saveAndNext()}>
           <Text style={styles.nextButtonText}>{holeNumber >= maxHoleNumber ? 'Avsluta runda' : 'Nästa hål'}</Text>
         </Pressable>
       </View>
 
-      <Pressable style={styles.settingsFab} onPress={() => setSettingsVisible(true)}>
+      {Platform.OS === 'ios' ? (
+        <InputAccessoryView nativeID={scoreInputAccessoryId}>
+          <View style={styles.keyboardAccessory}>
+            <Pressable style={styles.keyboardDoneButton} onPress={() => Keyboard.dismiss()}>
+              <Text style={styles.keyboardDoneButtonText}>Klar</Text>
+            </Pressable>
+          </View>
+        </InputAccessoryView>
+      ) : null}
+
+      <Pressable style={[styles.settingsFab, { top: insets.top + 8 }]} onPress={() => setSettingsVisible(true)}>
         <Text style={styles.settingsFabIcon}>⚙️</Text>
       </Pressable>
 
@@ -157,27 +189,54 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   mapWrap: { ...StyleSheet.absoluteFillObject },
-  overlayTop: { paddingHorizontal: 12, paddingTop: 8, gap: 6 },
+  backButton: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 5,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.28)'
+  },
+  backButtonText: { color: '#fff', fontSize: 38, lineHeight: 40, fontWeight: '500' },
+  overlayTop: { paddingHorizontal: 12, gap: 6, marginLeft: 52, marginRight: 52 },
   holeTitle: { fontSize: 30, fontWeight: '800', color: '#fff', textShadowColor: 'rgba(15,23,42,0.7)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   holeMeta: { color: '#e2e8f0', fontWeight: '600', textShadowColor: 'rgba(15,23,42,0.7)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   distance: { color: '#fff', fontSize: 13, fontWeight: '600', textShadowColor: 'rgba(15,23,42,0.7)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   controls: {
     marginTop: 'auto',
-    padding: 14,
-    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'stretch',
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
     backgroundColor: 'rgba(15, 23, 42, 0.92)'
   },
-  scoreLabel: { color: '#e2e8f0', fontWeight: '700' },
-  scoreInput: {
-    backgroundColor: '#ffffff',
+  scoreControl: {
+    flex: 1,
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 18,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 12
+  },
+  scoreLabel: { flex: 1, color: '#0f172a', fontSize: 14, fontWeight: '800' },
+  scoreInput: {
+    minWidth: 40,
+    padding: 0,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#0f172a'
+    color: '#0f172a',
+    textAlign: 'right'
   },
   keyboardAccessory: {
     alignItems: 'flex-end',
@@ -189,15 +248,15 @@ const styles = StyleSheet.create({
   },
   keyboardDoneButton: { paddingHorizontal: 14, paddingVertical: 8 },
   keyboardDoneButtonText: { color: '#0f766e', fontSize: 16, fontWeight: '800' },
-  nextButton: { backgroundColor: '#0f766e', borderRadius: 12, alignItems: 'center', paddingVertical: 14 },
+  nextButton: { flex: 1, minHeight: 46, backgroundColor: '#0f766e', borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
   nextButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   settingsFab: {
     position: 'absolute',
     right: 14,
-    bottom: 108,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    zIndex: 5,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center'

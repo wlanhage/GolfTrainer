@@ -2,12 +2,12 @@ export const CADDY_RESULT_TAG = 'CADDY_CLUB';
 
 export const CADDY_CLUBS = [
   { key: 'driver', label: 'Driver' },
-  { key: 'fairway-7', label: 'Fairway 7' },
-  { key: 'fairway-5', label: 'Fairway 5' },
   { key: 'fairway-3', label: 'Fairway 3' },
-  { key: 'hybrid-5', label: 'Hybrid 5' },
-  { key: 'hybrid-4', label: 'Hybrid 4' },
+  { key: 'fairway-5', label: 'Fairway 5' },
+  { key: 'fairway-7', label: 'Fairway 7' },
   { key: 'hybrid-3', label: 'Hybrid 3' },
+  { key: 'hybrid-4', label: 'Hybrid 4' },
+  { key: 'hybrid-5', label: 'Hybrid 5' },
   { key: 'iron-3', label: 'Järn 3' },
   { key: 'iron-4', label: 'Järn 4' },
   { key: 'iron-5', label: 'Järn 5' },

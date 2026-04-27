@@ -27,6 +27,7 @@ export type CaddyClubSummary = {
   trimmedSampleCount: number;
   trimPercentEachSide: number;
   distanceMeters?: number;
+  lateralOffsetMeters?: number;
   dispersionMeters?: number;
   peakHeightMeters?: number;
   spinRpm?: number;

@@ -141,6 +141,7 @@ export const caddyService = {
         trimmedSampleCount: trimmedDistances.length,
         trimPercentEachSide: clubShots.length > 20 ? 5 : 0,
         distanceMeters: average(trimmedDistances),
+        lateralOffsetMeters: average(trimmedOffsets),
         dispersionMeters:
           trimmedOffsets.length > 0 ? Math.max(...trimmedOffsets) - Math.min(...trimmedOffsets) : undefined,
         peakHeightMeters: average(trimmedHeights),

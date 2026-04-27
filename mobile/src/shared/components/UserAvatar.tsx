@@ -11,7 +11,7 @@ export function UserAvatar({ avatarImage, displayName, email, size = 40 }: UserA
   const initial = (displayName ?? email ?? 'G').trim().charAt(0).toUpperCase();
 
   if (avatarImage) {
-    return <Image source={{ uri: avatarImage }} style={[styles.avatarImage, { width: size, height: size, borderRadius: size / 2 }]} />;
+    return <Image source={{ uri: avatarImage }} style={[styles.avatarImage, { width: size, height: size }]} />;
   }
 
   return (
@@ -22,9 +22,7 @@ export function UserAvatar({ avatarImage, displayName, email, size = 40 }: UserA
 }
 
 const styles = StyleSheet.create({
-  avatarImage: {
-    backgroundColor: '#d1d5db'
-  },
+  avatarImage: {},
   avatarFallback: {
     backgroundColor: '#1f2937',
     alignItems: 'center',

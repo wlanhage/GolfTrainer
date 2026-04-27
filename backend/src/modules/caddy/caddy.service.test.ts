@@ -29,6 +29,7 @@ test('caddyService applies 5% trim per side for clubs with more than 20 shots', 
   assert.equal(driver?.trimPercentEachSide, 5);
   assert.equal(driver?.trimmedSampleCount, 19);
   assert.equal(driver?.distanceMeters, 200);
+  assert.equal(driver?.lateralOffsetMeters, 10);
 
   repo.listShotsByUser = originalList;
 });
