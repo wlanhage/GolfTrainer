@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, InputAccessoryView, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppStackParamList } from '../../../app/navigation/RootNavigator';
 import { HolePlayMap } from '../components/HolePlayMap';
 import { getDistanceToGreenMeters } from '../services/holeDistance';
@@ -10,6 +10,8 @@ import { GeoPoint, HoleLayoutGeometry, RoundHole } from '../types/play';
 import { parseStrokes } from '../utils/validation';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'RoundHole'>;
+
+const scoreInputAccessoryId = 'round-hole-score-input-accessory';
 
 export function RoundHoleScreen({ route, navigation }: Props) {
   const { roundId, holeNumber } = route.params;
@@ -60,6 +62,8 @@ export function RoundHoleScreen({ route, navigation }: Props) {
   }
 
   const saveAndNext = async () => {
+    Keyboard.dismiss();
+
     const parsedStrokes = parseStrokes(score);
     if (score.trim() && parsedStrokes === null) {
       return Alert.alert('Felaktigt resultat', 'Ange ett heltal som är 0 eller större.');
@@ -93,7 +97,26 @@ export function RoundHoleScreen({ route, navigation }: Props) {
 
       <View style={styles.controls}>
         <Text style={styles.scoreLabel}>Antal slag</Text>
-        <TextInput value={score} onChangeText={setScore} keyboardType="number-pad" placeholder="0" style={styles.scoreInput} />
+        <TextInput
+          value={score}
+          onChangeText={setScore}
+          keyboardType="number-pad"
+          inputAccessoryViewID={Platform.OS === 'ios' ? scoreInputAccessoryId : undefined}
+          onSubmitEditing={() => Keyboard.dismiss()}
+          returnKeyType="done"
+          blurOnSubmit
+          placeholder="0"
+          style={styles.scoreInput}
+        />
+        {Platform.OS === 'ios' ? (
+          <InputAccessoryView nativeID={scoreInputAccessoryId}>
+            <View style={styles.keyboardAccessory}>
+              <Pressable style={styles.keyboardDoneButton} onPress={() => Keyboard.dismiss()}>
+                <Text style={styles.keyboardDoneButtonText}>Klar</Text>
+              </Pressable>
+            </View>
+          </InputAccessoryView>
+        ) : null}
         <Pressable style={styles.nextButton} onPress={() => void saveAndNext()}>
           <Text style={styles.nextButtonText}>{holeNumber >= maxHoleNumber ? 'Avsluta runda' : 'Nästa hål'}</Text>
         </Pressable>
@@ -156,6 +179,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0f172a'
   },
+  keyboardAccessory: {
+    alignItems: 'flex-end',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8
+  },
+  keyboardDoneButton: { paddingHorizontal: 14, paddingVertical: 8 },
+  keyboardDoneButtonText: { color: '#0f766e', fontSize: 16, fontWeight: '800' },
   nextButton: { backgroundColor: '#0f766e', borderRadius: 12, alignItems: 'center', paddingVertical: 14 },
   nextButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   settingsFab: {
