@@ -8,19 +8,17 @@ npm --prefix backend run dev:local
 npm --prefix backend run dev
 ```
 
-### 2 Start admin web
+### 2 Start mobile
 
 ```bash
-# backend against local DB
-npm --prefix backend run dev:local
-
-# backend against supabase DB
-npm --prefix backend run dev
+# start mobile frontend
+npm --prefix mobile start
 ```
 
-### 3 Start mobile frontend
+### 3 Start admin 
 
 ```bash
+# start admin web frontend
 cd admin-web
 npm run dev
 ```
