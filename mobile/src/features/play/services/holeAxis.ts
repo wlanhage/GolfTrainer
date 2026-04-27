@@ -60,3 +60,17 @@ export const toHoleLocalCoordinates = (origin: GeoPoint, bearing: number, point:
     lateral: -deltaX * Math.sin(theta) + deltaY * Math.cos(theta)
   };
 };
+
+export const fromHoleLocalCoordinates = (origin: GeoPoint, bearing: number, forward: number, lateral: number): GeoPoint => {
+  const metersPerLat = 111320;
+  const metersPerLng = 111320 * Math.cos(toRadians(origin.lat));
+  const theta = toRadians(90 - bearing);
+
+  const deltaX = forward * Math.cos(theta) - lateral * Math.sin(theta);
+  const deltaY = forward * Math.sin(theta) + lateral * Math.cos(theta);
+
+  return {
+    lat: origin.lat + deltaY / metersPerLat,
+    lng: origin.lng + deltaX / metersPerLng
+  };
+};

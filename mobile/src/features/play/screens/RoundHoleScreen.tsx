@@ -1,10 +1,14 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, InputAccessoryView, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, InputAccessoryView, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppStackParamList } from '../../../app/navigation/RootNavigator';
-import { HolePlayMap } from '../components/HolePlayMap';
+import { useCaddyApi } from '../../caddy/api/caddyApi';
+import { caddyClubs } from '../../caddy/data/caddyClubs';
+import { CaddyClubSummary, CaddyShot } from '../../caddy/types/caddy';
+import { CaddyMapHeatmap, HolePlayMap } from '../components/HolePlayMap';
+import { resolveHoleAxis } from '../services/holeAxis';
 import { getDistanceToGreenMeters } from '../services/holeDistance';
 import { playStorage } from '../storage/playStorage';
 import { GeoPoint, HoleLayoutGeometry, RoundHole } from '../types/play';
@@ -13,10 +17,13 @@ import { parseStrokes } from '../utils/validation';
 type Props = NativeStackScreenProps<AppStackParamList, 'RoundHole'>;
 
 const scoreInputAccessoryId = 'round-hole-score-input-accessory';
+const HEATMAP_GRID_SIZE = 7;
+const HEATMAP_BIN_SIZE_METERS = 10;
 
 export function RoundHoleScreen({ route, navigation }: Props) {
   const { roundId, holeNumber } = route.params;
   const insets = useSafeAreaInsets();
+  const caddyApi = useCaddyApi();
   const scoreInputRef = useRef<TextInput>(null);
   const [roundHole, setRoundHole] = useState<RoundHole | null>(null);
   const [score, setScore] = useState('');
@@ -25,6 +32,10 @@ export function RoundHoleScreen({ route, navigation }: Props) {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [playerPosition, setPlayerPosition] = useState<GeoPoint | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [heatmapVisible, setHeatmapVisible] = useState(false);
+  const [selectedHeatmapClubId, setSelectedHeatmapClubId] = useState('driver');
+  const [caddySummaries, setCaddySummaries] = useState<CaddyClubSummary[]>([]);
+  const [heatmapShots, setHeatmapShots] = useState<CaddyShot[]>([]);
 
   const load = () => {
     playStorage.getRoundHole(roundId, holeNumber).then((result) => {
@@ -51,10 +62,86 @@ export function RoundHoleScreen({ route, navigation }: Props) {
       .catch(() => setPlayerPosition(null));
   }, [holeNumber]);
 
+  useEffect(() => {
+    if (!heatmapVisible) return;
+
+    let active = true;
+
+    const run = async () => {
+      const [summaries, shots] = await Promise.all([
+        caddyApi.listClubSummaries(),
+        caddyApi.listShotsForClub(selectedHeatmapClubId)
+      ]);
+
+      if (active) {
+        setCaddySummaries(summaries);
+        setHeatmapShots(shots);
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [caddyApi, heatmapVisible, selectedHeatmapClubId]);
+
   const distanceToGreen = useMemo(() => {
     if (!layout || !playerPosition) return null;
     return getDistanceToGreenMeters(playerPosition, layout);
   }, [layout, playerPosition]);
+
+  const caddyHeatmap = useMemo<CaddyMapHeatmap | null>(() => {
+    if (!heatmapVisible || !layout) return null;
+
+    const axis = resolveHoleAxis(layout);
+    const origin = playerPosition ?? layout.teePoint ?? axis?.origin;
+    if (!axis || !origin || heatmapShots.length === 0) return null;
+
+    const selectedSummary = caddySummaries.find((item) => item.clubKey === selectedHeatmapClubId);
+    const centerDistance =
+      selectedSummary?.distanceMeters ??
+      heatmapShots.reduce((sum, shot) => sum + shot.distanceMeters, 0) / heatmapShots.length;
+
+    const half = Math.floor(HEATMAP_GRID_SIZE / 2);
+    const counts = new Map<string, { lateralBin: number; forwardBin: number; count: number }>();
+
+    for (const shot of heatmapShots) {
+      const lateralBin = Math.max(-half, Math.min(half, Math.round(shot.lateralOffsetMeters / HEATMAP_BIN_SIZE_METERS)));
+      const forwardBin = Math.max(-half, Math.min(half, Math.round((shot.distanceMeters - centerDistance) / HEATMAP_BIN_SIZE_METERS)));
+      const id = `${forwardBin}:${lateralBin}`;
+      const current = counts.get(id);
+      counts.set(id, { lateralBin, forwardBin, count: (current?.count ?? 0) + 1 });
+    }
+
+    const maxCount = Math.max(...Array.from(counts.values()).map((cell) => cell.count), 1);
+    const total = heatmapShots.length;
+
+    return {
+      origin,
+      bearing: axis.bearing,
+      cells: Array.from(counts.values()).map((cell) => ({
+        id: `${selectedHeatmapClubId}-${cell.forwardBin}-${cell.lateralBin}`,
+        forwardMeters: centerDistance + cell.forwardBin * HEATMAP_BIN_SIZE_METERS,
+        lateralMeters: cell.lateralBin * HEATMAP_BIN_SIZE_METERS,
+        count: cell.count,
+        percentage: Math.round((cell.count / total) * 100),
+        intensity: cell.count / maxCount
+      }))
+    };
+  }, [caddySummaries, heatmapShots, heatmapVisible, layout, playerPosition, selectedHeatmapClubId]);
+
+  const heatmapClubsWithData = useMemo(() => {
+    const clubKeysWithData = new Set(caddySummaries.filter((summary) => summary.sampleCount > 0).map((summary) => summary.clubKey));
+    return caddyClubs.filter((club) => clubKeysWithData.has(club.id));
+  }, [caddySummaries]);
+
+  useEffect(() => {
+    if (!heatmapVisible || heatmapClubsWithData.length === 0) return;
+    if (heatmapClubsWithData.some((club) => club.id === selectedHeatmapClubId)) return;
+
+    setSelectedHeatmapClubId(heatmapClubsWithData[0].id);
+  }, [heatmapClubsWithData, heatmapVisible, selectedHeatmapClubId]);
 
   if (!roundHole || !layout) {
     return (
@@ -87,7 +174,7 @@ export function RoundHoleScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.mapWrap}>
-        <HolePlayMap geometry={layout} playerPosition={playerPosition} />
+        <HolePlayMap geometry={layout} playerPosition={playerPosition} caddyHeatmap={caddyHeatmap} />
       </View>
 
       <Pressable
@@ -158,6 +245,33 @@ export function RoundHoleScreen({ route, navigation }: Props) {
         <Text style={styles.settingsFabIcon}>⚙️</Text>
       </Pressable>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Visa caddy heatmap"
+        style={[styles.heatmapFab, heatmapVisible && styles.heatmapFabActive, { top: insets.top + 60 }]}
+        onPress={() => setHeatmapVisible((visible) => !visible)}
+      >
+        <Text style={[styles.heatmapFabIcon, heatmapVisible && styles.heatmapFabIconActive]}>▦</Text>
+      </Pressable>
+
+      {heatmapVisible ? (
+        <ScrollView
+          style={[styles.heatmapClubRail, { top: insets.top + 112 }]}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.clubPicker}
+        >
+          {heatmapClubsWithData.map((club) => (
+            <Pressable
+              key={club.id}
+              style={[styles.clubPill, club.id === selectedHeatmapClubId && styles.clubPillActive]}
+              onPress={() => setSelectedHeatmapClubId(club.id)}
+            >
+              <Text style={[styles.clubPillText, club.id === selectedHeatmapClubId && styles.clubPillTextActive]}>{getCaddyClubShortLabel(club.id)}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
       <Modal animationType="slide" transparent visible={settingsVisible} onRequestClose={() => setSettingsVisible(false)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={styles.modalDismissArea} onPress={() => setSettingsVisible(false)} />
@@ -184,6 +298,19 @@ export function RoundHoleScreen({ route, navigation }: Props) {
     </View>
   );
 }
+
+const getCaddyClubShortLabel = (clubId: string) => {
+  if (clubId === 'driver') return 'D';
+  if (clubId.startsWith('fairway-')) return `F${clubId.replace('fairway-', '')}`;
+  if (clubId.startsWith('hybrid-')) return `H${clubId.replace('hybrid-', '')}`;
+  if (clubId.startsWith('iron-')) return `J${clubId.replace('iron-', '')}`;
+  if (clubId === 'pitch') return 'P';
+  if (clubId === 'gap-wedge') return 'G';
+  if (clubId === 'sand-wedge') return 'S';
+  if (clubId === 'lob-wedge') return 'L';
+
+  return clubId.slice(0, 1).toUpperCase();
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a' },
@@ -262,6 +389,62 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   settingsFabIcon: { fontSize: 24 },
+  heatmapFab: {
+    position: 'absolute',
+    right: 14,
+    zIndex: 5,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  heatmapFabActive: {
+    backgroundColor: '#16a34a'
+  },
+  heatmapFabIcon: {
+    color: '#0f172a',
+    fontSize: 27,
+    lineHeight: 30,
+    fontWeight: '900'
+  },
+  heatmapFabIconActive: {
+    color: '#ffffff'
+  },
+  heatmapClubRail: {
+    position: 'absolute',
+    right: 14,
+    bottom: 96,
+    zIndex: 4,
+    width: 44
+  },
+  clubPicker: {
+    gap: 7,
+    paddingVertical: 2
+  },
+  clubPill: {
+    width: 44,
+    height: 34,
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#cbd5e1'
+  },
+  clubPillActive: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a'
+  },
+  clubPillText: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  clubPillTextActive: {
+    color: '#ffffff'
+  },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
   modalDismissArea: { flex: 1 },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 14 },

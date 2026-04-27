@@ -1,6 +1,6 @@
 import { Component, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { resolveHoleAxis } from '../services/holeAxis';
+import { fromHoleLocalCoordinates, resolveHoleAxis } from '../services/holeAxis';
 import { GeoPoint, HoleLayoutGeometry } from '../types/play';
 
 function getMapLibre(): any {
@@ -27,6 +27,22 @@ class MapErrorBoundary extends Component<MapErrorBoundaryProps, { hasError: bool
 type Props = {
   geometry: HoleLayoutGeometry;
   playerPosition: GeoPoint | null;
+  caddyHeatmap?: CaddyMapHeatmap | null;
+};
+
+export type CaddyMapHeatmap = {
+  origin: GeoPoint;
+  bearing: number;
+  cells: CaddyMapHeatmapCell[];
+};
+
+export type CaddyMapHeatmapCell = {
+  id: string;
+  forwardMeters: number;
+  lateralMeters: number;
+  count: number;
+  percentage: number;
+  intensity: number;
 };
 
 const toPolygonFeature = (id: string, polygon: GeoPoint[], color: string) => ({
@@ -56,10 +72,51 @@ const toFeatureCollection = (geometry: HoleLayoutGeometry, playerPosition: GeoPo
   return { type: 'FeatureCollection', features };
 };
 
-export function HolePlayMap({ geometry, playerPosition }: Props) {
+const toHeatmapFeatureCollection = (heatmap: CaddyMapHeatmap | null | undefined) => {
+  if (!heatmap) {
+    return { type: 'FeatureCollection', features: [] };
+  }
+
+  const cellSizeMeters = 10;
+  const halfCell = cellSizeMeters / 2;
+
+  const features = heatmap.cells.map((cell) => {
+    const corners = [
+      { forward: cell.forwardMeters - halfCell, lateral: cell.lateralMeters - halfCell },
+      { forward: cell.forwardMeters - halfCell, lateral: cell.lateralMeters + halfCell },
+      { forward: cell.forwardMeters + halfCell, lateral: cell.lateralMeters + halfCell },
+      { forward: cell.forwardMeters + halfCell, lateral: cell.lateralMeters - halfCell },
+      { forward: cell.forwardMeters - halfCell, lateral: cell.lateralMeters - halfCell }
+    ];
+
+    return {
+      type: 'Feature',
+      id: cell.id,
+      properties: {
+        count: cell.count,
+        percentage: `${cell.percentage}%`,
+        intensity: cell.intensity
+      },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          corners.map((corner) => {
+            const point = fromHoleLocalCoordinates(heatmap.origin, heatmap.bearing, corner.forward, corner.lateral);
+            return [point.lng, point.lat];
+          })
+        ]
+      }
+    };
+  });
+
+  return { type: 'FeatureCollection', features };
+};
+
+export function HolePlayMap({ geometry, playerPosition, caddyHeatmap }: Props) {
   const [MapLibre, setMapLibre] = useState<any>(null);
   const [mapNativeFailed, setMapNativeFailed] = useState(false);
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
+  const heatmapShape = useMemo(() => toHeatmapFeatureCollection(caddyHeatmap), [caddyHeatmap]);
 
   useEffect(() => {
     setMapLibre(getMapLibre());
@@ -93,6 +150,40 @@ export function HolePlayMap({ geometry, playerPosition }: Props) {
         <MapLibre.ShapeSource id="hole-play-shapes" shape={toFeatureCollection(geometry, playerPosition)}>
           <MapLibre.FillLayer id="hole-play-fill" style={{ fillColor: ['get', 'color'] }} />
           <MapLibre.CircleLayer id="hole-play-points" style={{ circleColor: ['get', 'color'], circleRadius: 6 }} />
+        </MapLibre.ShapeSource>
+        <MapLibre.ShapeSource id="caddy-heatmap" shape={heatmapShape}>
+          <MapLibre.FillLayer
+            id="caddy-heatmap-fill"
+            style={{
+              fillColor: [
+                'interpolate',
+                ['linear'],
+                ['get', 'intensity'],
+                0,
+                '#f1f5f9',
+                0.25,
+                '#f0f1d9',
+                0.5,
+                '#dfee9a',
+                0.75,
+                '#bbeb6c',
+                1,
+                '#22c55e'
+              ],
+              fillOpacity: 0.72,
+              fillOutlineColor: '#14532d'
+            }}
+          />
+          <MapLibre.SymbolLayer
+            id="caddy-heatmap-labels"
+            style={{
+              textField: ['get', 'percentage'],
+              textSize: 11,
+              textColor: '#0f172a',
+              textHaloColor: '#ffffff',
+              textHaloWidth: 1
+            }}
+          />
         </MapLibre.ShapeSource>
       </MapLibre.MapView>
     </MapErrorBoundary>
