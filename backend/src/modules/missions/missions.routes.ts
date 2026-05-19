@@ -13,4 +13,7 @@ export async function missionsRoutes(app: FastifyInstance) {
 
   app.get('/', missionsController.list);
   app.get('/:missionId', missionsController.getById);
+
+  app.post('/:missionId/entries', missionsController.submitEntry);
+  app.get('/:missionId/my-history', missionsController.myHistory);
 }

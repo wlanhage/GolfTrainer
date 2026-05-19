@@ -1,5 +1,10 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { missionIdParamSchema, adminCreateMissionSchema, adminUpdateMissionSchema } from './missions.schema.js';
+import {
+  adminCreateMissionSchema,
+  adminUpdateMissionSchema,
+  missionIdParamSchema,
+  submitMissionEntrySchema
+} from './missions.schema.js';
 import { missionsService } from './missions.service.js';
 
 export const missionsController = {
@@ -36,5 +41,18 @@ export const missionsController = {
     const { missionId } = missionIdParamSchema.parse(request.params);
     await missionsService.removeByAdmin(missionId);
     return reply.code(204).send();
+  },
+
+  async submitEntry(request: FastifyRequest, reply: FastifyReply) {
+    const { missionId } = missionIdParamSchema.parse(request.params);
+    const { score, notes } = submitMissionEntrySchema.parse(request.body);
+    const result = await missionsService.submitEntry(request.auth!.userId, missionId, score, notes);
+    return reply.code(201).send(result);
+  },
+
+  async myHistory(request: FastifyRequest, reply: FastifyReply) {
+    const { missionId } = missionIdParamSchema.parse(request.params);
+    const result = await missionsService.getMyHistory(request.auth!.userId, missionId);
+    return reply.send(result);
   }
 };

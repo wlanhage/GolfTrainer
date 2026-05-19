@@ -1,0 +1,14 @@
+import { FastifyInstance } from 'fastify';
+import { requireAuth } from '../../common/middleware/auth.middleware.js';
+import { roundsController } from './rounds.controller.js';
+
+export async function roundsRoutes(app: FastifyInstance) {
+  app.addHook('preHandler', requireAuth);
+
+  app.get('/', roundsController.list);
+  app.post('/', roundsController.create);
+  app.get('/:roundId', roundsController.getById);
+  app.patch('/:roundId', roundsController.update);
+  app.delete('/:roundId', roundsController.remove);
+  app.patch('/:roundId/holes/:holeNumber', roundsController.updateHole);
+}

@@ -14,6 +14,7 @@ import { caddyRoutes } from './modules/caddy/caddy.routes.js';
 import { missionsRoutes } from './modules/missions/missions.routes.js';
 import { followsRoutes } from './modules/follows/follows.routes.js';
 import { coursesRoutes } from './modules/courses/courses.routes.js';
+import { roundsRoutes } from './modules/rounds/rounds.routes.js';
 
 export const buildApp = () => {
   const app = Fastify({ logger: true });
@@ -31,7 +32,9 @@ export const buildApp = () => {
         'http://localhost:8081',  // Alternative dev ports
         'http://localhost:8082',
         'http://localhost:3001', // Admin web default dev port
-        'http://127.0.0.1:3001'
+        'http://127.0.0.1:3001',
+        'http://localhost:3002', // Webbapp dev port
+        'http://127.0.0.1:3002'
       ];
 
       if (allowedOrigins.includes(origin)) {
@@ -55,6 +58,7 @@ export const buildApp = () => {
   app.register(missionsRoutes, { prefix: '/api/v1/missions' });
   app.register(followsRoutes, { prefix: '/api/v1/follows' });
   app.register(coursesRoutes, { prefix: '/api/v1/courses' });
+  app.register(roundsRoutes, { prefix: '/api/v1/rounds' });
 
   app.setErrorHandler((err, request, reply) => {
     request.log.error({ err }, 'request_failed');

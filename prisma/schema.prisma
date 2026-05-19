@@ -60,6 +60,11 @@ enum MissionScoreInputType {
   MANUAL_NUMBER
 }
 
+enum MissionScoreDirection {
+  DESC
+  ASC
+}
+
 enum MissionStatus {
   DRAFT
   PUBLISHED
@@ -399,6 +404,7 @@ model MissionTemplate {
   objective       String
   scoreLabel      String
   scoreInputType  MissionScoreInputType
+  scoreDirection  MissionScoreDirection @default(DESC)
   stepperMin      Int?
   stepperMax      Int?
   defaultScore    Decimal?              @db.Decimal(8, 2)

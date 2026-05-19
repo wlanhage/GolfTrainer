@@ -42,5 +42,11 @@ export const adminUpdateUserSchema = z
 
 export const userIdParamSchema = z.object({ userId: z.string().cuid() });
 
+export const userSearchQuerySchema = z.object({
+  q: z.string().min(1).max(120),
+  limit: z.coerce.number().int().min(1).max(50).default(20)
+});
+
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>;
+export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;

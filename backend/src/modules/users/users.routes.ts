@@ -6,6 +6,10 @@ import { usersController } from './users.controller.js';
 export async function usersRoutes(app: FastifyInstance) {
   app.get('/me', { preHandler: [requireAuth] }, usersController.me);
   app.patch('/me', { preHandler: [requireAuth] }, usersController.updateMe);
+  app.get('/me/stats', { preHandler: [requireAuth] }, usersController.myStats);
+
+  app.get('/search', { preHandler: [requireAuth] }, usersController.search);
+  app.get('/profiles/:userId', { preHandler: [requireAuth] }, usersController.getPublicProfile);
 
   app.get('/', { preHandler: [requireAuth, requireAdmin] }, usersController.adminList);
   app.patch('/:userId', { preHandler: [requireAuth, requireAdmin] }, usersController.adminUpdateById);

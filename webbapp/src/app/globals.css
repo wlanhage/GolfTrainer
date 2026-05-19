@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background-color: #ffffff;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] { -moz-appearance: textfield; }
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white font-bold rounded-xl py-3 px-4 transition active:opacity-80 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply bg-white text-primary font-bold rounded-xl py-3 px-4 border-2 border-primary transition active:bg-primary/5 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply bg-white text-ink font-semibold rounded-xl py-3 px-4 border border-border transition active:bg-slate-50;
+  }
+  .btn-danger {
+    @apply bg-danger text-white font-bold rounded-xl py-3 px-4 transition active:opacity-80;
+  }
+  .card {
+    @apply bg-white border border-border rounded-2xl p-4;
+  }
+  .card-primary {
+    @apply bg-primary text-white rounded-2xl p-4 shadow-md;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold;
+  }
+  .chip-primary {
+    @apply chip bg-primary text-white;
+  }
+  .chip-soft {
+    @apply chip bg-primary-soft text-primary;
+  }
+  .input {
+    @apply border border-border rounded-xl bg-white px-3 py-3 text-base focus:outline-none focus:border-primary;
+  }
+}

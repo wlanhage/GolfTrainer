@@ -32,5 +32,38 @@ export const usersService = {
     const user = await usersRepository.updateUserById(userId, input);
     if (!user) throw new NotFoundError('User not found');
     return toUserView(user);
+  },
+
+  async searchByDisplayName(query: string, viewerUserId: string, limit: number) {
+    const rows = await usersRepository.searchByDisplayName(query, viewerUserId, limit);
+    return rows.map((user) => ({
+      id: user.id,
+      displayName: user.profile?.displayName ?? 'Golfer',
+      avatarImage: user.profile?.avatarImage ?? null,
+      homeClub: user.profile?.homeClub ?? null,
+      handicap: user.profile?.handicap ?? null,
+      dominantHand: user.profile?.dominantHand ?? null
+    }));
+  },
+
+  async getMyStats(userId: string) {
+    return usersRepository.getMyStats(userId);
+  },
+
+  async getPublicProfile(userId: string) {
+    const user = await usersRepository.getPublicProfile(userId);
+    if (!user) throw new NotFoundError('User not found');
+
+    const favoriteClub = await usersRepository.getTopCaddyClubLabel(userId);
+
+    return {
+      id: user.id,
+      displayName: user.profile?.displayName ?? 'Golfer',
+      avatarImage: user.profile?.avatarImage ?? null,
+      homeClub: user.profile?.homeClub ?? null,
+      handicap: user.profile?.handicap ?? null,
+      dominantHand: user.profile?.dominantHand ?? null,
+      favoriteClub
+    };
   }
 };
