@@ -24,6 +24,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Tvingar npm att installera devDependencies trots NODE_ENV=production.
+      # @types/* och typescript ligger i devDependencies men behövs för bygget.
+      - key: NPM_CONFIG_PRODUCTION
+        value: 'false'
       - key: PORT
         value: 10000 # Render injicerar PORT själv, men vi anger fallback
       - key: DATABASE_URL
