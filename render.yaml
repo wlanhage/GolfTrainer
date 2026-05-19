@@ -1,0 +1,40 @@
+# Render Infrastructure-as-Code för GolfTrainer backend.
+# https://render.com/docs/infrastructure-as-code
+#
+# Användning:
+# 1. Skapa nytt Web Service på render.com, välj "Connect from yaml" / Blueprint
+# 2. Peka mot detta repo, Render läser render.yaml och provisionerar tjänsten
+# 3. Fyll i env-vars med sync: false nedan i Render-dashboarden (lösenord, secrets)
+#
+# Alternativt: skapa servicen manuellt med samma värden från Dashboard.
+
+services:
+  - type: web
+    name: golftrainer-backend
+    runtime: node
+    region: frankfurt # närmast Sverige; alternativt: oregon, ohio, virginia, singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000 # Render injicerar PORT själv, men vi anger fallback
+      - key: DATABASE_URL
+        sync: false # Sätt manuellt i dashboard — Supabase pooled connection (port 6543, ?pgbouncer=true)
+      - key: DIRECT_URL
+        sync: false # Sätt manuellt — Supabase direct connection (port 5432) för migrations
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # Render genererar en stark sträng automatiskt
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 30d
+      - key: CORS_ORIGINS
+        sync: false # Sätt manuellt — t.ex. "https://golftrainer.vercel.app,https://*.vercel.app"

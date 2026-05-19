@@ -16,6 +16,13 @@ build/
 coverage/
 .nyc_output/
 
+# Next.js
+.next/
+out/
+
+# Vitest
+.vitest-cache/
+
 # TypeScript caches
 *.tsbuildinfo
 

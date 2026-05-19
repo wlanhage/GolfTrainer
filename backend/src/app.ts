@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { ZodError } from 'zod';
 import { AppError } from './common/errors/AppError.js';
+import { allowedOriginsFromEnv } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { clubsRoutes } from './modules/clubs/clubs.routes.js';
@@ -19,32 +20,46 @@ import { roundsRoutes } from './modules/rounds/rounds.routes.js';
 export const buildApp = () => {
   const app = Fastify({ logger: true });
 
+  // Dev-origins (alltid tillåtna) + ev. CORS_ORIGINS från env för produktion.
+  const devOrigins = [
+    'http://localhost:19006', // Expo web default
+    'http://localhost:8081', // Alternative dev ports
+    'http://localhost:8082',
+    'http://localhost:3001', // Admin web default dev port
+    'http://127.0.0.1:3001',
+    'http://localhost:3002', // Webbapp dev port
+    'http://127.0.0.1:3002'
+  ];
+
+  // Stöd för wildcard-mönster — t.ex. "https://*.vercel.app" matchar alla preview-deploys.
+  const envPatterns = allowedOriginsFromEnv();
+  const allowedExact = new Set<string>([...devOrigins, ...envPatterns.filter((o) => !o.includes('*'))]);
+  const allowedWildcards = envPatterns
+    .filter((o) => o.includes('*'))
+    .map((o) => new RegExp('^' + o.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'));
+
   void app.register(cors, {
     origin: (origin, cb) => {
-      // Allow Expo web dev origins and mobile (no origin)
       if (!origin) {
         cb(null, true);
         return;
       }
-
-      const allowedOrigins = [
-        'http://localhost:19006', // Expo web default
-        'http://localhost:8081',  // Alternative dev ports
-        'http://localhost:8082',
-        'http://localhost:3001', // Admin web default dev port
-        'http://127.0.0.1:3001',
-        'http://localhost:3002', // Webbapp dev port
-        'http://127.0.0.1:3002'
-      ];
-
-      if (allowedOrigins.includes(origin)) {
+      if (allowedExact.has(origin)) {
         cb(null, true);
-      } else {
-        cb(null, false);
+        return;
       }
+      if (allowedWildcards.some((re) => re.test(origin))) {
+        cb(null, true);
+        return;
+      }
+      cb(null, false);
     },
     credentials: true
   });
+
+  // Healthcheck — Render pingar denna med jämna mellanrum för att hålla servern vaken
+  // och för cold-start-detection.
+  app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
   app.register(authRoutes, { prefix: '/api/v1/auth' });
   app.register(usersRoutes, { prefix: '/api/v1/users' });
