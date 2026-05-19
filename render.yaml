@@ -15,7 +15,9 @@ services:
     region: frankfurt # närmast Sverige; alternativt: oregon, ohio, virginia, singapore
     plan: free
     rootDir: backend
-    buildCommand: npm install && npm run build
+    # --include=dev krävs eftersom NODE_ENV=production gör att npm skippar devDependencies,
+    # men @types/* och typescript behövs för bygget.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
     healthCheckPath: /health
     autoDeploy: true
