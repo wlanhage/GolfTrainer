@@ -92,23 +92,18 @@ export function AvatarUpload({ currentAvatar, displayName, email, size = 100, on
           {busy ? 'Sparar...' : 'Byt bild'}
         </span>
       </button>
-      <div className="flex gap-2">
-        <button type="button" onClick={triggerPick} disabled={busy} className="text-primary text-xs font-semibold disabled:opacity-50">
-          {currentAvatar ? 'Byt' : 'Ladda upp'}
+      {currentAvatar && onRemove ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Ta bort profilbilden?')) void onRemove();
+          }}
+          disabled={busy}
+          className="text-danger text-xs font-semibold disabled:opacity-50"
+        >
+          Ta bort
         </button>
-        {currentAvatar && onRemove ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm('Ta bort profilbilden?')) void onRemove();
-            }}
-            disabled={busy}
-            className="text-danger text-xs font-semibold disabled:opacity-50"
-          >
-            Ta bort
-          </button>
-        ) : null}
-      </div>
+      ) : null}
       <input ref={fileRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
     </div>
   );

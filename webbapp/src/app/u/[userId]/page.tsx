@@ -58,8 +58,9 @@ export default function PublicProfilePage() {
         setIsFollowing(true);
         setCounts((c) => (c ? { ...c, followerCount: c.followerCount + 1 } : c));
       }
-    } catch {
-      setError('Kunde inte uppdatera följ-status.');
+    } catch (e) {
+      const msg = (e as Error).message || 'Okänt fel';
+      setError(`Kunde inte uppdatera följ-status: ${msg}`);
     } finally {
       setBusy(false);
     }

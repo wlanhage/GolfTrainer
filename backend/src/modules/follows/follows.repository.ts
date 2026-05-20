@@ -2,15 +2,16 @@ import { prisma } from '../../infrastructure/prisma/client.js';
 
 export const followsRepository = {
   async followUser(followerUserId: string, followingUserId: string) {
-    return prisma.userFollow.upsert({
+    // Idempotent: returnerar befintlig follow om den finns, annars skapa.
+    // (Undviker upsert med tom update som kan trippa i vissa Prisma-versioner.)
+    const existing = await prisma.userFollow.findUnique({
       where: {
-        followerUserId_followingUserId: {
-          followerUserId,
-          followingUserId
-        }
-      },
-      update: {},
-      create: { followerUserId, followingUserId }
+        followerUserId_followingUserId: { followerUserId, followingUserId }
+      }
+    });
+    if (existing) return existing;
+    return prisma.userFollow.create({
+      data: { followerUserId, followingUserId }
     });
   },
 
