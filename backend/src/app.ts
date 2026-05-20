@@ -76,7 +76,10 @@ export const buildApp = () => {
   app.register(roundsRoutes, { prefix: '/api/v1/rounds' });
 
   app.setErrorHandler((err, request, reply) => {
-    request.log.error({ err }, 'request_failed');
+    request.log.error(
+      { err, url: request.url, method: request.method, body: request.body, params: request.params },
+      'request_failed'
+    );
 
     if (err instanceof ZodError) {
       return reply.status(400).send({
@@ -90,8 +93,29 @@ export const buildApp = () => {
       });
     }
 
+    // Prisma-specifika fel — översätt till begripliga 4xx där möjligt
+    const e = err as { code?: string; message?: string };
+    if (e?.code === 'P2002') {
+      return reply.status(409).send({
+        error: { code: 'CONFLICT', message: 'Resource already exists' }
+      });
+    }
+    if (e?.code === 'P2003') {
+      return reply.status(400).send({
+        error: { code: 'FOREIGN_KEY_VIOLATION', message: 'Referenced record does not exist' }
+      });
+    }
+    if (e?.code === 'P2025') {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Record not found' }
+      });
+    }
+
     return reply.status(500).send({
-      error: { code: 'INTERNAL_ERROR', message: 'Unexpected error' }
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: process.env.NODE_ENV === 'production' ? 'Unexpected error' : err.message || 'Unexpected error'
+      }
     });
   });
 
