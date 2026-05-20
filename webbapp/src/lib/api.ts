@@ -362,6 +362,26 @@ export function useUsersApi() {
   );
 }
 
+export function usePushApi() {
+  const client = useApiClient();
+  return useMemo(
+    () => ({
+      getVapidPublicKey: () => client.request<{ publicKey: string }>('/push/vapid-public-key'),
+      subscribe: (endpoint: string, p256dh: string, auth: string) =>
+        client.request<{ ok: boolean }>('/push/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ endpoint, keys: { p256dh, auth } })
+        }),
+      unsubscribe: (endpoint: string) =>
+        client.request<null>('/push/subscribe', {
+          method: 'DELETE',
+          body: JSON.stringify({ endpoint })
+        })
+    }),
+    [client]
+  );
+}
+
 export function useFollowsApi() {
   const client = useApiClient();
   return useMemo(

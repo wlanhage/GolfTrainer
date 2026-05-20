@@ -29,10 +29,6 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'GolfTrainer',
     description: 'Spåra slag, spela rundor, träna missioner och följ andra golfare.'
-  },
-  icons: {
-    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/icon.svg', type: 'image/svg+xml' }]
   }
 };
 

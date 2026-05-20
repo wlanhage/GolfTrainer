@@ -1,6 +1,7 @@
 import { BadRequestError, NotFoundError } from '../../common/errors/AppError.js';
 import { usersRepository } from '../users/users.repository.js';
 import { followsRepository } from './follows.repository.js';
+import { pushService } from '../push/push.service.js';
 
 const ensureUserExists = async (userId: string, message = 'User not found') => {
   const user = await usersRepository.getById(userId);
@@ -15,7 +16,20 @@ export const followsService = {
 
     await ensureUserExists(followingUserId, 'User to follow not found');
 
-    return followsRepository.followUser(followerUserId, followingUserId);
+    const follow = await followsRepository.followUser(followerUserId, followingUserId);
+
+    // Notify the person who got followed — fire-and-forget, non-blocking
+    const follower = await usersRepository.getMe(followerUserId);
+    const followerName = follower?.profile?.displayName ?? follower?.email ?? 'Någon';
+    pushService
+      .sendPushToUser(followingUserId, {
+        title: 'Ny följare',
+        body: `${followerName} följer dig nu`,
+        url: `/u/${followerUserId}`
+      })
+      .catch(() => undefined);
+
+    return follow;
   },
 
   unfollowUser(followerUserId: string, followingUserId: string) {

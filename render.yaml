@@ -44,3 +44,9 @@ services:
         value: 30d
       - key: CORS_ORIGINS
         sync: false # Sätt manuellt — t.ex. "https://golftrainer.vercel.app,https://*.vercel.app"
+      - key: VAPID_PUBLIC_KEY
+        sync: false # Sätt manuellt — generera med: npx web-push generate-vapid-keys
+      - key: VAPID_PRIVATE_KEY
+        sync: false # Sätt manuellt — generera med: npx web-push generate-vapid-keys
+      - key: VAPID_SUBJECT
+        sync: false # Sätt manuellt — t.ex. "mailto:admin@example.com"

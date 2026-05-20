@@ -10,6 +10,14 @@ import { Skeleton } from '@/components/Skeleton';
 import { UserAvatar } from '@/components/UserAvatar';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { useT } from '@/lib/i18n/I18nProvider';
+import { useToast } from '@/lib/ToastProvider';
+import {
+  canUsePush,
+  getPushStatus,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushStatus
+} from '@/lib/push';
 import type { DominantHand, FollowCounts, MeResponse, MyStats, UpdateProfileInput } from '@/lib/types';
 
 function StatTile({
@@ -126,6 +134,106 @@ function DominantHandRow({
         })}
       </div>
     </div>
+  );
+}
+
+function NotificationsSection() {
+  const t = useT();
+  const toast = useToast();
+  const [status, setStatus] = useState<PushStatus | 'loading'>('loading');
+  const [busy, setBusy] = useState(false);
+
+  const pushCheck = canUsePush();
+
+  useEffect(() => {
+    if (pushCheck.supported || pushCheck.needsInstall) {
+      getPushStatus()
+        .then(setStatus)
+        .catch(() => setStatus('unsupported'));
+    } else {
+      setStatus('unsupported');
+    }
+  }, [pushCheck.supported, pushCheck.needsInstall]);
+
+  const handleToggle = async () => {
+    setBusy(true);
+    try {
+      if (status === 'subscribed') {
+        await unsubscribeFromPush();
+        setStatus('available');
+        toast.success(t('push.successDisabled'));
+      } else {
+        await subscribeToPush();
+        setStatus('subscribed');
+        toast.success(t('push.successEnabled'));
+      }
+    } catch {
+      toast.error(status === 'subscribed' ? t('push.errorDisable') : t('push.errorEnable'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // iOS in regular Safari tab — show install prompt
+  if (pushCheck.needsInstall) {
+    return (
+      <section className="card flex flex-col gap-2">
+        <h2 className="font-bold text-base">{t('push.sectionTitle')}</h2>
+        <p className="text-sm font-semibold text-ink">{t('push.iosPromptTitle')}</p>
+        <p className="text-sm text-slate-600">{t('push.iosPromptBody')}</p>
+        <ol className="list-decimal list-inside flex flex-col gap-1 text-sm text-slate-600 mt-1">
+          <li>{t('push.iosStep1')}</li>
+          <li>{t('push.iosStep2')}</li>
+          <li>{t('push.iosStep3')}</li>
+        </ol>
+      </section>
+    );
+  }
+
+  // Unsupported environment — hide the section entirely
+  if (!pushCheck.supported && !pushCheck.needsInstall) {
+    return null;
+  }
+
+  const statusLabel =
+    status === 'loading'
+      ? t('common.loading')
+      : status === 'subscribed'
+        ? t('push.status.subscribed')
+        : status === 'denied'
+          ? t('push.status.denied')
+          : status === 'available'
+            ? t('push.status.available')
+            : t('push.status.unsupported');
+
+  return (
+    <section className="card flex flex-col gap-3">
+      <h2 className="font-bold text-base">{t('push.sectionTitle')}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-slate-600">{statusLabel}</span>
+        {status !== 'denied' && status !== 'unsupported' && status !== 'loading' ? (
+          <button
+            disabled={busy}
+            onClick={() => void handleToggle()}
+            aria-label={status === 'subscribed' ? t('push.disable') : t('push.enable')}
+            className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+              status === 'subscribed' ? 'bg-primary' : 'bg-slate-200'
+            } ${busy ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                status === 'subscribed' ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        ) : null}
+      </div>
+      {status === 'denied' ? (
+        <p className="text-xs text-slate-500">
+          {t('push.status.denied')} — ändra i webbläsarens inställningar.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -327,6 +435,8 @@ export default function ProfilePage() {
           onSave={(v) => saveField('dominantHand', v)}
         />
       </section>
+
+      <NotificationsSection />
 
       <button onClick={() => void logout()} className="btn-danger mt-2">
         {t('nav.logout')}

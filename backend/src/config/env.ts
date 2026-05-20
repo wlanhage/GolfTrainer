@@ -16,7 +16,11 @@ const envSchema = z.object({
   JWT_REFRESH_TTL: z.string().default('30d'),
   // Komma-separerad lista med tillåtna frontend-origins i produktion.
   // Ex: "https://golftrainer.vercel.app,https://golftrainer-admin.vercel.app"
-  CORS_ORIGINS: z.string().optional()
+  CORS_ORIGINS: z.string().optional(),
+  // Web Push / VAPID — generera engångsvis med: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional()
 });
 
 export const env = envSchema.parse(process.env);
