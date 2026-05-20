@@ -1,6 +1,7 @@
 import { prisma } from '../../infrastructure/prisma/client.js';
 import { BadRequestError, NotFoundError } from '../../common/errors/AppError.js';
 import { roundsRepository } from './rounds.repository.js';
+import { pushService } from '../push/push.service.js';
 import type { ListRoundsQuery, UpdateRoundHoleInput, UpdateRoundInput } from './rounds.schema.js';
 
 export const roundsService = {
@@ -48,7 +49,45 @@ export const roundsService = {
     }
     const updated = await roundsRepository.updateRound(roundId, userId, patch);
     if (!updated) throw new NotFoundError('Round not found');
+
+    // Notify the user on a personal best — fire-and-forget, non-blocking
+    if (input.status === 'COMPLETED' && updated.totalScore !== null) {
+      roundsService
+        .checkAndNotifyPersonalBest(userId, roundId, updated.totalScore, updated.courseNameSnapshot)
+        .catch(() => undefined);
+    }
+
     return updated;
+  },
+
+  async checkAndNotifyPersonalBest(
+    userId: string,
+    currentRoundId: string,
+    currentScore: number,
+    courseNameSnapshot: string
+  ) {
+    // Find best score among all other completed rounds for this user
+    const previousBest = await prisma.round.findFirst({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        totalScore: { not: null },
+        id: { not: currentRoundId }
+      },
+      orderBy: { totalScore: 'asc' },
+      select: { totalScore: true }
+    });
+
+    const isPersonalBest = previousBest === null || currentScore < previousBest.totalScore!;
+
+    if (isPersonalBest) {
+      const sign = currentScore > 0 ? `+${currentScore}` : String(currentScore);
+      await pushService.sendPushToUser(userId, {
+        title: 'Personligt rekord!',
+        body: `Du slog ditt rekord på ${courseNameSnapshot}: ${sign}`,
+        url: '/play'
+      });
+    }
   },
 
   async updateRoundHole(roundId: string, userId: string, holeNumber: number, input: UpdateRoundHoleInput) {
