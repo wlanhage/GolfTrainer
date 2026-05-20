@@ -1,12 +1,12 @@
 'use client';
 
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { LngLatBoundsLike, Map as MlMap } from 'maplibre-gl';
 import type { GeoPoint, HoleLayoutGeometry } from '@/lib/types';
 import { fromHoleLocalCoordinates, resolveHoleAxis } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS } from '@/lib/heatmapConfig';
 import { HOLE_COLORS } from '@/lib/holeColors';
+import { DEFAULT_MAP_STYLE } from '@/lib/mapStyle';
 
 export type CaddyMapHeatmap = {
   origin: GeoPoint;
@@ -32,13 +32,18 @@ type Props = {
 };
 
 const DEFAULT_CENTER: GeoPoint = { lat: 59.3293, lng: 18.0686 };
-const TILE_STYLE = 'https://demotiles.maplibre.org/style.json';
 
-// Padding mot skärmens kanter när vi auto-fittar. Ska matcha UI-överlay:
-//   top: hole-header (titel + meta + distans) ~ 110 px
-//   bottom: kontroll-strip (score + nästa) ~ 100 px
-//   sides: ge plats för back-knapp, settings, heatmap-flik
+// Padding mot skärmens kanter när vi auto-fittar UI-överlay:
+// top: hole-header + distans-pill ~110 px, bottom: score-strip ~100 px,
+// sides: ge plats för back-knapp, settings, heatmap-flik.
 const FIT_PADDING = { top: 110, bottom: 110, left: 56, right: 56 };
+const FIT_DURATION_MS = 600;
+const PLAYER_MOVE_DURATION_MS = 700;
+
+// Empty FCs — pre-allokerade för att slippa skapa nya på varje render
+const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] as GeoJSON.Feature[] };
+
+// ─── Feature builders ───────────────────────────────────────────────────────
 
 const toPolygon = (id: string, points: GeoPoint[], color: string) =>
   points.length >= 3
@@ -50,7 +55,8 @@ const toPolygon = (id: string, points: GeoPoint[], color: string) =>
       }
     : null;
 
-const buildFeatureCollection = (geometry: HoleLayoutGeometry, player: GeoPoint | null) => {
+/** Statisk layout (polygoner + tee). Ändras bara när banan/hålet byter. */
+const buildLayoutFC = (geometry: HoleLayoutGeometry) => {
   const features: GeoJSON.Feature[] = [];
   const green = toPolygon('green', geometry.greenPolygon, HOLE_COLORS.green);
   if (green) features.push(green);
@@ -72,23 +78,31 @@ const buildFeatureCollection = (geometry: HoleLayoutGeometry, player: GeoPoint |
     features.push({
       type: 'Feature',
       id: 'tee',
-      properties: { color: HOLE_COLORS.tee },
+      properties: { color: HOLE_COLORS.tee, kind: 'tee' },
       geometry: { type: 'Point', coordinates: [geometry.teePoint.lng, geometry.teePoint.lat] }
-    });
-  }
-  if (player) {
-    features.push({
-      type: 'Feature',
-      id: 'player',
-      properties: { color: HOLE_COLORS.player },
-      geometry: { type: 'Point', coordinates: [player.lng, player.lat] }
     });
   }
   return { type: 'FeatureCollection' as const, features };
 };
 
+/** Bara spelaren — uppdateras frekvent från GPS. */
+const buildPlayerFC = (player: GeoPoint | null) => {
+  if (!player) return EMPTY_FC;
+  return {
+    type: 'FeatureCollection' as const,
+    features: [
+      {
+        type: 'Feature' as const,
+        id: 'player',
+        properties: { color: HOLE_COLORS.player },
+        geometry: { type: 'Point' as const, coordinates: [player.lng, player.lat] }
+      }
+    ]
+  };
+};
+
 const buildHeatmapFC = (heatmap: CaddyMapHeatmap | null | undefined) => {
-  if (!heatmap) return { type: 'FeatureCollection' as const, features: [] };
+  if (!heatmap || heatmap.cells.length === 0) return EMPTY_FC;
   const half = HEATMAP_BIN_SIZE_METERS / 2;
   const features = heatmap.cells.map((cell) => {
     const corners = [
@@ -116,10 +130,7 @@ const buildHeatmapFC = (heatmap: CaddyMapHeatmap | null | undefined) => {
   return { type: 'FeatureCollection' as const, features };
 };
 
-/**
- * Beräknar bounds som rymmer spelaren + green-polygonen (eller tee om inget annat finns).
- * Returnerar null om vi inte har tillräckligt för en meningsfull ram.
- */
+/** Bounds som rymmer spelare + green (eller tee om mindre tillgängligt). */
 const computeHoleBounds = (
   geometry: HoleLayoutGeometry,
   playerPosition: GeoPoint | null
@@ -131,10 +142,8 @@ const computeHoleBounds = (
   if (geometry.greenPolygon.length >= 3) {
     points.push(...geometry.greenPolygon);
   } else if (geometry.teePoint && playerPosition) {
-    // Inget grönt — vi har minst tee + spelare. Annars för få punkter.
     points.push(geometry.teePoint);
   }
-
   if (points.length < 2) return null;
 
   const lngs = points.map((p) => p.lng);
@@ -145,60 +154,73 @@ const computeHoleBounds = (
   ];
 };
 
+// ─── Component ──────────────────────────────────────────────────────────────
+
 export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, recenterTick = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
-  // Spårar både holeKey + has-player + geometry-referens — refit triggas om någon ändrats.
+  const [loaded, setLoaded] = useState(false);
+  const [userMoved, setUserMoved] = useState(false);
+  // Flagga som temporärt stänger av userMoved-detektion när vi själva animerar kameran
+  const programmaticMoveRef = useRef(false);
+
   const fittedRef = useRef<{ key: string; geometry: HoleLayoutGeometry | null }>({ key: '', geometry: null });
 
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
   const initialCenter = playerPosition ?? geometry.teePoint ?? axis?.origin ?? DEFAULT_CENTER;
-  const shapes = useMemo(() => buildFeatureCollection(geometry, playerPosition), [geometry, playerPosition]);
-  const heatmap = useMemo(() => buildHeatmapFC(caddyHeatmap), [caddyHeatmap]);
+
+  // Memoizeade feature collections — uppladdas bara när relevanta props ändras
+  const layoutFC = useMemo(() => buildLayoutFC(geometry), [geometry]);
+  const playerFC = useMemo(() => buildPlayerFC(playerPosition), [playerPosition]);
+  const heatmapFC = useMemo(() => buildHeatmapFC(caddyHeatmap), [caddyHeatmap]);
 
   const fitToHole = (animate: boolean) => {
     const map = mapRef.current;
     if (!map) return;
+    programmaticMoveRef.current = true;
     const bounds = computeHoleBounds(geometry, playerPosition);
     if (!bounds) {
-      map.easeTo({ center: [initialCenter.lng, initialCenter.lat], zoom: 16, bearing: axis?.bearing ?? 0, duration: animate ? 400 : 0 });
-      return;
+      map.easeTo({
+        center: [initialCenter.lng, initialCenter.lat],
+        zoom: 16,
+        bearing: axis?.bearing ?? 0,
+        duration: animate ? 400 : 0
+      });
+    } else {
+      map.fitBounds(bounds, {
+        bearing: axis?.bearing ?? 0,
+        padding: FIT_PADDING,
+        duration: animate ? FIT_DURATION_MS : 0,
+        maxZoom: 18,
+        essential: true
+      });
     }
-    map.fitBounds(bounds, {
-      bearing: axis?.bearing ?? 0,
-      padding: FIT_PADDING,
-      duration: animate ? 600 : 0,
-      maxZoom: 18
-    });
+    setUserMoved(false);
   };
 
+  // Init map — körs en gång
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: TILE_STYLE,
+      style: DEFAULT_MAP_STYLE,
       center: [initialCenter.lng, initialCenter.lat],
       zoom: 16,
       bearing: axis?.bearing ?? 0,
-      attributionControl: false
+      attributionControl: false,
+      maxZoom: 19, // Esri stödjer 19
+      fadeDuration: 150, // snabbare tile-fade
+      refreshExpiredTiles: false, // mindre nätverk
+      trackResize: true
     });
+
     map.on('load', () => {
-      map.addSource('hole-shapes', { type: 'geojson', data: shapes });
-      map.addLayer({
-        id: 'hole-polys',
-        type: 'fill',
-        source: 'hole-shapes',
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': ['get', 'color'] }
-      });
-      map.addLayer({
-        id: 'hole-points',
-        type: 'circle',
-        source: 'hole-shapes',
-        filter: ['==', ['geometry-type'], 'Point'],
-        paint: { 'circle-color': ['get', 'color'], 'circle-radius': 6, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }
-      });
-      map.addSource('caddy-heatmap', { type: 'geojson', data: heatmap });
+      // Sources
+      map.addSource('layout', { type: 'geojson', data: layoutFC });
+      map.addSource('caddy-heatmap', { type: 'geojson', data: heatmapFC });
+      map.addSource('player', { type: 'geojson', data: playerFC });
+
+      // Heatmap underst (under layout-fyllningar och spelare)
       map.addLayer({
         id: 'caddy-heatmap-fill',
         type: 'fill',
@@ -219,59 +241,148 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
             1,
             '#22c55e'
           ],
-          'fill-opacity': 0.72,
+          'fill-opacity': 0.65,
           'fill-outline-color': '#14532d'
         }
       });
+
+      // Layout polygoner (green/fairway/bunker/trees/ob) ovanpå heatmap
+      map.addLayer({
+        id: 'layout-polys',
+        type: 'fill',
+        source: 'layout',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': ['get', 'color'] }
+      });
+
+      // Tee-markering
+      map.addLayer({
+        id: 'layout-tee',
+        type: 'circle',
+        source: 'layout',
+        filter: ['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'kind'], 'tee']],
+        paint: {
+          'circle-color': ['get', 'color'],
+          'circle-radius': 7,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      });
+
+      // Spelar-marker överst — pulserande halo + kärna
+      map.addLayer({
+        id: 'player-halo',
+        type: 'circle',
+        source: 'player',
+        paint: {
+          'circle-color': HOLE_COLORS.player,
+          'circle-radius': 14,
+          'circle-opacity': 0.25
+        }
+      });
+      map.addLayer({
+        id: 'player-core',
+        type: 'circle',
+        source: 'player',
+        paint: {
+          'circle-color': HOLE_COLORS.player,
+          'circle-radius': 7,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2.5
+        }
+      });
+
+      setLoaded(true);
     });
+
+    // Detektera när användaren manuellt rör kameran (drag/zoom/rotate)
+    const onMoveEnd = (e: maplibregl.MapLibreEvent) => {
+      // Om händelsen var programmatisk (vår egen fitToHole), ignorera
+      if (programmaticMoveRef.current) {
+        programmaticMoveRef.current = false;
+        return;
+      }
+      // Om event har originalEvent betyder det touch/mouse — användaren rörde kameran
+      if ((e as unknown as { originalEvent?: unknown }).originalEvent) {
+        setUserMoved(true);
+      }
+    };
+    map.on('moveend', onMoveEnd);
+    map.on('zoomend', onMoveEnd);
+    map.on('rotateend', onMoveEnd);
+
     mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
+      setLoaded(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Uppdatera shapes + heatmap data när props ändras.
+  // Layout-uppdatering — endast när hål-geometri byter
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const update = () => {
-      const src = map.getSource('hole-shapes') as maplibregl.GeoJSONSource | undefined;
-      src?.setData(shapes);
-      const h = map.getSource('caddy-heatmap') as maplibregl.GeoJSONSource | undefined;
-      h?.setData(heatmap);
-    };
-    if (map.isStyleLoaded()) update();
-    else map.once('load', update);
-  }, [shapes, heatmap]);
+    if (!map || !loaded) return;
+    const src = map.getSource('layout') as maplibregl.GeoJSONSource | undefined;
+    src?.setData(layoutFC);
+  }, [layoutFC, loaded]);
 
-  // Auto-fit per hål. Triggar när vi byter hål, eller när spelarposition först
-  // kommer in, eller när geometry-objektet ersätts (t.ex. efter admin-edit).
+  // Player-uppdatering — frekvent från GPS, animeras via easeTo separat från setData
   useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource('player') as maplibregl.GeoJSONSource | undefined;
+    src?.setData(playerFC);
+  }, [playerFC, loaded]);
+
+  // Heatmap-uppdatering — bara när cellerna ändras
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource('caddy-heatmap') as maplibregl.GeoJSONSource | undefined;
+    src?.setData(heatmapFC);
+  }, [heatmapFC, loaded]);
+
+  // Auto-fit per hål eller när spelar-position först kommer in
+  useEffect(() => {
+    if (!loaded) return;
     const map = mapRef.current;
     if (!map) return;
     const key = `${holeKey}::${playerPosition ? 'p' : 'np'}`;
     if (fittedRef.current.key === key && fittedRef.current.geometry === geometry) return;
-
-    const run = () => {
-      fitToHole(true);
-      fittedRef.current = { key, geometry };
-    };
-    if (map.isStyleLoaded()) run();
-    else map.once('load', run);
+    fitToHole(true);
+    fittedRef.current = { key, geometry };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [holeKey, playerPosition, geometry]);
+  }, [holeKey, playerPosition, geometry, loaded]);
 
-  // Manuell recenter — triggar varje gång tick ändras (utöver auto-fit ovan).
+  // Manuell recenter
   useEffect(() => {
-    if (recenterTick === 0) return;
-    const map = mapRef.current;
-    if (!map) return;
-    if (map.isStyleLoaded()) fitToHole(true);
-    else map.once('load', () => fitToHole(true));
+    if (recenterTick === 0 || !loaded) return;
+    fitToHole(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recenterTick]);
+  }, [recenterTick, loaded]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div className="absolute inset-0">
+      <div ref={containerRef} className="absolute inset-0" />
+      {!loaded ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm pointer-events-none">
+          <div className="text-white/80 text-sm font-semibold">Laddar karta...</div>
+        </div>
+      ) : null}
+      {loaded && userMoved ? (
+        <button
+          type="button"
+          onClick={() => fitToHole(true)}
+          aria-label="Återställ kartvy"
+          className="absolute left-1/2 -translate-x-1/2 bottom-24 z-10 flex items-center gap-1.5 bg-primary text-white font-semibold rounded-full px-4 py-2 shadow-lg text-sm border border-white/20 backdrop-blur-sm active:opacity-80 animate-[fade-in_0.2s_ease-out]"
+          style={{ animation: 'fadeIn 0.2s ease-out' }}
+        >
+          <span className="text-base leading-none">⌖</span>
+          <span>Återställ vy</span>
+        </button>
+      ) : null}
+    </div>
+  );
 }

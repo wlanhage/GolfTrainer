@@ -1,14 +1,13 @@
 'use client';
 
-import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { Map as MlMap, MapMouseEvent } from 'maplibre-gl';
 import type { GeoPoint, HoleLayoutGeometry, HoleLayoutLayer } from '@/lib/types';
 import { hasRequiredLayout, resolveHoleAxis, resolveLayoutMappingStatus } from '@/lib/holeGeometry';
 import { HOLE_COLORS } from '@/lib/holeColors';
+import { DEFAULT_MAP_STYLE } from '@/lib/mapStyle';
 
 const DEFAULT_CENTER: GeoPoint = { lat: 59.3293, lng: 18.0686 };
-const TILE_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 const LAYERS: { key: HoleLayoutLayer; label: string }[] = [
   { key: 'tee', label: 'TEE' },
@@ -140,7 +139,7 @@ export function HoleLayoutEditor({ geometry, onChange, onSave }: Props) {
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: TILE_STYLE,
+      style: DEFAULT_MAP_STYLE,
       center: [initial.lng, initial.lat],
       zoom: 16,
       attributionControl: false

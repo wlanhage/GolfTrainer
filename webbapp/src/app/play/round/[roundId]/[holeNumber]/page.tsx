@@ -49,7 +49,6 @@ export default function RoundHolePage() {
   const [shotsByClub, setShotsByClub] = useState<Map<string, CaddyShot[]>>(new Map());
   const [courseId, setCourseId] = useState<string | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
-  const [recenterTick, setRecenterTick] = useState(0);
 
   const { enabled: autoEnabled, setEnabled: setAutoEnabled } = useHeatmapAuto();
 
@@ -227,7 +226,6 @@ export default function RoundHolePage() {
             playerPosition={playerPosition}
             caddyHeatmap={caddyHeatmap}
             holeKey={holeNumber}
-            recenterTick={recenterTick}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-slate-300">Ingen layout sparad för detta hål.</div>
@@ -244,7 +242,7 @@ export default function RoundHolePage() {
         distanceToGreenMeters={distanceToGreen}
       />
 
-      <TopRightFabs onSettings={() => setSettingsOpen(true)} onRecenter={() => setRecenterTick((t) => t + 1)} />
+      <TopRightFabs onSettings={() => setSettingsOpen(true)} />
 
       <HeatmapRail
         hasCaddyData={hasCaddyData}
