@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "prisma": {
-    "schema": "../prisma/schema.prisma"
+    "schema": "../prisma/schema.prisma",
+    "seed": "tsx ../prisma/seed.ts"
   },
   "scripts": {
     "dev": "cross-env ENV_FILE=.env.supabase tsx watch src/server.ts",
@@ -28,7 +29,9 @@
     "prisma:migrate:dev:local": "cross-env DOTENV_CONFIG_PATH=.env.local node -r dotenv/config node_modules/prisma/build/index.js migrate dev --schema ../prisma/schema.prisma",
     "prisma:migrate:deploy:supabase": "cross-env DOTENV_CONFIG_PATH=.env.supabase node -r dotenv/config node_modules/prisma/build/index.js migrate deploy --schema ../prisma/schema.prisma",
     "prisma:migrate:dev:supabase": "cross-env DOTENV_CONFIG_PATH=.env.supabase node -r dotenv/config node_modules/prisma/build/index.js migrate dev --schema ../prisma/schema.prisma",
-    "prisma:migrate:deploy": "cross-env DOTENV_CONFIG_PATH=.env.supabase node -r dotenv/config node_modules/prisma/build/index.js migrate deploy --schema ../prisma/schema.prisma"
+    "prisma:migrate:deploy": "cross-env DOTENV_CONFIG_PATH=.env.supabase node -r dotenv/config node_modules/prisma/build/index.js migrate deploy --schema ../prisma/schema.prisma",
+    "prisma:seed:local": "cross-env DOTENV_CONFIG_PATH=.env.local node -r dotenv/config node_modules/prisma/build/index.js db seed",
+    "prisma:seed:supabase": "cross-env DOTENV_CONFIG_PATH=.env.supabase node -r dotenv/config node_modules/prisma/build/index.js db seed"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
