@@ -5,7 +5,7 @@
   "type": "module",
   "prisma": {
     "schema": "../prisma/schema.prisma",
-    "seed": "tsx ../prisma/seed.ts"
+    "seed": "tsx scripts/seed.ts"
   },
   "scripts": {
     "dev": "cross-env ENV_FILE=.env.supabase tsx watch src/server.ts",

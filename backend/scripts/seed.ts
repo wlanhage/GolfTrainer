@@ -93,7 +93,7 @@ async function upsertCourse(opts: {
           teeName: opts.teeName,
           holeCount: opts.holes.length as 9 | 18,
           source: 'MANUAL',
-          createdByUserId: opts.createdByUserId
+          userId: opts.createdByUserId
         }
       });
 
