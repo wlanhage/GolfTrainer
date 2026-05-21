@@ -8,6 +8,7 @@ import { useI18n, useT } from '@/lib/i18n/I18nProvider';
 import { SUPPORTED_LOCALES, localeLabel } from '@/lib/i18n/dictionaries';
 import { UserAvatar } from './UserAvatar';
 import { Loader } from './Loader';
+import { NotificationBell } from './NotificationBell';
 
 const MENU_KEYS: Array<{ href: string; key: string }> = [
   { href: '/', key: 'nav.home' },
@@ -100,6 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ☰
         </button>
         <h1 className="flex-1 text-center text-base font-bold text-ink truncate">{t(titleKeyForPath(pathname))}</h1>
+        {pathname === '/' ? null : <NotificationBell />}
         <Link href="/profile" className="flex items-center justify-center">
           <UserAvatar
             avatarImage={me?.profile?.avatarImage}

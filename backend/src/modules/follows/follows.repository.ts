@@ -19,6 +19,44 @@ export const followsRepository = {
     return prisma.userFollow.deleteMany({ where: { followerUserId, followingUserId } });
   },
 
+  /**
+   * Returnerar listan av users som user följer OCH som följer user tillbaka.
+   * Används av runda-flödet för player picker.
+   */
+  async getMutualFollowers(userId: string) {
+    // De jag följer
+    const following = await prisma.userFollow.findMany({
+      where: { followerUserId: userId },
+      select: { followingUserId: true }
+    });
+    const followingIds = following.map((f) => f.followingUserId);
+    if (followingIds.length === 0) return [];
+
+    // De som följer mig OCH finns i listan ovan
+    const mutuals = await prisma.userFollow.findMany({
+      where: {
+        followingUserId: userId,
+        followerUserId: { in: followingIds }
+      },
+      include: {
+        follower: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { displayName: true, avatarImage: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return mutuals.map((m) => ({
+      userId: m.follower.id,
+      displayName: m.follower.profile?.displayName ?? m.follower.email,
+      avatarImage: m.follower.profile?.avatarImage ?? null
+    }));
+  },
+
   isFollowing(followerUserId: string, followingUserId: string) {
     return prisma.userFollow.findUnique({
       where: {

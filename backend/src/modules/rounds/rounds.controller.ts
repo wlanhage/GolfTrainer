@@ -2,8 +2,10 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import {
   createRoundSchema,
   listRoundsQuerySchema,
+  playerScoreParamSchema,
   roundHoleParamSchema,
   roundIdParamSchema,
+  updatePlayerScoreSchema,
   updateRoundHoleSchema,
   updateRoundSchema
 } from './rounds.schema.js';
@@ -11,8 +13,8 @@ import { roundsService } from './rounds.service.js';
 
 export const roundsController = {
   async create(request: FastifyRequest, reply: FastifyReply) {
-    const { courseId } = createRoundSchema.parse(request.body);
-    const round = await roundsService.createRound(request.auth!.userId, courseId);
+    const input = createRoundSchema.parse(request.body);
+    const round = await roundsService.createRound(request.auth!.userId, input);
     return reply.code(201).send(round);
   },
 
@@ -40,6 +42,13 @@ export const roundsController = {
     const input = updateRoundHoleSchema.parse(request.body);
     const hole = await roundsService.updateRoundHole(roundId, request.auth!.userId, holeNumber, input);
     return reply.send(hole);
+  },
+
+  async updatePlayerScore(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId, holeNumber, playerId } = playerScoreParamSchema.parse(request.params);
+    const input = updatePlayerScoreSchema.parse(request.body);
+    const score = await roundsService.updatePlayerScore(roundId, request.auth!.userId, holeNumber, playerId, input);
+    return reply.send(score);
   },
 
   async remove(request: FastifyRequest, reply: FastifyReply) {

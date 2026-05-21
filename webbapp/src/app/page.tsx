@@ -9,6 +9,7 @@ import { formatRelativeShort } from '@/lib/format';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { UserAvatar } from '@/components/UserAvatar';
 import { Skeleton } from '@/components/Skeleton';
+import { NotificationBell } from '@/components/NotificationBell';
 import type { FollowingFeedEntry, InProgressRoundSummary, TrainingMission } from '@/lib/types';
 
 const greetingKey = (date: Date): string => {
@@ -87,14 +88,9 @@ export default function HomePage() {
               </Link>
             )}
           </div>
-          <Link href={me?.id ? `/u/${me.id}` : '/profile'}>
-            <UserAvatar
-              avatarImage={me?.profile?.avatarImage}
-              displayName={me?.profile?.displayName}
-              email={me?.email}
-              size={56}
-            />
-          </Link>
+          <div className="scale-125 origin-right">
+            <NotificationBell />
+          </div>
         </div>
       </section>
 

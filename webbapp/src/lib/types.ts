@@ -233,6 +233,17 @@ export type HoleLayout = {
   updatedAt: string;
 };
 
+export type RoundFormatKey =
+  | 'STROKE_PLAY'
+  | 'STABLEFORD'
+  | 'BEST_BALL_TEAM'
+  | 'BEST_BALL_2V2'
+  | 'FFA_STROKE'
+  | 'FFA_STABLEFORD'
+  | 'WOLF';
+
+export type WolfRole = 'WOLF' | 'PARTNER' | 'OPPONENT';
+
 export type Round = {
   id: string;
   courseId: string;
@@ -240,9 +251,46 @@ export type Round = {
   finishedAt: string | null;
   currentHoleNumber: number;
   status: RoundStatus;
+  format: RoundFormatKey;
   teeNameSnapshot: string | null;
   courseNameSnapshot: string;
   clubNameSnapshot: string;
+};
+
+export type RoundPlayer = {
+  id: string;
+  roundId: string;
+  userId: string;
+  displayNameSnapshot: string;
+  team: string | null;
+  order: number;
+};
+
+export type RoundHoleScore = {
+  id: string;
+  roundHoleId: string;
+  playerId: string;
+  strokes: number | null;
+  wolfRole: WolfRole | null;
+};
+
+export type MutualFollower = {
+  userId: string;
+  displayName: string;
+  avatarImage: string | null;
+};
+
+export type AppNotificationType = 'ROUND_STARTED';
+
+export type AppNotification = {
+  id: string;
+  userId: string;
+  type: AppNotificationType;
+  title: string;
+  body: string;
+  url: string | null;
+  readAt: string | null;
+  createdAt: string;
 };
 
 export type RoundHole = {

@@ -2,10 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaddyApi, useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
-import type { ServerRoundHole } from '@/lib/api';
+import type { ServerRoundHole, ServerRoundHoleScore, ServerRoundPlayer, ServerWolfRole } from '@/lib/api';
+import { useRoundsApi } from '@/lib/api';
+import { stablefordPoints } from '@/lib/scoring';
+import { GroupScoreBoard } from '@/components/play/GroupScoreBoard';
+import { GroupControlBar } from '@/components/round-hole/GroupControlBar';
 import { caddyClubs } from '@/lib/caddyClubs';
 import { getDistanceToGreenMeters, resolveHeatmapBearing } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS, HEATMAP_GRID_SIZE } from '@/lib/heatmapConfig';
@@ -33,11 +37,15 @@ export default function RoundHolePage() {
 
   const coursesApi = useCoursesApi();
   const caddyApi = useCaddyApi();
+  const roundsApi = useRoundsApi();
   const roundsStore = useRoundsStore();
   const toast = useToast();
 
   const [round, setRound] = useState<Round | null>(null);
   const [roundHole, setRoundHole] = useState<ServerRoundHole | null>(null);
+  const [players, setPlayers] = useState<ServerRoundPlayer[]>([]);
+  const [scoresByPlayer, setScoresByPlayer] = useState<Map<string, ServerRoundHoleScore>>(new Map());
+  const [savingGroup, setSavingGroup] = useState(false);
   const [maxHole, setMaxHole] = useState(18);
   const [layout, setLayout] = useState<HoleLayoutGeometry | null>(null);
   const [score, setScore] = useState('');
@@ -52,29 +60,67 @@ export default function RoundHolePage() {
   const [manualOverride, setManualOverride] = useState(false);
 
   const { enabled: autoEnabled, setEnabled: setAutoEnabled } = useHeatmapAuto();
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Ladda runda + hål
+  // Refetch:ar runda + hål från backend. Används både för initial-load och
+  // för "uppdatera"-knapp + visibility/focus-händelser. Bevarar pågående
+  // input genom att inte röra `score`-state om scoreInputDirty är satt.
+  const reload = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!roundsStore.ready) return;
+      if (!opts.silent) setRefreshing(true);
+      try {
+        const r = await roundsStore.getRound(roundId);
+        if (!r) {
+          router.replace('/play');
+          return;
+        }
+        setRound(r.round);
+        setMaxHole(r.roundHoles.length);
+        setCourseId(r.round.courseId);
+        setPlayers(r.players);
+        const rh = r.roundHoles.find((x) => x.holeNumber === holeNumber) ?? null;
+        setRoundHole(rh);
+        // Endast solo-input — i grupp-mode visas dropdowns per spelare istället
+        if (r.players.length <= 1) {
+          setScore(rh?.strokes?.toString() ?? '');
+        }
+        const next = new Map<string, ServerRoundHoleScore>();
+        (rh?.scores ?? []).forEach((s) => next.set(s.playerId, s));
+        setScoresByPlayer(next);
+      } finally {
+        if (!opts.silent) setRefreshing(false);
+      }
+    },
+    [roundId, holeNumber, roundsStore, router]
+  );
+
+  // Initial-load + reload när hål-nummer byts
   useEffect(() => {
-    if (!roundsStore.ready) return;
     let active = true;
     void (async () => {
-      const r = await roundsStore.getRound(roundId);
+      await reload({ silent: true });
       if (!active) return;
-      if (!r) {
-        router.replace('/play');
-        return;
-      }
-      setRound(r.round);
-      setMaxHole(r.roundHoles.length);
-      setCourseId(r.round.courseId);
-      const rh = r.roundHoles.find((x) => x.holeNumber === holeNumber) ?? null;
-      setRoundHole(rh);
-      setScore(rh?.strokes?.toString() ?? '');
     })();
     return () => {
       active = false;
     };
-  }, [roundId, holeNumber, router, roundsStore]);
+  }, [reload]);
+
+  // Auto-refetch när användaren kommer tillbaka till appen (lock/unlock,
+  // tab-switch). Använder silent så vi inte blinkar refresh-spinnern.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reload({ silent: true });
+    };
+    const onFocus = () => void reload({ silent: true });
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [reload]);
 
   // Ladda bana för aktuell layout
   useEffect(() => {
@@ -198,6 +244,10 @@ export default function RoundHolePage() {
     return <Loader fullScreen onDark label="Laddar hål" />;
   }
 
+  const isGroup = players.length > 1;
+  const format = round?.format ?? 'STROKE_PLAY';
+  const isStableford = format === 'STABLEFORD';
+
   const saveAndNext = async () => {
     const parsed = parseStrokes(score);
     if (score.trim() && parsed === null) {
@@ -205,7 +255,14 @@ export default function RoundHolePage() {
       return;
     }
     try {
-      await roundsStore.saveScore(roundId, holeNumber, parsed);
+      // Skriv host-spelarens score till RoundHoleScore om vi har players (alla nya rundor)
+      const hostPlayer = players[0];
+      if (hostPlayer) {
+        await roundsApi.updatePlayerScore(roundId, holeNumber, hostPlayer.id, { strokes: parsed });
+      } else {
+        // Legacy fallback för gamla rundor utan players
+        await roundsStore.saveScore(roundId, holeNumber, parsed);
+      }
       if (holeNumber >= maxHole) {
         await roundsStore.completeRound(roundId);
         router.replace(`/play/round/${roundId}/overview`);
@@ -217,6 +274,66 @@ export default function RoundHolePage() {
       toast.error(`Kunde inte spara: ${(e as Error).message}`);
     }
   };
+
+  const groupNext = async () => {
+    setSavingGroup(true);
+    try {
+      if (holeNumber >= maxHole) {
+        await roundsStore.completeRound(roundId);
+        router.replace(`/play/round/${roundId}/overview`);
+        return;
+      }
+      await roundsStore.setCurrentHole(roundId, holeNumber + 1);
+      router.replace(`/play/round/${roundId}/${holeNumber + 1}`);
+    } catch (e) {
+      toast.error(`Kunde inte gå vidare: ${(e as Error).message}`);
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const updatePlayerStrokes = async (playerId: string, strokes: number | null) => {
+    // Optimistic update så input känns snabbt
+    setScoresByPlayer((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(playerId);
+      next.set(playerId, {
+        id: existing?.id ?? `pending-${playerId}`,
+        roundHoleId: roundHole?.id ?? '',
+        playerId,
+        strokes,
+        wolfRole: existing?.wolfRole ?? null
+      });
+      return next;
+    });
+    try {
+      await roundsApi.updatePlayerScore(roundId, holeNumber, playerId, { strokes });
+    } catch (e) {
+      toast.error(`Kunde inte spara: ${(e as Error).message}`);
+    }
+  };
+
+  const updatePlayerWolfRole = async (playerId: string, role: ServerWolfRole | null) => {
+    setScoresByPlayer((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(playerId);
+      next.set(playerId, {
+        id: existing?.id ?? `pending-${playerId}`,
+        roundHoleId: roundHole?.id ?? '',
+        playerId,
+        strokes: existing?.strokes ?? null,
+        wolfRole: role
+      });
+      return next;
+    });
+    try {
+      await roundsApi.updatePlayerScore(roundId, holeNumber, playerId, { wolfRole: role });
+    } catch (e) {
+      toast.error(`Kunde inte spara: ${(e as Error).message}`);
+    }
+  };
+
+  const soloPoints = isStableford ? stablefordPoints(parseStrokes(score), roundHole.parSnapshot) : null;
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-slate-900">
@@ -261,12 +378,53 @@ export default function RoundHolePage() {
         onResetAuto={() => setManualOverride(false)}
       />
 
-      <RoundControlBar
-        score={score}
-        onScoreChange={setScore}
-        isLastHole={holeNumber >= maxHole}
-        onSubmit={saveAndNext}
-      />
+      {isGroup ? (
+        <>
+          <div className="absolute left-0 right-0 bottom-16 z-10 px-3 pb-2 max-h-[55vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-white text-xs font-bold drop-shadow">
+                Hål {roundHole.holeNumber} • {players.length} spelare
+              </span>
+              <button
+                onClick={() => void reload()}
+                disabled={refreshing}
+                aria-label="Uppdatera scores"
+                className="bg-white/90 text-primary rounded-full w-9 h-9 flex items-center justify-center font-bold disabled:opacity-50"
+              >
+                <span className={refreshing ? 'inline-block animate-spin' : 'inline-block'}>↻</span>
+              </button>
+            </div>
+            <GroupScoreBoard
+              format={format}
+              players={players}
+              roundHole={roundHole}
+              par={roundHole.parSnapshot}
+              scoresByPlayer={scoresByPlayer}
+              onChangeStrokes={(playerId, strokes) => void updatePlayerStrokes(playerId, strokes)}
+              onChangeWolfRole={(playerId, role) => void updatePlayerWolfRole(playerId, role)}
+            />
+          </div>
+          <GroupControlBar
+            isLastHole={holeNumber >= maxHole}
+            onSubmit={groupNext}
+            saving={savingGroup}
+          />
+        </>
+      ) : (
+        <>
+          {soloPoints !== null ? (
+            <div className="absolute right-3 bottom-20 z-10 bg-white/95 rounded-full px-3 py-1 text-sm font-bold text-primary shadow">
+              {soloPoints}p
+            </div>
+          ) : null}
+          <RoundControlBar
+            score={score}
+            onScoreChange={setScore}
+            isLastHole={holeNumber >= maxHole}
+            onSubmit={saveAndNext}
+          />
+        </>
+      )}
 
       <HoleSettingsSheet
         isOpen={settingsOpen}
