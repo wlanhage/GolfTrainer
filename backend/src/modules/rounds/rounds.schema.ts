@@ -9,9 +9,41 @@ export const roundHoleParamSchema = z.object({
   holeNumber: z.coerce.number().int().min(1).max(36)
 });
 
-export const createRoundSchema = z.object({
-  courseId: z.string().cuid()
+export const roundFormatEnum = z.enum([
+  'STROKE_PLAY',
+  'STABLEFORD',
+  'BEST_BALL_TEAM',
+  'BEST_BALL_2V2',
+  'FFA_STROKE',
+  'FFA_STABLEFORD',
+  'WOLF'
+]);
+
+export const createRoundPlayerSchema = z.object({
+  userId: z.string().cuid(),
+  team: z.string().trim().max(8).nullable().optional()
 });
+
+export const createRoundSchema = z.object({
+  courseId: z.string().cuid(),
+  format: roundFormatEnum.optional(),
+  players: z.array(createRoundPlayerSchema).min(1).max(8).optional()
+});
+
+export const playerScoreParamSchema = z.object({
+  roundId: z.string().cuid(),
+  holeNumber: z.coerce.number().int().min(1).max(36),
+  playerId: z.string().cuid()
+});
+
+export const updatePlayerScoreSchema = z
+  .object({
+    strokes: z.number().int().min(0).max(30).nullable().optional(),
+    wolfRole: z.enum(['WOLF', 'PARTNER', 'OPPONENT']).nullable().optional()
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field must be provided'
+  });
 
 export const updateRoundSchema = z
   .object({
@@ -38,6 +70,9 @@ export const listRoundsQuerySchema = z.object({
 });
 
 export type CreateRoundInput = z.infer<typeof createRoundSchema>;
+export type CreateRoundPlayerInput = z.infer<typeof createRoundPlayerSchema>;
 export type UpdateRoundInput = z.infer<typeof updateRoundSchema>;
 export type UpdateRoundHoleInput = z.infer<typeof updateRoundHoleSchema>;
+export type UpdatePlayerScoreInput = z.infer<typeof updatePlayerScoreSchema>;
 export type ListRoundsQuery = z.infer<typeof listRoundsQuerySchema>;
+export type RoundFormatValue = z.infer<typeof roundFormatEnum>;

@@ -86,5 +86,9 @@ export const followsService = {
 
   getFollowingFeed(viewerUserId: string, limit: number, offset: number) {
     return followsRepository.getFollowingFeed(viewerUserId, limit, offset);
+  },
+
+  getMutualFollowers(userId: string) {
+    return followsRepository.getMutualFollowers(userId);
   }
 };

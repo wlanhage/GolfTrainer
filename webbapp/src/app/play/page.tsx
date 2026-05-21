@@ -38,15 +38,20 @@ export default function PlayPage() {
     void refresh();
   }, [refresh]);
 
-  const startRound = async (course: Course) => {
+  const [mode, setMode] = useState<'solo' | 'group'>('solo');
+
+  const onCoursePick = async (course: Course) => {
     try {
       const detail = await api.getCourseDetail(course.id);
       if (!detail) throw new Error('Banan hittades inte.');
       if (detail.holes.length === 0) {
         await api.ensureHoles(course.id, course.holeCount);
       }
-      const round = await roundsStore.startRound(course.id);
-      router.push(`/play/round/${round.id}/${round.currentHoleNumber}`);
+      if (mode === 'solo') {
+        router.push(`/play/format?mode=solo&courseId=${course.id}`);
+      } else {
+        router.push(`/play/group/${course.id}`);
+      }
     } catch (e) {
       toast.error(`Kunde inte starta runda: ${(e as Error).message}`);
     }
@@ -71,7 +76,29 @@ export default function PlayPage() {
   return (
     <div className="p-4 flex flex-col gap-3">
       <h1 className="text-3xl font-extrabold text-ink">Spela</h1>
-      <p className="text-slate-700">Välj bana eller lägg till en ny direkt från flödet.</p>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setMode('solo')}
+          className={`rounded-xl border-2 py-4 font-bold ${
+            mode === 'solo' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'
+          }`}
+        >
+          🏌️ Spela ensam
+        </button>
+        <button
+          onClick={() => setMode('group')}
+          className={`rounded-xl border-2 py-4 font-bold ${
+            mode === 'group' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'
+          }`}
+        >
+          👥 Spela i grupp
+        </button>
+      </div>
+
+      <p className="text-slate-700 text-sm">
+        {mode === 'solo' ? 'Välj bana — du väljer spelform i nästa steg.' : 'Välj bana — lägg sen till spelare och välj spelform.'}
+      </p>
 
       {inProgress.length > 0 ? (
         <section className="flex flex-col gap-2">
@@ -115,7 +142,7 @@ export default function PlayPage() {
         {courses.map((course) => (
           <button
             key={course.id}
-            onClick={() => void startRound(course)}
+            onClick={() => void onCoursePick(course)}
             className="card text-left flex flex-col gap-1 active:bg-primary-softer"
           >
             <span className="text-lg font-bold text-ink">{course.courseName}</span>

@@ -6,7 +6,13 @@
 
 import { useMemo } from 'react';
 import { useAuth } from './AuthProvider';
-import { useRoundsApi, type ServerRound, type ServerRoundDetail, type ServerRoundHole } from './api';
+import {
+  useRoundsApi,
+  type CreateRoundPayload,
+  type ServerRound,
+  type ServerRoundDetail,
+  type ServerRoundHole
+} from './api';
 import type {
   HoleLayoutGeometry,
   InProgressRoundSummary,
@@ -63,6 +69,7 @@ const detailToLatest = (detail: ServerRoundDetail): LatestRoundSummary => {
 export type GetRoundResult = {
   round: Round;
   roundHoles: ServerRoundHole[];
+  players: ServerRoundDetail['players'];
 };
 
 const detailToRound = (detail: ServerRoundDetail): GetRoundResult => ({
@@ -73,17 +80,19 @@ const detailToRound = (detail: ServerRoundDetail): GetRoundResult => ({
     finishedAt: detail.finishedAt,
     currentHoleNumber: detail.currentHoleNumber,
     status: detail.status.toLowerCase() as 'in_progress' | 'completed' | 'abandoned',
+    format: detail.format,
     teeNameSnapshot: detail.teeNameSnapshot,
     courseNameSnapshot: detail.courseNameSnapshot,
     clubNameSnapshot: detail.clubNameSnapshot
   },
-  roundHoles: detail.roundHoles
+  roundHoles: detail.roundHoles,
+  players: detail.players
 });
 
 export type RoundsStore = {
   ready: boolean;
   listInProgress: () => Promise<InProgressRoundSummary[]>;
-  startRound: (courseId: string) => Promise<{ id: string; currentHoleNumber: number }>;
+  startRound: (payload: CreateRoundPayload) => Promise<{ id: string; currentHoleNumber: number }>;
   getRound: (roundId: string) => Promise<GetRoundResult | null>;
   saveScore: (roundId: string, holeNumber: number, strokes: number | null) => Promise<void>;
   setCurrentHole: (roundId: string, holeNumber: number) => Promise<void>;
@@ -126,8 +135,8 @@ export function useRoundsStore(): RoundsStore {
         return list.map(toInProgressSummary);
       },
 
-      async startRound(courseId: string) {
-        const detail = await api.create(courseId);
+      async startRound(payload) {
+        const detail = await api.create(payload);
         return { id: detail.id, currentHoleNumber: detail.currentHoleNumber };
       },
 
@@ -194,6 +203,7 @@ export function useRoundsStore(): RoundsStore {
             finishedAt: detail.finishedAt,
             currentHoleNumber: detail.currentHoleNumber,
             status: detail.status.toLowerCase() as 'in_progress' | 'completed' | 'abandoned',
+            format: detail.format,
             teeNameSnapshot: detail.teeNameSnapshot,
             courseNameSnapshot: detail.courseNameSnapshot,
             clubNameSnapshot: detail.clubNameSnapshot

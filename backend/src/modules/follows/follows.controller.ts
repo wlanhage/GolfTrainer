@@ -68,5 +68,11 @@ export const followsController = {
     const { limit, offset } = paginationQuerySchema.parse(request.query ?? {});
     const feed = await followsService.getFollowingFeed(viewerUserId, limit, offset);
     return reply.send(feed);
+  },
+
+  async listMutualFollowers(request: FastifyRequest, reply: FastifyReply) {
+    const viewerUserId = request.auth!.userId;
+    const mutuals = await followsService.getMutualFollowers(viewerUserId);
+    return reply.send(mutuals);
   }
 };

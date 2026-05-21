@@ -94,6 +94,22 @@ enum HoleLayoutMappingStatus {
   FULL
 }
 
+enum RoundFormat {
+  STROKE_PLAY
+  STABLEFORD
+  BEST_BALL_TEAM
+  BEST_BALL_2V2
+  FFA_STROKE
+  FFA_STABLEFORD
+  WOLF
+}
+
+enum WolfRole {
+  WOLF
+  PARTNER
+  OPPONENT
+}
+
 enum RoundPlayStatus {
   IN_PROGRESS
   COMPLETED
@@ -129,6 +145,7 @@ model User {
   followers               UserFollow[]               @relation("UserFollowers")
   following               UserFollow[]               @relation("UserFollowing")
   pushSubscriptions       PushSubscription[]
+  roundPlayers            RoundPlayer[]              @relation("UserRoundPlayers")
 }
 
 model PushSubscription {
@@ -576,6 +593,7 @@ model Round {
   finishedAt         DateTime?
   currentHoleNumber  Int             @default(1)
   status             RoundPlayStatus @default(IN_PROGRESS)
+  format             RoundFormat     @default(STROKE_PLAY)
   createdOffline     Boolean         @default(false)
   syncStatus         SyncStatus      @default(PENDING)
   teeNameSnapshot    String?
@@ -585,13 +603,48 @@ model Round {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   roundHoles RoundHole[]
+  players    RoundPlayer[]
 
   @@index([userId, startedAt])
   @@index([courseId, totalScore, startedAt])
   @@index([status, startedAt])
+}
+
+model RoundPlayer {
+  id                  String   @id @default(cuid())
+  roundId             String
+  userId              String
+  displayNameSnapshot String
+  team                String?
+  order               Int
+  createdAt           DateTime @default(now())
+
+  round  Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user   User             @relation("UserRoundPlayers", fields: [userId], references: [id], onDelete: Cascade)
+  scores RoundHoleScore[]
+
+  @@unique([roundId, order])
+  @@unique([roundId, userId])
+  @@index([userId])
+}
+
+model RoundHoleScore {
+  id          String    @id @default(cuid())
+  roundHoleId String
+  playerId    String
+  strokes     Int?
+  wolfRole    WolfRole?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  roundHole RoundHole   @relation(fields: [roundHoleId], references: [id], onDelete: Cascade)
+  player    RoundPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([roundHoleId, playerId])
+  @@index([playerId])
 }
 
 model RoundHole {
@@ -608,8 +661,9 @@ model RoundHole {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  hole  Hole  @relation(fields: [holeId], references: [id], onDelete: Restrict)
+  round  Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  hole   Hole             @relation(fields: [holeId], references: [id], onDelete: Restrict)
+  scores RoundHoleScore[]
 
   @@unique([roundId, holeNumber])
   @@index([roundId, holeId])

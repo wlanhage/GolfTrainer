@@ -17,4 +17,5 @@ export async function followsRoutes(app: FastifyInstance) {
   app.get('/leaderboards/following/by-course', followsController.followedCourseLeaderboard);
 
   app.get('/feed/following-rounds', followsController.followingFeed);
+  app.get('/mutual', followsController.listMutualFollowers);
 }

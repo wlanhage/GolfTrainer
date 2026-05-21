@@ -29,7 +29,7 @@ export default function ScorecardSetupPage() {
   }, [api, courseId]);
 
   const startRound = async () => {
-    const round = await roundsStore.startRound(courseId);
+    const round = await roundsStore.startRound({ courseId });
     router.replace(`/play/round/${round.id}/1`);
   };
 

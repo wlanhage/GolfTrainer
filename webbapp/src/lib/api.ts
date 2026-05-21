@@ -17,6 +17,7 @@ import type {
   MeResponse,
   MissionHistory,
   MissionSubmitResult,
+  MutualFollower,
   MyStats,
   PublicUserProfile,
   PublicUserSummary,
@@ -286,6 +287,17 @@ export function useCoursesApi() {
 
 // === Rounds (backend-persisted) ===
 
+export type ServerRoundFormat =
+  | 'STROKE_PLAY'
+  | 'STABLEFORD'
+  | 'BEST_BALL_TEAM'
+  | 'BEST_BALL_2V2'
+  | 'FFA_STROKE'
+  | 'FFA_STABLEFORD'
+  | 'WOLF';
+
+export type ServerWolfRole = 'WOLF' | 'PARTNER' | 'OPPONENT';
+
 export type ServerRound = {
   id: string;
   userId: string;
@@ -294,10 +306,19 @@ export type ServerRound = {
   finishedAt: string | null;
   currentHoleNumber: number;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
+  format: ServerRoundFormat;
   teeNameSnapshot: string | null;
   courseNameSnapshot: string;
   clubNameSnapshot: string;
   totalScore: number | null;
+};
+
+export type ServerRoundHoleScore = {
+  id: string;
+  roundHoleId: string;
+  playerId: string;
+  strokes: number | null;
+  wolfRole: ServerWolfRole | null;
 };
 
 export type ServerRoundHole = {
@@ -311,9 +332,28 @@ export type ServerRoundHole = {
   hcpIndexSnapshot: number | null;
   notes: string | null;
   completedAt: string | null;
+  scores?: ServerRoundHoleScore[];
 };
 
-export type ServerRoundDetail = ServerRound & { roundHoles: ServerRoundHole[] };
+export type ServerRoundPlayer = {
+  id: string;
+  roundId: string;
+  userId: string;
+  displayNameSnapshot: string;
+  team: string | null;
+  order: number;
+};
+
+export type ServerRoundDetail = ServerRound & {
+  roundHoles: ServerRoundHole[];
+  players: ServerRoundPlayer[];
+};
+
+export type CreateRoundPayload = {
+  courseId: string;
+  format?: ServerRoundFormat;
+  players?: Array<{ userId: string; team?: string | null }>;
+};
 
 export function useRoundsApi() {
   const client = useApiClient();
@@ -323,10 +363,10 @@ export function useRoundsApi() {
         const qs = status ? `?status=${status}` : '';
         return client.request<ServerRound[]>(`/rounds${qs}`);
       },
-      create: (courseId: string) =>
+      create: (payload: CreateRoundPayload) =>
         client.request<ServerRoundDetail>('/rounds', {
           method: 'POST',
-          body: JSON.stringify({ courseId })
+          body: JSON.stringify(payload)
         }),
       getById: (roundId: string) => client.request<ServerRoundDetail>(`/rounds/${roundId}`),
       update: (roundId: string, patch: { currentHoleNumber?: number; status?: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED' }) =>
@@ -343,7 +383,20 @@ export function useRoundsApi() {
           method: 'PATCH',
           body: JSON.stringify(patch)
         }),
-      remove: (roundId: string) => client.request<null>(`/rounds/${roundId}`, { method: 'DELETE' })
+      remove: (roundId: string) => client.request<null>(`/rounds/${roundId}`, { method: 'DELETE' }),
+      updatePlayerScore: (
+        roundId: string,
+        holeNumber: number,
+        playerId: string,
+        patch: { strokes?: number | null; wolfRole?: ServerWolfRole | null }
+      ) =>
+        client.request<ServerRoundHoleScore>(
+          `/rounds/${roundId}/holes/${holeNumber}/scores/${playerId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify(patch)
+          }
+        )
     }),
     [client]
   );
@@ -399,7 +452,8 @@ export function useFollowsApi() {
       getCounts: (userId: string) =>
         client.request<FollowCounts>(`/follows/profiles/${userId}/counts`),
       getFollowingFeed: (limit = 5, offset = 0) =>
-        client.request<FollowingFeedEntry[]>(`/follows/feed/following-rounds?limit=${limit}&offset=${offset}`)
+        client.request<FollowingFeedEntry[]>(`/follows/feed/following-rounds?limit=${limit}&offset=${offset}`),
+      listMutualFollowers: () => client.request<MutualFollower[]>('/follows/mutual')
     }),
     [client]
   );
