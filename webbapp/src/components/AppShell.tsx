@@ -150,6 +150,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <button
               type="button"
+              onClick={async () => {
+                setMenuOpen(false);
+                try {
+                  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((r) => r.update()));
+                  }
+                } finally {
+                  window.location.reload();
+                }
+              }}
+              className="border-2 border-primary text-primary rounded-xl px-3 py-3 bg-white font-bold"
+            >
+              {t('nav.refreshApp')}
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setMenuOpen(false);
                 void logout();
