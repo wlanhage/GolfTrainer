@@ -80,13 +80,13 @@ const detailToRound = (detail: ServerRoundDetail): GetRoundResult => ({
     finishedAt: detail.finishedAt,
     currentHoleNumber: detail.currentHoleNumber,
     status: detail.status.toLowerCase() as 'in_progress' | 'completed' | 'abandoned',
-    format: detail.format,
+    format: detail.format ?? 'STROKE_PLAY',
     teeNameSnapshot: detail.teeNameSnapshot,
     courseNameSnapshot: detail.courseNameSnapshot,
     clubNameSnapshot: detail.clubNameSnapshot
   },
   roundHoles: detail.roundHoles,
-  players: detail.players
+  players: detail.players ?? []
 });
 
 export type RoundsStore = {
@@ -203,7 +203,7 @@ export function useRoundsStore(): RoundsStore {
             finishedAt: detail.finishedAt,
             currentHoleNumber: detail.currentHoleNumber,
             status: detail.status.toLowerCase() as 'in_progress' | 'completed' | 'abandoned',
-            format: detail.format,
+            format: detail.format ?? 'STROKE_PLAY',
             teeNameSnapshot: detail.teeNameSnapshot,
             courseNameSnapshot: detail.courseNameSnapshot,
             clubNameSnapshot: detail.clubNameSnapshot

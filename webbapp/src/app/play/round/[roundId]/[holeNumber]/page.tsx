@@ -78,11 +78,13 @@ export default function RoundHolePage() {
         setRound(r.round);
         setMaxHole(r.roundHoles.length);
         setCourseId(r.round.courseId);
-        setPlayers(r.players);
+        // Defensiv: backend kan vara på en äldre deploy som inte returnerar
+        // players/scores — då behandlas rundan som legacy-solo.
+        const safePlayers = Array.isArray(r.players) ? r.players : [];
+        setPlayers(safePlayers);
         const rh = r.roundHoles.find((x) => x.holeNumber === holeNumber) ?? null;
         setRoundHole(rh);
-        // Endast solo-input — i grupp-mode visas dropdowns per spelare istället
-        if (r.players.length <= 1) {
+        if (safePlayers.length <= 1) {
           setScore(rh?.strokes?.toString() ?? '');
         }
         const next = new Map<string, ServerRoundHoleScore>();
