@@ -32,8 +32,11 @@ export class ApiClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
+    // Sätt bara Content-Type när vi faktiskt skickar en body — annars
+    // kraschar Fastify med "Body cannot be empty when content-type is
+    // set to application/json" på t.ex. POST /follows/:id som saknar body.
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...(init?.headers as Record<string, string> | undefined)
     };
 
