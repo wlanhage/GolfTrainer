@@ -2,6 +2,7 @@ import { prisma } from '../../infrastructure/prisma/client.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/AppError.js';
 import { roundsRepository } from './rounds.repository.js';
 import { pushService } from '../push/push.service.js';
+import { notificationsService } from '../notifications/notifications.service.js';
 import type {
   CreateRoundInput,
   ListRoundsQuery,
@@ -88,7 +89,7 @@ export const roundsService = {
       ))
     ];
 
-    return roundsRepository.createRound({
+    const created = await roundsRepository.createRound({
       hostUserId,
       courseId: input.courseId,
       courseNameSnapshot: course.courseName,
@@ -104,6 +105,17 @@ export const roundsService = {
       })),
       players: allPlayers
     });
+
+    // Notisera alla inbjudna spelare om att rundan har börjat.
+    // Fire-and-forget — runda skapas oavsett om notiserna lyckas.
+    const invitedUserIds = invitedPlayers.map((p) => p.userId);
+    if (invitedUserIds.length > 0) {
+      notificationsService
+        .notifyRoundStarted(invitedUserIds, hostDisplayName, course.courseName, created.id)
+        .catch(() => undefined);
+    }
+
+    return created;
   },
 
   listForUser(userId: string, query: ListRoundsQuery) {

@@ -17,6 +17,7 @@ import { followsRoutes } from './modules/follows/follows.routes.js';
 import { coursesRoutes } from './modules/courses/courses.routes.js';
 import { roundsRoutes } from './modules/rounds/rounds.routes.js';
 import { pushRoutes } from './modules/push/push.routes.js';
+import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 
 export const buildApp = () => {
   const app = Fastify({ logger: true });
@@ -76,6 +77,7 @@ export const buildApp = () => {
   app.register(coursesRoutes, { prefix: '/api/v1/courses' });
   app.register(roundsRoutes, { prefix: '/api/v1/rounds' });
   app.register(pushRoutes, { prefix: '/api/v1/push' });
+  app.register(notificationsRoutes, { prefix: '/api/v1/notifications' });
 
   app.setErrorHandler((err, request, reply) => {
     request.log.error(

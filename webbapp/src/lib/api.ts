@@ -15,6 +15,7 @@ import type {
   Hole,
   HoleLayoutGeometry,
   MeResponse,
+  AppNotification,
   MissionHistory,
   MissionSubmitResult,
   MutualFollower,
@@ -454,6 +455,27 @@ export function useFollowsApi() {
       getFollowingFeed: (limit = 5, offset = 0) =>
         client.request<FollowingFeedEntry[]>(`/follows/feed/following-rounds?limit=${limit}&offset=${offset}`),
       listMutualFollowers: () => client.request<MutualFollower[]>('/follows/mutual')
+    }),
+    [client]
+  );
+}
+
+export function useNotificationsApi() {
+  const client = useApiClient();
+  return useMemo(
+    () => ({
+      list: (opts: { unreadOnly?: boolean; limit?: number; offset?: number } = {}) => {
+        const qs = new URLSearchParams();
+        if (opts.unreadOnly) qs.set('unreadOnly', 'true');
+        if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
+        if (opts.offset !== undefined) qs.set('offset', String(opts.offset));
+        const tail = qs.toString();
+        return client.request<AppNotification[]>(`/notifications${tail ? `?${tail}` : ''}`);
+      },
+      unreadCount: () => client.request<{ count: number }>('/notifications/unread-count'),
+      markRead: (notificationId: string) =>
+        client.request<null>(`/notifications/${notificationId}/read`, { method: 'POST' }),
+      markAllRead: () => client.request<null>('/notifications/read-all', { method: 'POST' })
     }),
     [client]
   );

@@ -280,6 +280,19 @@ export type MutualFollower = {
   avatarImage: string | null;
 };
 
+export type AppNotificationType = 'ROUND_STARTED';
+
+export type AppNotification = {
+  id: string;
+  userId: string;
+  type: AppNotificationType;
+  title: string;
+  body: string;
+  url: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
 export type RoundHole = {
   id: string;
   roundId: string;
