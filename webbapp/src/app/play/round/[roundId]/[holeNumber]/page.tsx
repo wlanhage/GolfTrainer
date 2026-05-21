@@ -21,6 +21,7 @@ import { TopRightFabs } from '@/components/round-hole/TopRightFabs';
 import { HeatmapRail } from '@/components/round-hole/HeatmapRail';
 import { RoundControlBar } from '@/components/round-hole/RoundControlBar';
 import { HoleSettingsSheet } from '@/components/round-hole/HoleSettingsSheet';
+import { Loader } from '@/components/Loader';
 
 const HolePlayMap = dynamic(() => import('@/components/HolePlayMap').then((m) => m.HolePlayMap), { ssr: false });
 
@@ -194,7 +195,7 @@ export default function RoundHolePage() {
   }, [heatmapClubsWithData, heatmapOpen, hasCaddyData, selectedClubId]);
 
   if (!round || !roundHole) {
-    return <div className="flex items-center justify-center h-screen text-white">Laddar hål...</div>;
+    return <Loader fullScreen onDark label="Laddar hål" />;
   }
 
   const saveAndNext = async () => {

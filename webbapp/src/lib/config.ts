@@ -9,4 +9,6 @@ if (isProd && !explicit) {
 }
 
 export const API_BASE_URL = explicit ?? 'http://localhost:3000/api/v1';
-export const REQUEST_TIMEOUT_MS = 10000;
+// 45s tolerates Render free-tier cold-starts (~30s). Without this, the first
+// request after idle (typically login) times out before the server wakes up.
+export const REQUEST_TIMEOUT_MS = 45000;

@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (status === 'loading') return;
     const isAuthRoute = pathname === '/login' || pathname === '/register';
     if (status === 'guest' && !isAuthRoute) router.replace('/login');
-    if (status === 'authenticated' && isAuthRoute) router.replace('/play');
+    if (status === 'authenticated' && isAuthRoute) router.replace('/');
     if (status === 'authenticated' && pathname.startsWith('/admin') && me?.role !== 'ADMIN') {
       router.replace('/');
     }

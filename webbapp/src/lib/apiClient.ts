@@ -49,7 +49,16 @@ export class ApiClient {
       });
 
       if (!response.ok && response.status !== 401) {
-        throw new Error(`Request failed: ${response.status}`);
+        let detail = '';
+        try {
+          const body = (await response.json()) as { error?: { code?: string; message?: string } } | null;
+          const code = body?.error?.code;
+          const message = body?.error?.message;
+          detail = message ? ` — ${code ? `${code}: ` : ''}${message}` : '';
+        } catch {
+          // body wasn't JSON; ignore
+        }
+        throw new Error(`Request failed: ${response.status}${detail}`);
       }
 
       const data = response.status === 204 ? null : await response.json();

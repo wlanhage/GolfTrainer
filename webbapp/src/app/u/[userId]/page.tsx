@@ -7,6 +7,7 @@ import { useFollowsApi, useUsersApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthProvider';
 import { UserAvatar } from '@/components/UserAvatar';
 import type { FollowCounts, PublicUserProfile } from '@/lib/types';
+import { Loader } from '@/components/Loader';
 
 export default function PublicProfilePage() {
   const router = useRouter();
@@ -67,11 +68,8 @@ export default function PublicProfilePage() {
   };
 
   if (!profile) {
-    return (
-      <div className="p-6 text-center">
-        {error ? <p className="text-red-600">{error}</p> : <p className="text-slate-500">Laddar...</p>}
-      </div>
-    );
+    if (error) return <div className="p-6 text-center text-red-600">{error}</div>;
+    return <Loader />;
   }
 
   return (

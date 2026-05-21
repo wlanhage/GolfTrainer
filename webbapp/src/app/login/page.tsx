@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useT } from '@/lib/i18n/I18nProvider';
+import { API_BASE_URL } from '@/lib/config';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -12,6 +13,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Warm up Render's cold-started backend while the user types so the actual
+  // POST /auth/login doesn't eat the first ~30s of spin-up time.
+  useEffect(() => {
+    const healthUrl = API_BASE_URL.replace(/\/api\/v1\/?$/, '') + '/health';
+    fetch(healthUrl, { method: 'GET', cache: 'no-store' }).catch(() => undefined);
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
