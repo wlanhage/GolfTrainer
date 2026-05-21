@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useI18n, useT } from '@/lib/i18n/I18nProvider';
 import { SUPPORTED_LOCALES, localeLabel } from '@/lib/i18n/dictionaries';
 import { UserAvatar } from './UserAvatar';
+import { Loader } from './Loader';
 
 const MENU_KEYS: Array<{ href: string; key: string }> = [
   { href: '/', key: 'nav.home' },
@@ -76,11 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     (status === 'authenticated' && isAuthRoute) ||
     (status === 'authenticated' && isAdminPath && me?.role !== 'ADMIN')
   ) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-muted">{t('common.loading')}</div>
-      </div>
-    );
+    return <Loader fullScreen />;
   }
 
   if (isAuthRoute) {

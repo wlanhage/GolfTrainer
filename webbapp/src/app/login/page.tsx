@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { API_BASE_URL } from '@/lib/config';
+import { Loader } from '@/components/Loader';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -36,6 +37,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center px-5 gap-3 max-w-md mx-auto">
+      {submitting ? <Loader fullScreen label={t('auth.loggingIn').replace(/\.+$/, '')} /> : null}
       <h1 className="text-3xl font-bold mb-3">{t('title.brand')}</h1>
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
         <input

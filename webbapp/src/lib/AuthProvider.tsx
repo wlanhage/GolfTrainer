@@ -49,11 +49,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('guest');
         return;
       }
+      // First try the stored access token. If it fails (expired, cold-start
+      // glitch, etc.) try the refresh token before giving up. Only clear
+      // storage when the refresh token itself is rejected — network errors
+      // shouldn't log the user out.
       try {
         const loaded = await loadMe(stored);
         setMe(loaded);
         setTokens(stored);
         setStatus('authenticated');
+        return;
+      } catch {
+        // fall through to refresh attempt
+      }
+      try {
+        const next = await authApi.refresh(stored.refreshToken);
+        const loaded = await loadMe(next);
+        setMe(loaded);
+        setTokens(next);
+        setStatus('authenticated');
+        tokenStorage.save(next);
       } catch {
         tokenStorage.clear();
         setStatus('guest');
