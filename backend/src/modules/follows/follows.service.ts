@@ -2,6 +2,7 @@ import { BadRequestError, NotFoundError } from '../../common/errors/AppError.js'
 import { usersRepository } from '../users/users.repository.js';
 import { followsRepository } from './follows.repository.js';
 import { pushService } from '../push/push.service.js';
+import { notificationsService } from '../notifications/notifications.service.js';
 
 const ensureUserExists = async (userId: string, message = 'User not found') => {
   const user = await usersRepository.getById(userId);
@@ -27,6 +28,9 @@ export const followsService = {
         body: `${followerName} följer dig nu`,
         url: `/u/${followerUserId}`
       })
+      .catch(() => undefined);
+    notificationsService
+      .notifyNewFollower(followingUserId, followerName, followerUserId)
       .catch(() => undefined);
 
     return follow;

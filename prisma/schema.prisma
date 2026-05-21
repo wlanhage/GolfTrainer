@@ -151,6 +151,10 @@ model User {
 
 enum NotificationType {
   ROUND_STARTED
+  NEW_FOLLOWER
+  FRIEND_STARTED_ROUND
+  FRIEND_FINISHED_NOTABLE
+  PERSONAL_BEST
 }
 
 model Notification {

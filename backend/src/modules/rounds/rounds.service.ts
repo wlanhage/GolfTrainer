@@ -14,6 +14,14 @@ import type { RoundFormat } from '@prisma/client';
 
 const DEFAULT_FORMAT: RoundFormat = 'STROKE_PLAY';
 
+const getFollowerUserIds = async (userId: string): Promise<string[]> => {
+  const rows = await prisma.userFollow.findMany({
+    where: { followingUserId: userId },
+    select: { followerUserId: true }
+  });
+  return rows.map((r) => r.followerUserId);
+};
+
 const getDisplayName = async (userId: string): Promise<string> => {
   const profile = await prisma.userProfile.findUnique({
     where: { userId },
@@ -115,6 +123,22 @@ export const roundsService = {
         .catch(() => undefined);
     }
 
+    // Notisera host's egna followers om att hen startat en runda — men hoppa
+    // över de som redan fått ROUND_STARTED som inbjudna spelare.
+    void getFollowerUserIds(hostUserId)
+      .then((followerIds) => {
+        const exclude = new Set([hostUserId, ...invitedUserIds]);
+        const targets = followerIds.filter((id) => !exclude.has(id));
+        if (targets.length === 0) return;
+        return notificationsService.notifyFriendStartedRound(
+          targets,
+          hostDisplayName,
+          hostUserId,
+          course.courseName
+        );
+      })
+      .catch(() => undefined);
+
     return created;
   },
 
@@ -143,39 +167,95 @@ export const roundsService = {
 
     if (input.status === 'COMPLETED' && updated.totalScore !== null) {
       roundsService
-        .checkAndNotifyPersonalBest(updated.userId, roundId, updated.totalScore, updated.courseNameSnapshot)
+        .handleRoundCompleted(
+          updated.userId,
+          roundId,
+          updated.totalScore,
+          updated.courseNameSnapshot
+        )
         .catch(() => undefined);
     }
 
     return updated;
   },
 
-  async checkAndNotifyPersonalBest(
+  /**
+   * Vid COMPLETED-runda:
+   *  1. Räkna ut totalPar och relativeToPar
+   *  2. Personligt rekord? → push + in-app notification
+   *  3. Spelade till sin HCP (±3)? → notisera host's followers
+   */
+  async handleRoundCompleted(
     userId: string,
     currentRoundId: string,
     currentScore: number,
     courseNameSnapshot: string
   ) {
-    const previousBest = await prisma.round.findFirst({
-      where: {
-        userId,
-        status: 'COMPLETED',
-        totalScore: { not: null },
-        id: { not: currentRoundId }
-      },
-      orderBy: { totalScore: 'asc' },
-      select: { totalScore: true }
+    // Räkna ut totalPar från snapshots så vi har relativeToPar
+    const par = await prisma.roundHole.aggregate({
+      where: { roundId: currentRoundId },
+      _sum: { parSnapshot: true }
     });
+    const totalPar = par._sum.parSnapshot ?? 0;
+    const relativeToPar = currentScore - totalPar;
 
+    // Personligt rekord — jämför med tidigare COMPLETED-rundor på samma bana
+    const round = await prisma.round.findUnique({
+      where: { id: currentRoundId },
+      select: { courseId: true }
+    });
+    const previousBest = round
+      ? await prisma.round.findFirst({
+          where: {
+            userId,
+            courseId: round.courseId,
+            status: 'COMPLETED',
+            totalScore: { not: null },
+            id: { not: currentRoundId }
+          },
+          orderBy: { totalScore: 'asc' },
+          select: { totalScore: true }
+        })
+      : null;
     const isPersonalBest = previousBest === null || currentScore < previousBest.totalScore!;
 
     if (isPersonalBest) {
-      const sign = currentScore > 0 ? `+${currentScore}` : String(currentScore);
-      await pushService.sendPushToUser(userId, {
-        title: 'Personligt rekord!',
-        body: `Du slog ditt rekord på ${courseNameSnapshot}: ${sign}`,
-        url: '/play'
-      });
+      const sign = relativeToPar > 0 ? `+${relativeToPar}` : String(relativeToPar);
+      pushService
+        .sendPushToUser(userId, {
+          title: 'Personligt rekord!',
+          body: `Du slog ditt rekord på ${courseNameSnapshot}: ${sign}`,
+          url: '/play'
+        })
+        .catch(() => undefined);
+      notificationsService
+        .notifyPersonalBest(userId, courseNameSnapshot, relativeToPar, currentRoundId)
+        .catch(() => undefined);
+    }
+
+    // "Spelade till sin HCP" — relativeToPar inom ±3 av användarens HCP →
+    // notisera den här användarens followers så de ser en kort höjdpunkt.
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { displayName: true, handicap: true }
+    });
+    const hcp = profile?.handicap === null || profile?.handicap === undefined ? null : Number(profile.handicap);
+    if (hcp !== null && Number.isFinite(hcp)) {
+      const delta = Math.abs(relativeToPar - hcp);
+      if (delta <= 3) {
+        const followerIds = await getFollowerUserIds(userId);
+        if (followerIds.length > 0) {
+          notificationsService
+            .notifyFriendFinishedNotable(
+              followerIds,
+              profile?.displayName ?? 'En vän',
+              userId,
+              courseNameSnapshot,
+              relativeToPar
+            )
+            .catch(() => undefined);
+        }
+      }
     }
   },
 

@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ☰
         </button>
         <h1 className="flex-1 text-center text-base font-bold text-ink truncate">{t(titleKeyForPath(pathname))}</h1>
-        <NotificationBell />
+        {pathname === '/' ? null : <NotificationBell />}
         <Link href="/profile" className="flex items-center justify-center">
           <UserAvatar
             avatarImage={me?.profile?.avatarImage}
