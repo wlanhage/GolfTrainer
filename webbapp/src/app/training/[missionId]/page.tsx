@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useFollowsApi, useTrainingApi } from '@/lib/api';
+import { Loader } from '@/components/Loader';
 import { useAuth } from '@/lib/AuthProvider';
 import { formatDate } from '@/lib/format';
 import type {
@@ -111,7 +112,7 @@ export default function MissionPage() {
   }
 
   if (!mission) {
-    return <div className="p-8 text-center text-slate-500">Laddar...</div>;
+    return <Loader />;
   }
 
   const finalScore = mission.scoreInputType === 'manual' ? Number(manualScore) : stepperScore;

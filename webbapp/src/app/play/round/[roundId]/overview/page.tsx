@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import type { HoleLayoutGeometry, RoundOverview } from '@/lib/types';
+import { Loader } from '@/components/Loader';
 
 export default function RoundOverviewPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function RoundOverviewPage() {
     };
   }, [api, roundId, router, roundsStore]);
 
-  if (!overview) return <div className="p-6">Laddar översikt...</div>;
+  if (!overview) return <Loader label="Laddar översikt" />;
 
   const rel =
     overview.relativeToPar === null ? '-' : overview.relativeToPar >= 0 ? `+${overview.relativeToPar}` : `${overview.relativeToPar}`;

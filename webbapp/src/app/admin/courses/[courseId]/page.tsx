@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CourseForm, type CourseFormValues } from '@/components/CourseForm';
 import { useCoursesApi, type CourseDetail } from '@/lib/api';
 import { useToast } from '@/lib/ToastProvider';
+import { Loader } from '@/components/Loader';
 
 export default function AdminCourseDetailsPage() {
   const params = useParams();
@@ -36,7 +37,7 @@ export default function AdminCourseDetailsPage() {
     [detail]
   );
 
-  if (!detail) return <div className="p-6">Laddar bana...</div>;
+  if (!detail) return <Loader label="Laddar bana" />;
 
   const onSave = async () => {
     try {

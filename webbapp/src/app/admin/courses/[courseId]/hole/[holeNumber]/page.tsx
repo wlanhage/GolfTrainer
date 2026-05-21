@@ -8,6 +8,7 @@ import { useToast } from '@/lib/ToastProvider';
 import { createEmptyLayoutGeometry } from '@/lib/holeGeometry';
 import { parseOptionalHcpIndex, parseOptionalPositiveNumber } from '@/lib/validation';
 import type { HoleLayoutGeometry } from '@/lib/types';
+import { Loader } from '@/components/Loader';
 
 const HoleLayoutEditor = dynamic(() => import('@/components/HoleLayoutEditor').then((m) => m.HoleLayoutEditor), { ssr: false });
 
@@ -41,7 +42,7 @@ export default function HoleEditPage() {
     void load();
   }, [load]);
 
-  if (!layout) return <div className="p-6">Laddar hål...</div>;
+  if (!layout) return <Loader label="Laddar hål" />;
 
   const save = async () => {
     try {
