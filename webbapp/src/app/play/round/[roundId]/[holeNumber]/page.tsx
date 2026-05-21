@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaddyApi, useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import type { ServerRoundHole, ServerRoundHoleScore, ServerRoundPlayer, ServerWolfRole } from '@/lib/api';
@@ -60,34 +60,67 @@ export default function RoundHolePage() {
   const [manualOverride, setManualOverride] = useState(false);
 
   const { enabled: autoEnabled, setEnabled: setAutoEnabled } = useHeatmapAuto();
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Ladda runda + hål
+  // Refetch:ar runda + hål från backend. Används både för initial-load och
+  // för "uppdatera"-knapp + visibility/focus-händelser. Bevarar pågående
+  // input genom att inte röra `score`-state om scoreInputDirty är satt.
+  const reload = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!roundsStore.ready) return;
+      if (!opts.silent) setRefreshing(true);
+      try {
+        const r = await roundsStore.getRound(roundId);
+        if (!r) {
+          router.replace('/play');
+          return;
+        }
+        setRound(r.round);
+        setMaxHole(r.roundHoles.length);
+        setCourseId(r.round.courseId);
+        setPlayers(r.players);
+        const rh = r.roundHoles.find((x) => x.holeNumber === holeNumber) ?? null;
+        setRoundHole(rh);
+        // Endast solo-input — i grupp-mode visas dropdowns per spelare istället
+        if (r.players.length <= 1) {
+          setScore(rh?.strokes?.toString() ?? '');
+        }
+        const next = new Map<string, ServerRoundHoleScore>();
+        (rh?.scores ?? []).forEach((s) => next.set(s.playerId, s));
+        setScoresByPlayer(next);
+      } finally {
+        if (!opts.silent) setRefreshing(false);
+      }
+    },
+    [roundId, holeNumber, roundsStore, router]
+  );
+
+  // Initial-load + reload när hål-nummer byts
   useEffect(() => {
-    if (!roundsStore.ready) return;
     let active = true;
     void (async () => {
-      const r = await roundsStore.getRound(roundId);
+      await reload({ silent: true });
       if (!active) return;
-      if (!r) {
-        router.replace('/play');
-        return;
-      }
-      setRound(r.round);
-      setMaxHole(r.roundHoles.length);
-      setCourseId(r.round.courseId);
-      setPlayers(r.players);
-      const rh = r.roundHoles.find((x) => x.holeNumber === holeNumber) ?? null;
-      setRoundHole(rh);
-      setScore(rh?.strokes?.toString() ?? '');
-      // Map scores per player for current hole
-      const next = new Map<string, ServerRoundHoleScore>();
-      (rh?.scores ?? []).forEach((s) => next.set(s.playerId, s));
-      setScoresByPlayer(next);
     })();
     return () => {
       active = false;
     };
-  }, [roundId, holeNumber, router, roundsStore]);
+  }, [reload]);
+
+  // Auto-refetch när användaren kommer tillbaka till appen (lock/unlock,
+  // tab-switch). Använder silent så vi inte blinkar refresh-spinnern.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reload({ silent: true });
+    };
+    const onFocus = () => void reload({ silent: true });
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [reload]);
 
   // Ladda bana för aktuell layout
   useEffect(() => {
@@ -348,6 +381,19 @@ export default function RoundHolePage() {
       {isGroup ? (
         <>
           <div className="absolute left-0 right-0 bottom-16 z-10 px-3 pb-2 max-h-[55vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-white text-xs font-bold drop-shadow">
+                Hål {roundHole.holeNumber} • {players.length} spelare
+              </span>
+              <button
+                onClick={() => void reload()}
+                disabled={refreshing}
+                aria-label="Uppdatera scores"
+                className="bg-white/90 text-primary rounded-full w-9 h-9 flex items-center justify-center font-bold disabled:opacity-50"
+              >
+                <span className={refreshing ? 'inline-block animate-spin' : 'inline-block'}>↻</span>
+              </button>
+            </div>
             <GroupScoreBoard
               format={format}
               players={players}
