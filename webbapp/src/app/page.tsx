@@ -156,7 +156,7 @@ export default function HomePage() {
             {feed.map((entry) => (
               <Link
                 key={entry.roundId}
-                href={`/u/${entry.userId}`}
+                href={`/play/round/${entry.roundId}/overview`}
                 className="snap-start shrink-0 w-[70%] bg-white border border-border rounded-2xl p-4 flex flex-col gap-2"
               >
                 <div className="flex items-center gap-2">

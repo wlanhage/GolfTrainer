@@ -1,78 +1,457 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useCoursesApi } from '@/lib/api';
-import { useRoundsStore } from '@/lib/roundsStore';
-import type { HoleLayoutGeometry, RoundOverview } from '@/lib/types';
+import { ChevronDown } from 'lucide-react';
+import { useRoundsApi, type ServerRoundDetail, type ServerRoundHole, type ServerRoundPlayer } from '@/lib/api';
+import { useT } from '@/lib/i18n/I18nProvider';
 import { Loader } from '@/components/Loader';
+import { UserAvatar } from '@/components/UserAvatar';
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('sv-SE', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function relativeLabel(diff: number): string {
+  if (diff === 0) return 'E';
+  return diff > 0 ? `+${diff}` : `${diff}`;
+}
+
+/** CSS classes for a score cell based on strokes vs par. */
+function scoreCellClasses(strokes: number | null, par: number | null): string {
+  if (strokes === null || par === null) return '';
+  const diff = strokes - par;
+  if (diff >= 2) return 'bg-blue-600 text-white rounded-md'; // double bogey+
+  if (diff === 1) return 'bg-blue-400 text-white rounded-md'; // bogey
+  if (diff === -1) return 'bg-red-500 text-white rounded-full'; // birdie
+  if (diff <= -2) return 'bg-yellow-500 text-white rounded-full ring-2 ring-yellow-300'; // eagle+
+  return ''; // par — no styling
+}
+
+function formatLabel(format: string, t: (key: string) => string): string {
+  switch (format) {
+    case 'STROKE_PLAY': return t('roundOverview.strokePlay');
+    case 'STABLEFORD': return t('roundOverview.stableford');
+    case 'BEST_BALL_TEAM':
+    case 'BEST_BALL_2V2': return t('roundOverview.bestBall');
+    case 'WOLF': return t('roundOverview.wolf');
+    case 'FFA_STROKE':
+    case 'FFA_STABLEFORD': return t('roundOverview.ffa');
+    default: return format;
+  }
+}
+
+// ── derived data per player ───────────────────────────────────────────────────
+
+interface PlayerScorecard {
+  player: ServerRoundPlayer;
+  /** holes in order */
+  holes: ServerRoundHole[];
+  totalBrutto: number;
+  totalPar: number;
+  holesPlayed: number;
+  hasHcpData: boolean;
+}
+
+function buildScorecard(
+  player: ServerRoundPlayer,
+  roundHoles: ServerRoundHole[]
+): PlayerScorecard {
+  const sorted = [...roundHoles].sort((a, b) => a.holeNumber - b.holeNumber);
+
+  let totalBrutto = 0;
+  let totalPar = 0;
+  let holesPlayed = 0;
+  let hasHcpData = false;
+
+  for (const hole of sorted) {
+    const score = hole.scores?.find((s) => s.playerId === player.id);
+    const strokes = score?.strokes ?? null;
+    if (strokes !== null) {
+      totalBrutto += strokes;
+      holesPlayed += 1;
+    }
+    if (hole.parSnapshot !== null) totalPar += hole.parSnapshot;
+    if (hole.hcpIndexSnapshot !== null) hasHcpData = true;
+  }
+
+  return { player, holes: sorted, totalBrutto, totalPar, holesPlayed, hasHcpData };
+}
+
+// ── scorecard table ───────────────────────────────────────────────────────────
+
+function ScorecardTable({ player, holes, showHcp, t }: {
+  player: ServerRoundPlayer;
+  holes: ServerRoundHole[];
+  showHcp: boolean;
+  t: (key: string) => string;
+}) {
+  const is18 = holes.length > 9;
+  const firstNine = holes.slice(0, 9);
+  const secondNine = is18 ? holes.slice(9, 18) : [];
+
+  const sumPar = (hs: ServerRoundHole[]) => hs.reduce((s, h) => s + (h.parSnapshot ?? 0), 0);
+  const sumStrokes = (hs: ServerRoundHole[]) =>
+    hs.reduce((s, h) => {
+      const score = h.scores?.find((sc) => sc.playerId === player.id);
+      return s + (score?.strokes ?? 0);
+    }, 0);
+
+  const outPar = sumPar(firstNine);
+  const outStrokes = sumStrokes(firstNine);
+  const inPar = is18 ? sumPar(secondNine) : null;
+  const inStrokes = is18 ? sumStrokes(secondNine) : null;
+  const totPar = is18 ? outPar + (inPar ?? 0) : outPar;
+  const totStrokes = is18 ? outStrokes + (inStrokes ?? 0) : outStrokes;
+
+  const headerBg = 'bg-slate-100';
+  const subtotalBg = 'bg-slate-50';
+
+  const renderHoleRow = (hs: ServerRoundHole[], section: 'out' | 'in') => (
+    <>
+      {hs.map((hole) => (
+        <td key={hole.holeNumber} className="px-1 py-0.5 text-center text-xs min-w-[28px]">
+          {hole.holeNumber}
+        </td>
+      ))}
+      <td className={`px-1 py-0.5 text-center text-xs font-bold border-l border-border min-w-[32px] ${subtotalBg}`}>
+        {section === 'out' ? t('roundOverview.out') : t('roundOverview.in')}
+      </td>
+    </>
+  );
+
+  const renderHcpRow = (hs: ServerRoundHole[]) => (
+    <>
+      {hs.map((hole) => (
+        <td key={hole.holeNumber} className="px-1 py-0.5 text-center text-xs min-w-[28px] text-slate-500">
+          {hole.hcpIndexSnapshot ?? '-'}
+        </td>
+      ))}
+      <td className={`px-1 py-0.5 text-center text-xs border-l border-border min-w-[32px] ${subtotalBg}`} />
+    </>
+  );
+
+  const renderParRow = (hs: ServerRoundHole[], sectionPar: number) => (
+    <>
+      {hs.map((hole) => (
+        <td key={hole.holeNumber} className="px-1 py-0.5 text-center text-xs min-w-[28px]">
+          {hole.parSnapshot ?? '-'}
+        </td>
+      ))}
+      <td className={`px-1 py-0.5 text-center text-xs font-bold border-l border-border min-w-[32px] ${subtotalBg}`}>
+        {sectionPar > 0 ? sectionPar : '-'}
+      </td>
+    </>
+  );
+
+  const renderResultRow = (hs: ServerRoundHole[], sectionStrokes: number) => (
+    <>
+      {hs.map((hole) => {
+        const score = hole.scores?.find((s) => s.playerId === player.id);
+        const strokes = score?.strokes ?? null;
+        const cellClasses = scoreCellClasses(strokes, hole.parSnapshot);
+        return (
+          <td key={hole.holeNumber} className="px-0.5 py-0.5 text-center min-w-[28px]">
+            {strokes !== null ? (
+              <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold ${cellClasses}`}>
+                {strokes}
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400">-</span>
+            )}
+          </td>
+        );
+      })}
+      <td className={`px-1 py-0.5 text-center text-xs font-bold border-l border-border min-w-[32px] ${subtotalBg}`}>
+        {sectionStrokes > 0 ? sectionStrokes : '-'}
+      </td>
+    </>
+  );
+
+  const renderSection = (
+    hs: ServerRoundHole[],
+    section: 'out' | 'in',
+    sectionPar: number,
+    sectionStrokes: number
+  ) => (
+    <tbody>
+      {/* Hole numbers row */}
+      <tr className={headerBg}>
+        <td className="px-2 py-0.5 text-xs font-bold text-slate-500 sticky left-0 bg-slate-100 whitespace-nowrap min-w-[64px]">
+          {t('roundOverview.hole')}
+        </td>
+        {renderHoleRow(hs, section)}
+        {is18 && section === 'in' ? (
+          <td className={`px-1 py-0.5 text-center text-xs font-bold border-l border-border min-w-[32px] ${subtotalBg}`}>
+            {t('roundOverview.total')}
+          </td>
+        ) : null}
+      </tr>
+
+      {/* HCP index row — only when data exists */}
+      {showHcp && (
+        <tr>
+          <td className="px-2 py-0.5 text-xs text-slate-500 sticky left-0 bg-white whitespace-nowrap min-w-[64px]">
+            {t('roundOverview.handicap')}
+          </td>
+          {renderHcpRow(hs)}
+          {is18 && section === 'in' ? (
+            <td className={`border-l border-border min-w-[32px] ${subtotalBg}`} />
+          ) : null}
+        </tr>
+      )}
+
+      {/* Par row */}
+      <tr>
+        <td className="px-2 py-0.5 text-xs font-semibold text-slate-600 sticky left-0 bg-white whitespace-nowrap min-w-[64px]">
+          {t('roundOverview.par')}
+        </td>
+        {renderParRow(hs, sectionPar)}
+        {is18 && section === 'in' ? (
+          <td className={`px-1 py-0.5 text-center text-xs font-bold border-l border-border min-w-[32px] ${subtotalBg}`}>
+            {totPar > 0 ? totPar : '-'}
+          </td>
+        ) : null}
+      </tr>
+
+      {/* Result row */}
+      <tr className="border-t border-border">
+        <td className="px-2 py-0.5 text-xs font-semibold text-slate-600 sticky left-0 bg-white whitespace-nowrap min-w-[64px]">
+          {t('roundOverview.result')}
+        </td>
+        {renderResultRow(hs, sectionStrokes)}
+        {is18 && section === 'in' ? (
+          <td className={`px-1 py-0.5 text-center text-xs font-bold border-l border-border min-w-[32px] ${subtotalBg}`}>
+            {totStrokes > 0 ? totStrokes : '-'}
+          </td>
+        ) : null}
+      </tr>
+    </tbody>
+  );
+
+  return (
+    <div className="overflow-x-auto -mx-4 px-4">
+      <table className="border-collapse text-ink" style={{ tableLayout: 'auto' }}>
+        {renderSection(firstNine, 'out', outPar, outStrokes)}
+        {is18 && secondNine.length > 0 && (
+          <>
+            <tbody><tr><td colSpan={999} className="h-2" /></tr></tbody>
+            {renderSection(secondNine, 'in', inPar ?? 0, inStrokes ?? 0)}
+          </>
+        )}
+      </table>
+    </div>
+  );
+}
+
+// ── player card ───────────────────────────────────────────────────────────────
+
+function PlayerCard({
+  scorecard,
+  position,
+  defaultOpen,
+  t,
+}: {
+  scorecard: PlayerScorecard;
+  position: number;
+  defaultOpen: boolean;
+  t: (key: string) => string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const { player, holes, totalBrutto, totalPar, holesPlayed, hasHcpData } = scorecard;
+  const relDiff = holesPlayed > 0 ? totalBrutto - totalPar : null;
+
+  return (
+    <div className="bg-white border border-border rounded-2xl overflow-hidden">
+      {/* Collapsed header — always visible */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        {/* Position badge */}
+        <span className="shrink-0 w-7 h-7 rounded-full bg-primary text-white text-xs font-extrabold flex items-center justify-center">
+          {position}
+        </span>
+
+        {/* Avatar + name */}
+        <UserAvatar displayName={player.displayNameSnapshot} size={36} />
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-ink truncate leading-tight">{player.displayNameSnapshot}</p>
+          <p className="text-xs text-slate-500">
+            {holesPlayed} {t('roundOverview.holesPlayed')}
+          </p>
+        </div>
+
+        {/* Score + relative to par */}
+        <div className="shrink-0 text-right mr-2">
+          <p className="text-2xl font-extrabold text-primary leading-none">
+            {holesPlayed > 0 ? totalBrutto : '-'}
+          </p>
+          {relDiff !== null && (
+            <p className={`text-xs font-bold ${relDiff > 0 ? 'text-blue-600' : relDiff < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+              {relativeLabel(relDiff)}
+            </p>
+          )}
+        </div>
+
+        {/* Chevron */}
+        <ChevronDown
+          size={18}
+          className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {/* Expanded scorecard */}
+      {open && (
+        <div className="border-t border-border px-4 py-3">
+          <ScorecardTable
+            player={player}
+            holes={holes}
+            showHcp={hasHcpData}
+            t={t}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── page ──────────────────────────────────────────────────────────────────────
 
 export default function RoundOverviewPage() {
-  const router = useRouter();
   const params = useParams();
+  const router = useRouter();
   const roundId = String(params?.roundId ?? '');
-  const api = useCoursesApi();
-  const roundsStore = useRoundsStore();
-  const [overview, setOverview] = useState<RoundOverview | null>(null);
+  const roundsApi = useRoundsApi();
+  const t = useT();
+
+  const [round, setRound] = useState<ServerRoundDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!roundsStore.ready) return;
+    if (!roundId) return;
     let active = true;
-    void (async () => {
-      const round = await roundsStore.getRound(roundId);
-      if (!active) return;
-      if (!round) {
-        router.replace('/play');
-        return;
-      }
-      const detail = await api.getCourseDetail(round.round.courseId);
-      const layoutByHoleId = new Map<string, HoleLayoutGeometry>();
-      detail?.holes.forEach((h) => {
-        if (h.layout) layoutByHoleId.set(h.id, h.layout.geometry);
+    setLoading(true);
+    roundsApi
+      .getById(roundId)
+      .then((data) => {
+        if (!active) return;
+        if (!data) {
+          setNotFound(true);
+        } else {
+          setRound(data);
+        }
+      })
+      .catch(() => {
+        if (active) setNotFound(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
-      const ov = await roundsStore.getOverview(roundId, layoutByHoleId);
-      if (active) setOverview(ov);
-    })();
     return () => {
       active = false;
     };
-  }, [api, roundId, router, roundsStore]);
+  }, [roundId, roundsApi]);
 
-  if (!overview) return <Loader label="Laddar översikt" />;
+  if (loading) return <Loader label={t('roundOverview.loading')} />;
 
-  const rel =
-    overview.relativeToPar === null ? '-' : overview.relativeToPar >= 0 ? `+${overview.relativeToPar}` : `${overview.relativeToPar}`;
+  if (notFound || !round) {
+    return (
+      <div className="p-6 flex flex-col items-center gap-4">
+        <p className="text-slate-600">{t('roundOverview.notFound')}</p>
+        <button
+          onClick={() => router.back()}
+          className="text-primary font-semibold text-sm"
+        >
+          {t('common.back')}
+        </button>
+      </div>
+    );
+  }
+
+  // Sort players by order; fall back to index
+  const sortedPlayers = [...(round.players ?? [])].sort((a, b) => a.order - b.order);
+
+  // Build scorecards
+  const scorecards = sortedPlayers.map((p) => buildScorecard(p, round.roundHoles ?? []));
+
+  // Sort by total brutto ascending for position ranking
+  const ranked = [...scorecards].sort((a, b) => {
+    if (a.holesPlayed === 0 && b.holesPlayed === 0) return 0;
+    if (a.holesPlayed === 0) return 1;
+    if (b.holesPlayed === 0) return -1;
+    return a.totalBrutto - b.totalBrutto;
+  });
+  const positionMap = new Map(ranked.map((sc, i) => [sc.player.id, i + 1]));
+
+  const dateStr = formatDate(round.startedAt);
+  const formatStr = formatLabel(round.format, t);
 
   return (
-    <div className="p-4 flex flex-col gap-2">
-      <h1 className="text-3xl font-extrabold text-ink">Rundöversikt</h1>
-      <p className="text-slate-700">
-        Score: {overview.totalScore} • Par: {overview.totalPar} • Relativt par: {rel}
-      </p>
-      <p className="text-slate-700">
-        Registrerade hål: {overview.completedHoles}/{overview.items.length}
-      </p>
+    <div className="flex flex-col gap-4 pb-24 pt-4 px-4">
+      {/* Back */}
+      <button
+        onClick={() => router.back()}
+        className="self-start flex items-center gap-1 text-sm text-primary font-semibold -ml-1"
+        aria-label={t('common.back')}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        {t('common.back')}
+      </button>
 
-      <div className="flex flex-col gap-2 mt-2">
-        {overview.items.map((item) => (
-          <button
-            key={item.holeNumber}
-            onClick={() => {
-              void roundsStore.setCurrentHole(roundId, item.holeNumber);
-              router.push(`/play/round/${roundId}/${item.holeNumber}`);
-            }}
-            className="bg-white border border-border rounded-lg px-3 py-3 flex items-center justify-between text-left"
-          >
-            <div>
-              <div className="font-bold text-ink">Hål {item.holeNumber}</div>
-              <div className="text-xs text-slate-500">
-                Par {item.par ?? '-'} • Längd {item.length ?? '-'} • HCP {item.hcpIndex ?? '-'}
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-primary">{item.strokes ?? '-'}</div>
-          </button>
-        ))}
-      </div>
+      {/* Header */}
+      <header className="flex flex-col gap-0.5">
+        <h1 className="text-2xl font-extrabold text-ink leading-tight">{round.courseNameSnapshot}</h1>
+        <p className="text-sm text-slate-500">
+          {round.clubNameSnapshot}
+          {round.teeNameSnapshot ? ` · ${round.teeNameSnapshot}` : ''}
+        </p>
+        <p className="text-sm text-slate-500">
+          {dateStr} · {formatStr}
+        </p>
+      </header>
+
+      {/* If no players, show a simple fallback */}
+      {sortedPlayers.length === 0 ? (
+        <div className="bg-white border border-border rounded-2xl p-4 text-center text-slate-600 text-sm">
+          Inga spelare registrerade.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {scorecards.map((sc, idx) => (
+            <PlayerCard
+              key={sc.player.id}
+              scorecard={sc}
+              position={positionMap.get(sc.player.id) ?? idx + 1}
+              // First player (host) starts expanded by default
+              defaultOpen={idx === 0}
+              t={t}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Continue playing link if round is still in progress */}
+      {round.status === 'IN_PROGRESS' && (
+        <Link
+          href={`/play/round/${roundId}/${round.currentHoleNumber}`}
+          className="mt-2 block w-full bg-primary text-white rounded-2xl py-3 text-center font-bold text-base"
+        >
+          Fortsätt runda · Hål {round.currentHoleNumber}
+        </Link>
+      )}
     </div>
   );
 }
