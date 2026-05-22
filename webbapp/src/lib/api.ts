@@ -370,6 +370,7 @@ export function useRoundsApi() {
           body: JSON.stringify(payload)
         }),
       getById: (roundId: string) => client.request<ServerRoundDetail>(`/rounds/${roundId}`),
+      getByIdPublic: (roundId: string) => client.request<ServerRoundDetail>(`/rounds/${roundId}/public`),
       update: (roundId: string, patch: { currentHoleNumber?: number; status?: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED' }) =>
         client.request<ServerRoundDetail>(`/rounds/${roundId}`, {
           method: 'PATCH',

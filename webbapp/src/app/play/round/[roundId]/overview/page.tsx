@@ -342,8 +342,10 @@ export default function RoundOverviewPage() {
     if (!roundId) return;
     let active = true;
     setLoading(true);
+    // Try public endpoint first (works for any round), fall back to private
     roundsApi
-      .getById(roundId)
+      .getByIdPublic(roundId)
+      .catch(() => roundsApi.getById(roundId))
       .then((data) => {
         if (!active) return;
         if (!data) {

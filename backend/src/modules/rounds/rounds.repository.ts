@@ -100,6 +100,14 @@ export const roundsRepository = {
     });
   },
 
+  /** Public read-only — any authenticated user can view any round. */
+  getByIdPublic(roundId: string) {
+    return prisma.round.findUnique({
+      where: { id: roundId },
+      include: ROUND_INCLUDE
+    });
+  },
+
   /**
    * Returnerar true om användaren har access till rundan (host eller player).
    */

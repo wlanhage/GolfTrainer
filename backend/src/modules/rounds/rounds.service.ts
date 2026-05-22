@@ -156,6 +156,13 @@ export const roundsService = {
     return round;
   },
 
+  /** Public read-only — any authenticated user can view any completed round. */
+  async getByIdPublic(roundId: string) {
+    const round = await roundsRepository.getByIdPublic(roundId);
+    if (!round) throw new NotFoundError('Round not found');
+    return round;
+  },
+
   async updateRound(roundId: string, userId: string, input: UpdateRoundInput) {
     const patch: Parameters<typeof roundsRepository.updateRound>[2] = { ...input };
     if (input.status === 'COMPLETED' || input.status === 'ABANDONED') {

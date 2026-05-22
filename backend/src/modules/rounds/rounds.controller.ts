@@ -30,6 +30,12 @@ export const roundsController = {
     return reply.send(round);
   },
 
+  async getByIdPublic(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const round = await roundsService.getByIdPublic(roundId);
+    return reply.send(round);
+  },
+
   async update(request: FastifyRequest, reply: FastifyReply) {
     const { roundId } = roundIdParamSchema.parse(request.params);
     const input = updateRoundSchema.parse(request.body);

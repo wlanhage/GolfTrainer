@@ -8,6 +8,7 @@ export async function roundsRoutes(app: FastifyInstance) {
   app.get('/', roundsController.list);
   app.post('/', roundsController.create);
   app.get('/:roundId', roundsController.getById);
+  app.get('/:roundId/public', roundsController.getByIdPublic);
   app.patch('/:roundId', roundsController.update);
   app.delete('/:roundId', roundsController.remove);
   app.patch('/:roundId/holes/:holeNumber', roundsController.updateHole);
