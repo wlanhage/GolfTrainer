@@ -24,7 +24,7 @@ input[type='number'] { -moz-appearance: textfield; }
 /* PWA standalone: bigger bottom nav + lift above home indicator */
 @media (display-mode: standalone) {
   .pwa-bottom-nav {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
   }
   .pwa-nav-tab {
     padding-top: 0.625rem;
