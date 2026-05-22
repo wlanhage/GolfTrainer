@@ -2,11 +2,39 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import { useToast } from '@/lib/ToastProvider';
-import type { Course, InProgressRoundSummary } from '@/lib/types';
+import type { Course, GeoPoint, InProgressRoundSummary } from '@/lib/types';
+
+const PAGE_SIZE = 5;
+
+function haversineMeters(a: GeoPoint, b: GeoPoint): number {
+  const earthRadius = 6_371_000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m bort`;
+  return `${(meters / 1000).toFixed(1).replace('.', ',')} km bort`;
+}
+
+function matchesSearch(course: Course, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    course.courseName.toLowerCase().includes(q) ||
+    course.clubName.toLowerCase().includes(q) ||
+    (course.teeName?.toLowerCase().includes(q) ?? false)
+  );
+}
 
 export default function PlayPage() {
   const api = useCoursesApi();
@@ -15,16 +43,46 @@ export default function PlayPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
+  const [courseLocations, setCourseLocations] = useState<Record<string, GeoPoint | null>>({});
+  const [coords, setCoords] = useState<GeoPoint | null>(null);
   const [inProgress, setInProgress] = useState<InProgressRoundSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [endTarget, setEndTarget] = useState<InProgressRoundSummary | null>(null);
+  const [mode, setMode] = useState<'solo' | 'group'>('solo');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const refresh = useCallback(async () => {
+    let list: Course[] = [];
     try {
-      setCourses(await api.listCourses(search));
+      list = await api.listCourses('');
+      setCourses(list);
+      setError(null);
     } catch {
       setError('Kunde inte hämta banor.');
     }
+    // Derive a course location from the average of the first three mapped tee points.
+    const entries = await Promise.all(
+      list.map(async (course): Promise<[string, GeoPoint | null]> => {
+        try {
+          const detail = await api.getCourseDetail(course.id);
+          const teePoints = (detail?.holes ?? [])
+            .map((hole) => hole.layout?.geometry.teePoint ?? null)
+            .filter((point): point is GeoPoint => point != null)
+            .slice(0, 3);
+          if (teePoints.length === 0) return [course.id, null];
+          return [
+            course.id,
+            {
+              lat: teePoints.reduce((sum, p) => sum + p.lat, 0) / teePoints.length,
+              lng: teePoints.reduce((sum, p) => sum + p.lng, 0) / teePoints.length
+            }
+          ];
+        } catch {
+          return [course.id, null];
+        }
+      })
+    );
+    setCourseLocations(Object.fromEntries(entries));
     if (roundsStore.ready) {
       try {
         setInProgress(await roundsStore.listInProgress());
@@ -32,13 +90,50 @@ export default function PlayPage() {
         setInProgress([]);
       }
     }
-  }, [api, search, roundsStore]);
+  }, [api, roundsStore]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const [mode, setMode] = useState<'solo' | 'group'>('solo');
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setCoords(null),
+      { timeout: 8000, maximumAge: 300_000 }
+    );
+  }, []);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search]);
+
+  const distanceFor = useCallback(
+    (courseId: string): number | null => {
+      const location = courseLocations[courseId];
+      if (!coords || !location) return null;
+      return haversineMeters(coords, location);
+    },
+    [coords, courseLocations]
+  );
+
+  const filteredCourses = useMemo(() => {
+    const filtered = courses.filter((course) => matchesSearch(course, search));
+    if (!coords) return filtered;
+    return [...filtered].sort((a, b) => {
+      const da = distanceFor(a.id);
+      const db = distanceFor(b.id);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da - db;
+    });
+  }, [courses, search, coords, distanceFor]);
+
+  const visibleCourses = filteredCourses.slice(0, visibleCount);
+  const canLoadMore = filteredCourses.length > visibleCount;
+  const showSearch = courses.length > PAGE_SIZE;
 
   const onCoursePick = async (course: Course) => {
     try {
@@ -125,12 +220,14 @@ export default function PlayPage() {
         </section>
       ) : null}
 
-      <input
-        placeholder="Sök bana eller klubb"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="input"
-      />
+      {showSearch ? (
+        <input
+          placeholder="Sök bana eller klubb"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="input"
+        />
+      ) : null}
 
       <Link href="/play/add" className="btn-primary text-center">
         + Lägg till bana
@@ -139,21 +236,35 @@ export default function PlayPage() {
       {error ? <p className="text-danger text-sm">{error}</p> : null}
 
       <div className="flex flex-col gap-2.5 mt-1">
-        {courses.map((course) => (
-          <button
-            key={course.id}
-            onClick={() => void onCoursePick(course)}
-            className="card text-left flex flex-col gap-1 active:bg-primary-softer"
-          >
-            <span className="text-lg font-bold text-ink">{course.courseName}</span>
-            <span className="text-sm text-slate-700">{course.clubName}</span>
-            <span className="text-xs text-slate-600">
-              {course.holeCount} hål • {course.teeName ?? 'Tee ej satt'}
-            </span>
-          </button>
-        ))}
-        {courses.length === 0 && !error ? <p className="text-center text-slate-500 mt-3">Inga banor hittades.</p> : null}
+        {visibleCourses.map((course) => {
+          const distance = distanceFor(course.id);
+          return (
+            <button
+              key={course.id}
+              onClick={() => void onCoursePick(course)}
+              className="card text-left flex flex-col gap-1 active:bg-primary-softer"
+            >
+              <span className="text-lg font-bold text-ink">{course.courseName}</span>
+              <span className="text-sm text-slate-700">{course.clubName}</span>
+              <span className="text-xs text-slate-600">
+                {course.holeCount} hål • {course.teeName ?? 'Tee ej satt'}
+              </span>
+              {distance != null ? (
+                <span className="text-xs font-semibold text-primary">{formatDistance(distance)}</span>
+              ) : null}
+            </button>
+          );
+        })}
+        {filteredCourses.length === 0 && !error ? (
+          <p className="text-center text-slate-500 mt-3">Inga banor hittades.</p>
+        ) : null}
       </div>
+
+      {canLoadMore ? (
+        <button onClick={() => setVisibleCount((count) => count + PAGE_SIZE)} className="btn-ghost">
+          Ladda fler banor ({filteredCourses.length - visibleCount} kvar)
+        </button>
+      ) : null}
 
       {endTarget ? (
         <div className="fixed inset-0 z-40 bg-slate-900/45 flex flex-col justify-end">
