@@ -142,14 +142,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center gap-0.5 py-2 transition-all duration-200 ${
+                className={`pwa-nav-tab flex flex-col items-center gap-0.5 py-2 transition-all duration-200 ${
                   active
                     ? 'text-primary scale-105'
                     : 'text-slate-400 active:scale-95'
                 }`}
               >
                 <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-                <span className={`text-[10px] leading-tight ${active ? 'font-bold' : 'font-medium'}`}>
+                <span className={`pwa-nav-label text-[10px] leading-tight ${active ? 'font-bold' : 'font-medium'}`}>
                   {t(labelKey)}
                 </span>
               </Link>
