@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useAuth } from '@/lib/AuthProvider';
 import { useFollowsApi, useProfileApi } from '@/lib/api';
 import { useRoundsStore, type LatestRoundSummary } from '@/lib/roundsStore';
 import { formatDate } from '@/lib/format';
@@ -245,7 +244,6 @@ const formatRel = (r: LatestRoundSummary | null) => {
 };
 
 export default function ProfilePage() {
-  const { logout } = useAuth();
   const api = useProfileApi();
   const followsApi = useFollowsApi();
   const roundsStore = useRoundsStore();
@@ -438,9 +436,12 @@ export default function ProfilePage() {
 
       <NotificationsSection />
 
-      <button onClick={() => void logout()} className="btn-danger mt-2">
-        {t('nav.logout')}
-      </button>
+      <Link
+        href="/profile/settings"
+        className="btn-secondary text-center mt-2"
+      >
+        {t('settings.title')}
+      </Link>
     </div>
   );
 }

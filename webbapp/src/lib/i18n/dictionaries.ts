@@ -36,7 +36,21 @@ const sv: Messages = {
   'nav.openMenu': 'Öppna meny',
   'nav.closeMenu': 'Stäng meny',
 
+  // Bottom tab bar (short labels)
+  'nav.communityShort': 'Community',
+  'nav.trainingShort': 'Träning',
+  'nav.homeShort': 'Hem',
+  'nav.playShort': 'Spela',
+  'nav.caddyShort': 'Caddy',
+
+  // Settings
+  'settings.title': 'Inställningar',
+  'settings.general': 'Allmänt',
+  'settings.language': 'Språk',
+  'settings.refreshApp': 'Uppdatera app',
+
   // Headers / titles
+  'title.settings': 'Inställningar',
   'title.home': 'Hem',
   'title.play': 'Spela',
   'title.addCourse': 'Lägg till bana',
@@ -171,6 +185,18 @@ const en: Messages = {
   'nav.openMenu': 'Open menu',
   'nav.closeMenu': 'Close menu',
 
+  'nav.communityShort': 'Community',
+  'nav.trainingShort': 'Training',
+  'nav.homeShort': 'Home',
+  'nav.playShort': 'Play',
+  'nav.caddyShort': 'Caddy',
+
+  'settings.title': 'Settings',
+  'settings.general': 'General',
+  'settings.language': 'Language',
+  'settings.refreshApp': 'Refresh app',
+
+  'title.settings': 'Settings',
   'title.home': 'Home',
   'title.play': 'Play',
   'title.addCourse': 'Add course',
