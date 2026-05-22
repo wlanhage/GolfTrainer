@@ -134,14 +134,13 @@ export const roundsRepository = {
     roundId: string,
     userId: string,
     holeNumber: number,
-    patch: { strokes?: number | null; notes?: string | null }
+    patch: { notes?: string | null; completedAt?: Date | null }
   ) {
     const allowed = await this.hasAccess(roundId, userId);
     if (!allowed) return null;
-    const completedAt = patch.strokes === null ? null : patch.strokes !== undefined ? new Date() : undefined;
     return prisma.roundHole.update({
       where: { roundId_holeNumber: { roundId, holeNumber } },
-      data: { ...patch, completedAt }
+      data: patch
     });
   },
 
@@ -184,38 +183,20 @@ export const roundsRepository = {
   },
 
   async computeTotalScore(roundId: string): Promise<number | null> {
-    // För solo-rundor (eller alla nyare rundor med players[]) räknar vi från
-    // host-spelarens RoundHoleScore. Faller tillbaka till legacy RoundHole.strokes
-    // om inga scores finns på player-nivå (gamla data innan multiplayer).
-    const round = await prisma.round.findUnique({
-      where: { id: roundId },
-      select: { userId: true }
-    });
-    if (!round) return null;
-
+    // Compute from the host player's RoundHoleScore rows.
     const hostPlayer = await prisma.roundPlayer.findFirst({
-      where: { roundId, userId: round.userId },
+      where: { roundId, isHost: true },
       select: { id: true }
     });
+    if (!hostPlayer) return null;
 
-    if (hostPlayer) {
-      const result = await prisma.roundHoleScore.aggregate({
-        where: { playerId: hostPlayer.id, strokes: { not: null } },
-        _sum: { strokes: true },
-        _count: { _all: true }
-      });
-      if (result._count._all === 0) return null;
-      return result._sum.strokes ?? 0;
-    }
-
-    // Legacy fallback
-    const legacy = await prisma.roundHole.aggregate({
-      where: { roundId, strokes: { not: null } },
+    const result = await prisma.roundHoleScore.aggregate({
+      where: { playerId: hostPlayer.id, strokes: { not: null } },
       _sum: { strokes: true },
       _count: { _all: true }
     });
-    if (legacy._count._all === 0) return null;
-    return legacy._sum.strokes ?? 0;
+    if (result._count._all === 0) return null;
+    return result._sum.strokes ?? 0;
   },
 
   async deleteRound(roundId: string, userId: string) {

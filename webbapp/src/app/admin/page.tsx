@@ -50,7 +50,7 @@ export default function AdminDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const roles = useMemo(() => ['BASIC_USER', 'USER', 'PREMIUM_USER', 'ADMIN'] as const, []);
+  const roles = useMemo(() => ['USER', 'PREMIUM_USER', 'ADMIN'] as const, []);
 
   const selectUser = (user: AdminUser) => {
     setSelectedUser(user);

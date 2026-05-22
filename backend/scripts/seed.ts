@@ -1,10 +1,10 @@
-// Seed-skript för utveckling. Skapar testanvändare, banor, missions, caddy-slag,
-// följ-relationer och spelade rundor så att alla features har data att rendera.
+// Seed-skript for development. Creates test users, courses, missions, caddy shots,
+// follow relationships, and played rounds so all features have data to render.
 //
-// Idempotent: använder upsert/findFirst-create så att skriptet kan köras flera
-// gånger utan duplicates.
+// Idempotent: uses upsert/findFirst-create so the script can run multiple times
+// without duplicates.
 //
-// Kör:
+// Run:
 //   npm --prefix backend run prisma:seed:supabase
 //   npm --prefix backend run prisma:seed:local
 
@@ -39,7 +39,7 @@ type ProfileSeed = {
 async function upsertUser(input: {
   email: string;
   password: string;
-  role: 'BASIC_USER' | 'USER' | 'PREMIUM_USER' | 'ADMIN';
+  role: 'USER' | 'PREMIUM_USER' | 'ADMIN';
   profile: ProfileSeed;
 }) {
   const passwordHash = await argon2.hash(input.password);
@@ -210,7 +210,7 @@ async function addMissionEntry(userId: string, missionTemplateId: string, score:
 type CourseWithHoles = NonNullable<Awaited<ReturnType<typeof upsertCourse>>>;
 
 async function seedRound(opts: {
-  user: { id: string };
+  user: { id: string; profile: { displayName: string } | null };
   course: CourseWithHoles;
   startedDaysAgo: number;
   strokes: number[];
@@ -238,6 +238,7 @@ async function seedRound(opts: {
   const finishedAt = new Date(startedAt.getTime() + 3.5 * 3600 * 1000);
   const totalScore = opts.strokes.reduce((s, n) => s + n, 0);
 
+  // Create round with roundHoles (no strokes on RoundHole — scores go via RoundHoleScore)
   const round = await prisma.round.create({
     data: {
       userId: opts.user.id,
@@ -258,11 +259,31 @@ async function seedRound(opts: {
           parSnapshot: hole.par,
           lengthSnapshot: hole.length,
           hcpIndexSnapshot: hole.hcpIndex,
-          strokes: opts.strokes[i],
           completedAt: new Date(startedAt.getTime() + ((i + 1) / opts.course.holes.length) * 3.5 * 3600 * 1000)
         }))
       }
+    },
+    include: { roundHoles: { orderBy: { holeNumber: 'asc' } } }
+  });
+
+  // Create RoundPlayer (host) for this user
+  const player = await prisma.roundPlayer.create({
+    data: {
+      roundId: round.id,
+      userId: opts.user.id,
+      displayNameSnapshot: opts.user.profile?.displayName ?? opts.user.id,
+      order: 0,
+      isHost: true
     }
+  });
+
+  // Create RoundHoleScore for each hole
+  await prisma.roundHoleScore.createMany({
+    data: round.roundHoles.map((rh, i) => ({
+      roundHoleId: rh.id,
+      playerId: player.id,
+      strokes: opts.strokes[i]
+    }))
   });
 
   return round;
@@ -581,7 +602,7 @@ async function main() {
   await follow(anna.id, admin.id);
 
   log('');
-  log('✅ Seed klar!');
+  log('Seed klar!');
   log('');
   log('Testkonton:');
   log('  admin@golf.test  / Admin123!    (ADMIN)');

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const dominantHandSchema = z.enum(['RIGHT', 'LEFT']);
-const userRoleSchema = z.enum(['BASIC_USER', 'USER', 'PREMIUM_USER', 'ADMIN']);
+const userRoleSchema = z.enum(['USER', 'PREMIUM_USER', 'ADMIN']);
 
 export const updateMeSchema = z
   .object({

@@ -25,7 +25,7 @@ export const usersRepository = {
     userId: string,
     input: {
       email?: string;
-      role?: 'BASIC_USER' | 'USER' | 'PREMIUM_USER' | 'ADMIN';
+      role?: 'USER' | 'PREMIUM_USER' | 'ADMIN';
       isActive?: boolean;
       displayName?: string | null;
       homeClub?: string | null;

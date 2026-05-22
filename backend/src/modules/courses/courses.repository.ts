@@ -1,4 +1,4 @@
-import { HoleLayoutMappingStatus, type Prisma } from '@prisma/client';
+import { HoleLayoutStatus, type Prisma } from '@prisma/client';
 import { prisma } from '../../infrastructure/prisma/client.js';
 
 type CourseFilters = { search?: string };
@@ -109,8 +109,7 @@ export const coursesRepository = {
         .filter((hole) => !existingLayoutIds.has(hole.id))
         .map((hole) => ({
           holeId: hole.id,
-          mappingStatus: HoleLayoutMappingStatus.NOT_STARTED,
-          layoutStatus: HoleLayoutMappingStatus.NOT_STARTED
+          layoutStatus: HoleLayoutStatus.NOT_STARTED
         }));
 
       if (layoutsToCreate.length > 0) {
@@ -141,7 +140,7 @@ export const coursesRepository = {
     holeBearing: number | null;
     holeLengthMeters: number | null;
     teeToGreenCenterline: any;
-    mappingStatus: HoleLayoutMappingStatus;
+    layoutStatus: HoleLayoutStatus;
   }) {
     return prisma.holeLayout.upsert({
       where: { holeId },
@@ -156,8 +155,7 @@ export const coursesRepository = {
         holeBearing: data.holeBearing,
         holeLengthMeters: data.holeLengthMeters,
         teeToGreenCenterline: data.teeToGreenCenterline,
-        mappingStatus: data.mappingStatus,
-        layoutStatus: data.mappingStatus
+        layoutStatus: data.layoutStatus
       },
       update: {
         teePoint: data.teePoint,
@@ -169,8 +167,7 @@ export const coursesRepository = {
         holeBearing: data.holeBearing,
         holeLengthMeters: data.holeLengthMeters,
         teeToGreenCenterline: data.teeToGreenCenterline,
-        mappingStatus: data.mappingStatus,
-        layoutStatus: data.mappingStatus
+        layoutStatus: data.layoutStatus
       }
     });
   }

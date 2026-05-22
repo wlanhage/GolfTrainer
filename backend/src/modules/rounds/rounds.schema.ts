@@ -56,8 +56,8 @@ export const updateRoundSchema = z
 
 export const updateRoundHoleSchema = z
   .object({
-    strokes: z.number().int().min(0).max(30).nullable().optional(),
-    notes: z.string().max(2000).nullable().optional()
+    notes: z.string().max(2000).nullable().optional(),
+    completedAt: z.coerce.date().nullable().optional()
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'At least one field must be provided'

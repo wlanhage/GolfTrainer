@@ -9,12 +9,14 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // Pooled connection (PgBouncer, port 6543) — för runtime queries
+  // Pooled connection (PgBouncer, port 6543) — for runtime queries
   url       = env("DATABASE_URL")
-  // Direct connection (port 5432) — för migrations + introspection.
-  // Krävs av Supabase pooler. Om bara DATABASE_URL finns används den även här.
+  // Direct connection (port 5432) — for migrations + introspection.
+  // Required by Supabase pooler. Falls back to DATABASE_URL if not set.
   directUrl = env("DIRECT_URL")
 }
+
+// ─── Enums ─────────────────────────────────────────────────────────────────
 
 enum ClubCategory {
   DRIVER
@@ -53,7 +55,6 @@ enum SessionStatus {
 }
 
 enum UserRole {
-  BASIC_USER
   USER
   PREMIUM_USER
   ADMIN
@@ -87,7 +88,7 @@ enum SyncStatus {
   FAILED
 }
 
-enum HoleLayoutMappingStatus {
+enum HoleLayoutStatus {
   NOT_STARTED
   PARTIAL
   REQUIRED_COMPLETE
@@ -116,11 +117,21 @@ enum RoundPlayStatus {
   ABANDONED
 }
 
+enum NotificationType {
+  ROUND_STARTED
+  NEW_FOLLOWER
+  FRIEND_STARTED_ROUND
+  FRIEND_FINISHED_NOTABLE
+  PERSONAL_BEST
+}
+
+// ─── User ──────────────────────────────────────────────────────────────────
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
-  role         UserRole @default(BASIC_USER)
+  role         UserRole @default(USER)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -137,70 +148,15 @@ model User {
   recommendationLogs      RecommendationLog[]
   events                  DomainEvent[]
   createdDrills           Drill[]
-  createdMissionTemplates MissionTemplate[]          @relation("MissionTemplateCreatedBy")
+  createdMissionTemplates MissionTemplate[]  @relation("MissionTemplateCreatedBy")
   missionEntries          MissionEntry[]
-  leaderboardEntries      MissionLeaderboardEntry[]
   courses                 Course[]
   rounds                  Round[]
-  followers               UserFollow[]               @relation("UserFollowers")
-  following               UserFollow[]               @relation("UserFollowing")
+  followers               UserFollow[]       @relation("UserFollowers")
+  following               UserFollow[]       @relation("UserFollowing")
   pushSubscriptions       PushSubscription[]
-  roundPlayers            RoundPlayer[]              @relation("UserRoundPlayers")
+  roundPlayers            RoundPlayer[]      @relation("UserRoundPlayers")
   notifications           Notification[]
-}
-
-enum NotificationType {
-  ROUND_STARTED
-  NEW_FOLLOWER
-  FRIEND_STARTED_ROUND
-  FRIEND_FINISHED_NOTABLE
-  PERSONAL_BEST
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  type      NotificationType
-  title     String
-  body      String
-  url       String?
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([userId, readAt])
-}
-
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  userAgent String?
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("push_subscriptions")
-}
-
-model UserFollow {
-  id              String   @id @default(cuid())
-  followerUserId  String   @map("follower_user_id")
-  followingUserId String   @map("following_user_id")
-  createdAt       DateTime @default(now())
-
-  follower  User @relation("UserFollowing", fields: [followerUserId], references: [id], onDelete: Cascade)
-  following User @relation("UserFollowers", fields: [followingUserId], references: [id], onDelete: Cascade)
-
-  @@unique([followerUserId, followingUserId])
-  @@index([followerUserId, createdAt])
-  @@index([followingUserId, createdAt])
-  @@map("user_follows")
 }
 
 model UserProfile {
@@ -246,6 +202,58 @@ model RefreshToken {
   @@index([userId, revokedAt])
   @@index([expiresAt])
 }
+
+// ─── Notifications & Push ──────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  url       String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// ─── Social ────────────────────────────────────────────────────────────────
+
+model UserFollow {
+  id              String   @id @default(cuid())
+  followerUserId  String   @map("follower_user_id")
+  followingUserId String   @map("following_user_id")
+  createdAt       DateTime @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerUserId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingUserId], references: [id], onDelete: Cascade)
+
+  @@unique([followerUserId, followingUserId])
+  @@index([followerUserId, createdAt])
+  @@index([followingUserId, createdAt])
+  @@map("user_follows")
+}
+
+// ─── Caddy / Club data ─────────────────────────────────────────────────────
 
 model ClubCatalog {
   id           String       @id @default(cuid())
@@ -320,6 +328,8 @@ model UserClubDistanceSnapshot {
   @@unique([userId, userClubId, windowKey])
   @@index([userId, updatedAt])
 }
+
+// ─── Practice / Drills ─────────────────────────────────────────────────────
 
 model PracticeSession {
   id        String        @id @default(cuid())
@@ -407,6 +417,8 @@ model ShotEntry {
   @@index([userId, practiceSessionId, recordedAt])
 }
 
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
 model UserMetricSnapshot {
   id            String   @id @default(cuid())
   userId        String
@@ -443,7 +455,7 @@ model RecommendationLog {
 
 model DomainEvent {
   id            String   @id @default(cuid())
-  userId        String
+  userId        String?
   eventType     String
   aggregateType String?
   aggregateId   String?
@@ -451,11 +463,13 @@ model DomainEvent {
   occurredAt    DateTime
   createdAt     DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, occurredAt])
   @@index([userId, eventType, occurredAt])
 }
+
+// ─── Missions ──────────────────────────────────────────────────────────────
 
 model MissionTemplate {
   id              String                @id @default(cuid())
@@ -478,10 +492,9 @@ model MissionTemplate {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
-  createdBy          User                      @relation("MissionTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  entries            MissionEntry[]
-  leaderboard        MissionLeaderboard?
-  leaderboardEntries MissionLeaderboardEntry[]
+  createdBy   User             @relation("MissionTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  entries     MissionEntry[]
+  leaderboard MissionLeaderboard?
 
   @@index([status, startsAt])
   @@index([createdByUserId, createdAt])
@@ -499,6 +512,7 @@ model MissionEntry {
   missionTemplate MissionTemplate @relation(fields: [missionTemplateId], references: [id], onDelete: Cascade)
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([missionTemplateId, userId, score])
   @@index([missionTemplateId, submittedAt])
   @@index([userId, submittedAt])
 }
@@ -511,30 +525,12 @@ model MissionLeaderboard {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  missionTemplate MissionTemplate           @relation(fields: [missionTemplateId], references: [id], onDelete: Cascade)
-  entries         MissionLeaderboardEntry[]
+  missionTemplate MissionTemplate @relation(fields: [missionTemplateId], references: [id], onDelete: Cascade)
 
   @@index([isActive, createdAt])
 }
 
-model MissionLeaderboardEntry {
-  id                   String   @id @default(cuid())
-  missionLeaderboardId String
-  missionTemplateId    String
-  userId               String
-  score                Decimal  @db.Decimal(10, 2)
-  submittedAt          DateTime @default(now())
-  notes                String?
-  createdAt            DateTime @default(now())
-
-  missionLeaderboard MissionLeaderboard @relation(fields: [missionLeaderboardId], references: [id], onDelete: Cascade)
-  missionTemplate    MissionTemplate    @relation(fields: [missionTemplateId], references: [id], onDelete: Cascade)
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([missionLeaderboardId, submittedAt])
-  @@index([missionTemplateId, submittedAt])
-  @@index([userId, submittedAt])
-}
+// ─── Courses ───────────────────────────────────────────────────────────────
 
 model Course {
   id         String       @id @default(cuid())
@@ -578,15 +574,6 @@ model HoleLayout {
   id     String @id @default(cuid())
   holeId String @unique
 
-  /// Legacy V0 fields kept temporarily for migration compatibility.
-  teePosition   Json?
-  greenPosition Json?
-  fairwayShape  Json?
-  waterShapes   Json?
-  treeShapes    Json?
-  bunkerShapes  Json?
-  notes         String?
-
   /// V1 provider-agnostic geometry model.
   teePoint       Json?
   greenPolygon   Json?
@@ -596,19 +583,20 @@ model HoleLayout {
   obPolygons     Json?
 
   /// Derived V1 metadata.
-  holeBearing          Decimal? @map("hole_bearing") @db.Decimal(7, 3)
-  holeLengthMeters     Decimal? @map("hole_length_meters") @db.Decimal(8, 2)
-  teeToGreenCenterline Json?    @map("tee_to_green_centerline")
+  holeBearing          Decimal?         @map("hole_bearing") @db.Decimal(7, 3)
+  holeLengthMeters     Decimal?         @map("hole_length_meters") @db.Decimal(8, 2)
+  teeToGreenCenterline Json?            @map("tee_to_green_centerline")
 
-  /// Legacy and V1 status columns.
-  mappingStatus HoleLayoutMappingStatus @default(NOT_STARTED)
-  layoutStatus  HoleLayoutMappingStatus @default(NOT_STARTED) @map("layout_status")
+  /// Single status column for mapping completeness.
+  layoutStatus HoleLayoutStatus @default(NOT_STARTED) @map("layout_status")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   hole Hole @relation(fields: [holeId], references: [id], onDelete: Cascade)
 }
+
+// ─── Rounds ────────────────────────────────────────────────────────────────
 
 model Round {
   id                 String          @id @default(cuid())
@@ -622,18 +610,19 @@ model Round {
   createdOffline     Boolean         @default(false)
   syncStatus         SyncStatus      @default(PENDING)
   teeNameSnapshot    String?
-  courseNameSnapshot String
+  courseNameSnapshot  String
   clubNameSnapshot   String
   totalScore         Int?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
   user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course     Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course     Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
   roundHoles RoundHole[]
   players    RoundPlayer[]
 
   @@index([userId, startedAt])
+  @@index([userId, totalScore])
   @@index([courseId, totalScore, startedAt])
   @@index([status, startedAt])
 }
@@ -645,6 +634,7 @@ model RoundPlayer {
   displayNameSnapshot String
   team                String?
   order               Int
+  isHost              Boolean  @default(false)
   createdAt           DateTime @default(now())
 
   round  Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
@@ -677,7 +667,6 @@ model RoundHole {
   roundId          String
   holeId           String
   holeNumber       Int
-  strokes          Int?
   parSnapshot      Int?
   lengthSnapshot   Int?
   hcpIndexSnapshot Int?

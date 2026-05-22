@@ -71,7 +71,7 @@ export default function AdminCourseDetailsPage() {
       <div className="flex flex-col gap-2.5">
         {detail.holes.map((hole) => {
           const metaComplete = hole.par !== null && hole.length !== null && hole.hcpIndex !== null;
-          const layoutStatus = hole.layout?.mappingStatus ?? 'not_started';
+          const layoutStatus = hole.layout?.layoutStatus ?? 'not_started';
           return (
             <Link
               key={hole.id}

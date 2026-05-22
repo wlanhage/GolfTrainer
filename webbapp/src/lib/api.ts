@@ -91,7 +91,7 @@ type CourseRemote = {
     layout?: {
       id?: string;
       geometry?: unknown;
-      mappingStatus?: string;
+      layoutStatus?: string;
       derived?: unknown;
       createdAt?: string;
       updatedAt?: string;
@@ -189,7 +189,7 @@ export function useAdminApi() {
 
 export type CourseDetail = {
   course: Course;
-  holes: (Hole & { layout: { id: string; holeId: string; geometry: HoleLayoutGeometry; mappingStatus: ReturnType<typeof resolveLayoutMappingStatus> } | null })[];
+  holes: (Hole & { layout: { id: string; holeId: string; geometry: HoleLayoutGeometry; layoutStatus: ReturnType<typeof resolveLayoutMappingStatus> } | null })[];
 };
 
 export function useCoursesApi() {
@@ -258,7 +258,7 @@ export function useCoursesApi() {
                     id: hole.layout.id ?? `${hole.id}-layout`,
                     holeId: hole.id,
                     geometry,
-                    mappingStatus: resolveLayoutMappingStatus(geometry)
+                    layoutStatus: resolveLayoutMappingStatus(geometry)
                   }
                 : null
             };

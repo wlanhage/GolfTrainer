@@ -1,4 +1,4 @@
-import { HoleLayoutMappingStatus } from '@prisma/client';
+import { HoleLayoutStatus } from '@prisma/client';
 import { NotFoundError } from '../../common/errors/AppError.js';
 import { coursesRepository } from './courses.repository.js';
 
@@ -32,14 +32,14 @@ const normalizeFairwayPolygons = (raw: unknown): GeoPoint[][] => {
   return polygon.length > 0 ? [polygon] : [];
 };
 
-const toMobileStatus = (status: HoleLayoutMappingStatus): 'not_started' | 'partial' | 'required_complete' | 'full' => {
+const toMobileStatus = (status: HoleLayoutStatus): 'not_started' | 'partial' | 'required_complete' | 'full' => {
   if (status === 'PARTIAL') return 'partial';
   if (status === 'REQUIRED_COMPLETE') return 'required_complete';
   if (status === 'FULL') return 'full';
   return 'not_started';
 };
 
-const fromGeometryStatus = (geometry: HoleLayoutGeometry): HoleLayoutMappingStatus => {
+const fromGeometryStatus = (geometry: HoleLayoutGeometry): HoleLayoutStatus => {
   const hasTee = Boolean(geometry.teePoint);
   const hasGreen = geometry.greenPolygon.length > 2;
   if (!hasTee && !hasGreen) return 'NOT_STARTED';
@@ -115,8 +115,7 @@ const mapHoleWithLayout = (hole: any) => {
       id: hole.holeLayout?.id ?? null,
       holeId: hole.id,
       geometry,
-      mappingStatus: toMobileStatus(hole.holeLayout?.mappingStatus ?? 'NOT_STARTED'),
-      layout_status: toMobileStatus(hole.holeLayout?.layoutStatus ?? 'NOT_STARTED'),
+      layoutStatus: toMobileStatus(hole.holeLayout?.layoutStatus ?? 'NOT_STARTED'),
       derived: {
         hole_bearing: hole.holeLayout?.holeBearing ? Number(hole.holeLayout.holeBearing) : null,
         hole_length_meters: hole.holeLayout?.holeLengthMeters ? Number(hole.holeLayout.holeLengthMeters) : null,
@@ -213,7 +212,7 @@ export const coursesService = {
       holeBearing: bearing,
       holeLengthMeters: length,
       teeToGreenCenterline: centerline,
-      mappingStatus: status
+      layoutStatus: status
     });
   }
 };

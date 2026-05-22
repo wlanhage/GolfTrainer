@@ -1,6 +1,6 @@
 // Profile / user
 export type DominantHand = 'RIGHT' | 'LEFT' | null;
-export type UserRole = 'BASIC_USER' | 'USER' | 'PREMIUM_USER' | 'ADMIN';
+export type UserRole = 'USER' | 'PREMIUM_USER' | 'ADMIN';
 
 export type ProfileData = {
   displayName: string;
@@ -227,7 +227,7 @@ export type HoleLayout = {
   id: string;
   holeId: string;
   geometry: HoleLayoutGeometry;
-  mappingStatus: LayoutMappingStatus;
+  layoutStatus: LayoutMappingStatus;
   derived: HoleLayoutDerived;
   createdAt: string;
   updatedAt: string;
