@@ -99,22 +99,30 @@ export default function HomePage() {
         {ongoing ? (
           <Link
             href={`/play/round/${ongoing.roundId}/${ongoing.currentHoleNumber}`}
-            className="block bg-gradient-to-br from-emerald-700 to-emerald-900 text-white rounded-2xl p-5 shadow-md"
+            className="relative block text-white rounded-2xl p-5 shadow-md overflow-hidden"
           >
-            <p className="text-xs uppercase tracking-wider opacity-80">{t('home.ongoingRound')}</p>
-            <p className="text-xl font-extrabold mt-1">{t('home.continueOn')} {ongoing.courseName}</p>
-            <p className="text-sm opacity-90 mt-1">
-              {ongoing.clubName} · {t('home.holeShort')} {ongoing.currentHoleNumber}
-            </p>
-            <p className="text-right text-2xl mt-2">›</p>
+            <img src="/golf-green.jpg" alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-emerald-700/60" />
+            <div className="relative z-10">
+              <p className="text-xs uppercase tracking-wider opacity-80">{t('home.ongoingRound')}</p>
+              <p className="text-xl font-extrabold mt-1">{t('home.continueOn')} {ongoing.courseName}</p>
+              <p className="text-sm opacity-90 mt-1">
+                {ongoing.clubName} · {t('home.holeShort')} {ongoing.currentHoleNumber}
+              </p>
+              <p className="text-right text-2xl mt-2">›</p>
+            </div>
           </Link>
         ) : (
           <Link
             href="/play"
-            className="block bg-gradient-to-br from-emerald-600 to-emerald-800 text-white rounded-2xl p-6 shadow-md text-center"
+            className="relative block text-white rounded-2xl p-6 shadow-md text-center overflow-hidden"
           >
-            <p className="text-3xl font-extrabold">▶ {t('title.play')}</p>
-            <p className="text-sm opacity-90 mt-1">{t('home.startNewRound')}</p>
+            <img src="/golf-green.jpg" alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-emerald-700/70" />
+            <div className="relative z-10">
+              <p className="text-3xl font-extrabold">▶ {t('title.play')}</p>
+              <p className="text-sm opacity-90 mt-1">{t('home.startNewRound')}</p>
+            </div>
           </Link>
         )}
       </section>

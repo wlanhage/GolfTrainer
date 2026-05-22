@@ -66,6 +66,15 @@ const sv: Messages = {
   'auth.hasAccount': 'Har du redan konto? Logga in',
   'auth.loginFailed': 'Kunde inte logga in. Kontrollera e-post/lösenord.',
   'auth.registerFailed': 'Kunde inte registrera konto. Kontrollera dina uppgifter.',
+  'auth.confirmPassword': 'Bekräfta lösenord',
+  'auth.passwordMismatch': 'Lösenorden matchar inte.',
+
+  // Welcome (post-register)
+  'welcome.title': 'Välkommen!',
+  'welcome.subtitle': 'Fyll i lite om dig själv, {name}.',
+  'welcome.homeClubPlaceholder': 'T.ex. Ullna GK',
+  'welcome.continue': 'Gå vidare',
+  'welcome.skip': 'Hoppa över',
 
   // Home
   'home.goodMorning': 'God morgon',
@@ -190,6 +199,14 @@ const en: Messages = {
   'auth.hasAccount': 'Already have an account? Log in',
   'auth.loginFailed': "Couldn't log in. Check your email and password.",
   'auth.registerFailed': "Couldn't create account. Check your details.",
+  'auth.confirmPassword': 'Confirm password',
+  'auth.passwordMismatch': 'Passwords do not match.',
+
+  'welcome.title': 'Welcome!',
+  'welcome.subtitle': 'Tell us a bit about yourself, {name}.',
+  'welcome.homeClubPlaceholder': 'E.g. Pebble Beach GC',
+  'welcome.continue': 'Continue',
+  'welcome.skip': 'Skip',
 
   'home.goodMorning': 'Good morning',
   'home.goodAfternoon': 'Good afternoon',

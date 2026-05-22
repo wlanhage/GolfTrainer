@@ -175,9 +175,7 @@ export function NotificationBell() {
       >
         <Bell size={22} />
         {unread > 0 ? (
-          <span className="absolute top-1.5 right-1.5 bg-danger text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
-            {unread > 9 ? '9+' : unread}
-          </span>
+          <span className="absolute top-2 right-2 bg-danger rounded-full w-2.5 h-2.5" />
         ) : null}
       </button>
       {sheet}

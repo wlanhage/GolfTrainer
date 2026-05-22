@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { ChevronLeft } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useI18n, useT } from '@/lib/i18n/I18nProvider';
 import { SUPPORTED_LOCALES, localeLabel } from '@/lib/i18n/dictionaries';
 import { UserAvatar } from './UserAvatar';
 import { Loader } from './Loader';
-import { NotificationBell } from './NotificationBell';
 
 const MENU_KEYS: Array<{ href: string; key: string }> = [
   { href: '/', key: 'nav.home' },
@@ -19,6 +19,10 @@ const MENU_KEYS: Array<{ href: string; key: string }> = [
   { href: '/profile', key: 'nav.profile' },
   { href: '/admin', key: 'nav.admin' }
 ];
+
+const BASE_ROUTES = new Set(['/', '/play', '/training', '/caddy', '/community', '/profile', '/admin']);
+
+const isSubPage = (path: string): boolean => !BASE_ROUTES.has(path);
 
 const titleKeyForPath = (path: string): string => {
   const exact: Record<string, string> = {
@@ -62,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status === 'loading') return;
     const isAuthRoute = pathname === '/login' || pathname === '/register';
-    if (status === 'guest' && !isAuthRoute) router.replace('/login');
+    if (status === 'guest' && !isAuthRoute && pathname !== '/welcome') router.replace('/login');
     if (status === 'authenticated' && isAuthRoute) router.replace('/');
     if (status === 'authenticated' && pathname.startsWith('/admin') && me?.role !== 'ADMIN') {
       router.replace('/');
@@ -70,20 +74,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [status, pathname, router, me?.role]);
 
   const isAuthRoute = pathname === '/login' || pathname === '/register';
+  const isWelcome = pathname === '/welcome';
   const isAdminPath = pathname.startsWith('/admin');
 
   if (
     status === 'loading' ||
-    (status === 'guest' && !isAuthRoute) ||
+    (status === 'guest' && !isAuthRoute && !isWelcome) ||
     (status === 'authenticated' && isAuthRoute) ||
     (status === 'authenticated' && isAdminPath && me?.role !== 'ADMIN')
   ) {
     return <Loader fullScreen />;
   }
 
-  if (isAuthRoute) {
+  if (isAuthRoute || isWelcome) {
     return <main className="min-h-screen bg-white">{children}</main>;
   }
+
+  const showBack = isSubPage(pathname);
 
   const fullscreen = pathname.startsWith('/play/round/') && !pathname.includes('/overview');
   if (fullscreen) {
@@ -93,15 +100,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-white border-b border-border px-3 py-2 shadow-sm">
-        <button
-          aria-label={t('nav.openMenu')}
-          onClick={() => setMenuOpen(true)}
-          className="flex items-center justify-center w-11 h-11 text-2xl text-primary"
-        >
-          ☰
-        </button>
+        {showBack ? (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label={t('common.back')}
+            className="flex items-center justify-center w-11 h-11 text-primary"
+          >
+            <ChevronLeft size={26} />
+          </button>
+        ) : (
+          <button
+            aria-label={t('nav.openMenu')}
+            onClick={() => setMenuOpen(true)}
+            className="flex items-center justify-center w-11 h-11 text-2xl text-primary"
+          >
+            ☰
+          </button>
+        )}
         <h1 className="flex-1 text-center text-base font-bold text-ink truncate">{t(titleKeyForPath(pathname))}</h1>
-        {pathname === '/' ? null : <NotificationBell />}
         <Link href="/profile" className="flex items-center justify-center">
           <UserAvatar
             avatarImage={me?.profile?.avatarImage}

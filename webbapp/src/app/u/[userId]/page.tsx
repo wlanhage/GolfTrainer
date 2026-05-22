@@ -103,7 +103,7 @@ export default function PublicProfilePage() {
           disabled={busy || isFollowing === null}
           className={isFollowing ? 'btn-secondary disabled:opacity-50' : 'btn-primary disabled:opacity-50'}
         >
-          {isFollowing === null ? '...' : isFollowing ? 'Slutar följa' : 'Följ'}
+          {isFollowing === null ? '...' : isFollowing ? 'Sluta följa' : 'Följ'}
         </button>
       ) : (
         <Link href="/profile" className="btn-secondary text-center">
