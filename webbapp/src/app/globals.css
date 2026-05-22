@@ -21,8 +21,11 @@ input[type='number']::-webkit-inner-spin-button {
 }
 input[type='number'] { -moz-appearance: textfield; }
 
-/* PWA standalone: bigger bottom nav to account for home indicator */
+/* PWA standalone: bigger bottom nav + lift above home indicator */
 @media (display-mode: standalone) {
+  .pwa-bottom-nav {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
   .pwa-nav-tab {
     padding-top: 0.625rem;
     padding-bottom: 0.625rem;

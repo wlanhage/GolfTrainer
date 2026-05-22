@@ -131,11 +131,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="max-w-3xl mx-auto">{children}</main>
 
       {/* Bottom tab bar */}
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border">
-        <div
-          className="max-w-3xl mx-auto grid grid-cols-5"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
+      <nav className="pwa-bottom-nav fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="max-w-3xl mx-auto grid grid-cols-5">
           {TAB_ITEMS.map(({ href, labelKey, icon: Icon }) => {
             const active = current === href;
             return (
