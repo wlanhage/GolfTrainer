@@ -201,6 +201,7 @@ export function useRoundsStore(): RoundsStore {
         return {
           round: {
             id: detail.id,
+            userId: detail.userId,
             courseId: detail.courseId,
             startedAt: detail.startedAt,
             finishedAt: detail.finishedAt,
@@ -234,10 +235,10 @@ export function useRoundsStore(): RoundsStore {
         const completed = await api.list('COMPLETED');
         if (completed.length === 0) return null;
         const details = await Promise.all(completed.map((r) => api.getById(r.id)));
-        const summaries = details
+        const summaries: LatestRoundSummary[] = details
           .map(detailToLatest)
           .filter((s) => s.completedHoles > 0);
-        summaries.sort((a, b) => {
+        summaries.sort((a: LatestRoundSummary, b: LatestRoundSummary) => {
           const ra = a.relativeToPar;
           const rb = b.relativeToPar;
           if (ra !== null && rb !== null) return ra - rb;
