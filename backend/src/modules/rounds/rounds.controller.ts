@@ -69,5 +69,11 @@ export const roundsController = {
     const { image } = setRoundImageSchema.parse(request.body);
     const round = await roundsService.setRoundImage(roundId, request.auth!.userId, image);
     return reply.send(round);
+  },
+
+  async leave(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    await roundsService.leaveRound(roundId, request.auth!.userId);
+    return reply.code(204).send();
   }
 };

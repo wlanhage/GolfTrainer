@@ -289,6 +289,14 @@ export const roundsService = {
     if (!ok) throw new NotFoundError('Round not found');
   },
 
+  async leaveRound(roundId: string, userId: string) {
+    const result = await roundsRepository.markPlayerLeft(roundId, userId);
+    if (!result.ok) {
+      if (result.reason === 'not_found') throw new NotFoundError('Round player not found');
+      if (result.reason === 'already_left') throw new BadRequestError('You have already left this round');
+    }
+  },
+
   async setRoundImage(roundId: string, userId: string, image: string) {
     const result = await roundsRepository.setImage(roundId, userId, image);
     if (!result.ok) {

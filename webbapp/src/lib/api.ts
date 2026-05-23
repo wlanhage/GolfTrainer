@@ -344,6 +344,7 @@ export type ServerRoundPlayer = {
   displayNameSnapshot: string;
   team: string | null;
   order: number;
+  leftAt?: string | null;
 };
 
 export type ServerRoundDetail = ServerRound & {
@@ -404,7 +405,9 @@ export function useRoundsApi() {
         client.request<ServerRoundDetail>(`/rounds/${roundId}/image`, {
           method: 'PATCH',
           body: JSON.stringify({ image })
-        })
+        }),
+      leave: (roundId: string) =>
+        client.request<null>(`/rounds/${roundId}/leave`, { method: 'POST' })
     }),
     [client]
   );

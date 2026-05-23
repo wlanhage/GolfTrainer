@@ -139,6 +139,25 @@ export const roundsRepository = {
   },
 
   /**
+   * Markerar att en spelare har lämnat rundan. Sätter leftAt på RoundPlayer
+   * där userId matchar. Hosten får också lämna sig själv — rundan fortsätter
+   * för övriga aktiva spelare.
+   */
+  async markPlayerLeft(roundId: string, userId: string) {
+    const player = await prisma.roundPlayer.findFirst({
+      where: { roundId, userId },
+      select: { id: true, leftAt: true }
+    });
+    if (!player) return { ok: false as const, reason: 'not_found' as const };
+    if (player.leftAt !== null) return { ok: false as const, reason: 'already_left' as const };
+    await prisma.roundPlayer.update({
+      where: { id: player.id },
+      data: { leftAt: new Date() }
+    });
+    return { ok: true as const };
+  },
+
+  /**
    * Sätter rundans image. Endast hosten (Round.userId) får ändra, och bara
    * om image är null — när den är satt en gång kan den inte ändras.
    */

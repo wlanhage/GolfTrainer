@@ -77,6 +77,7 @@ export type GetRoundResult = {
 const detailToRound = (detail: ServerRoundDetail): GetRoundResult => ({
   round: {
     id: detail.id,
+    userId: detail.userId,
     courseId: detail.courseId,
     startedAt: detail.startedAt,
     finishedAt: detail.finishedAt,

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/lib/AuthProvider';
 import { useCaddyApi, useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import type { ServerRoundHole, ServerRoundHoleScore, ServerRoundPlayer, ServerWolfRole } from '@/lib/api';
@@ -12,6 +13,7 @@ import { GroupScoreBoard } from '@/components/play/GroupScoreBoard';
 import { ScoreChipBar } from '@/components/play/ScoreChipBar';
 import { ScorePadSheet } from '@/components/play/ScorePadSheet';
 import { GroupControlBar } from '@/components/round-hole/GroupControlBar';
+import { EndRoundConfirmIncomplete, EndRoundDialog } from '@/components/round-hole/EndRoundDialog';
 import { caddyClubs } from '@/lib/caddyClubs';
 import { getGreenDistances, resolveHeatmapBearing } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS, HEATMAP_GRID_SIZE } from '@/lib/heatmapConfig';
@@ -37,6 +39,7 @@ export default function RoundHolePage() {
   const roundId = String(params?.roundId ?? '');
   const holeNumber = Number(params?.holeNumber ?? 1);
 
+  const { me } = useAuth();
   const coursesApi = useCoursesApi();
   const caddyApi = useCaddyApi();
   const roundsApi = useRoundsApi();
@@ -47,8 +50,11 @@ export default function RoundHolePage() {
   const [roundHole, setRoundHole] = useState<ServerRoundHole | null>(null);
   const [players, setPlayers] = useState<ServerRoundPlayer[]>([]);
   const [scoresByPlayer, setScoresByPlayer] = useState<Map<string, ServerRoundHoleScore>>(new Map());
+  const [allRoundHoles, setAllRoundHoles] = useState<ServerRoundHole[]>([]);
   const [scorePadPlayerId, setScorePadPlayerId] = useState<string | null>(null);
   const [savingGroup, setSavingGroup] = useState(false);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const [confirmIncompleteOpen, setConfirmIncompleteOpen] = useState(false);
   const [maxHole, setMaxHole] = useState(18);
   const [layout, setLayout] = useState<HoleLayoutGeometry | null>(null);
   const [score, setScore] = useState('');
@@ -79,6 +85,7 @@ export default function RoundHolePage() {
           return;
         }
         setRound(r.round);
+        setAllRoundHoles(r.roundHoles);
         setMaxHole(r.roundHoles.length);
         setCourseId(r.round.courseId);
         // Defensiv: backend kan vara på en äldre deploy som inte returnerar
@@ -282,10 +289,21 @@ export default function RoundHolePage() {
     }
   };
 
+  const isLastHole = holeNumber >= maxHole;
+  const isHost = !!(me?.id && round?.userId === me.id);
+  const activePlayers = players.filter((p) => !p.leftAt);
+  const hasIncompleteHoles = allRoundHoles.some((h) =>
+    activePlayers.some((p) => (h.scores?.find((s) => s.playerId === p.id)?.strokes ?? null) === null)
+  );
+
   const groupNext = async () => {
+    if (isLastHole && players.length > 1) {
+      setEndDialogOpen(true);
+      return;
+    }
     setSavingGroup(true);
     try {
-      if (holeNumber >= maxHole) {
+      if (isLastHole) {
         await roundsStore.completeRound(roundId);
         router.replace(`/play/round/${roundId}/summary`);
         return;
@@ -296,6 +314,42 @@ export default function RoundHolePage() {
       toast.error(`Kunde inte gå vidare: ${(e as Error).message}`);
     } finally {
       setSavingGroup(false);
+    }
+  };
+
+  const requestEndForAll = () => {
+    if (hasIncompleteHoles) {
+      setEndDialogOpen(false);
+      setConfirmIncompleteOpen(true);
+      return;
+    }
+    void endForAll();
+  };
+
+  const endForAll = async () => {
+    setSavingGroup(true);
+    try {
+      await roundsStore.completeRound(roundId);
+      router.replace(`/play/round/${roundId}/summary`);
+    } catch (e) {
+      toast.error(`Kunde inte avsluta: ${(e as Error).message}`);
+    } finally {
+      setSavingGroup(false);
+      setEndDialogOpen(false);
+      setConfirmIncompleteOpen(false);
+    }
+  };
+
+  const leaveForMe = async () => {
+    setSavingGroup(true);
+    try {
+      await roundsApi.leave(roundId);
+      router.replace(`/play/round/${roundId}/summary`);
+    } catch (e) {
+      toast.error(`Kunde inte lämna runda: ${(e as Error).message}`);
+    } finally {
+      setSavingGroup(false);
+      setEndDialogOpen(false);
     }
   };
 
@@ -481,6 +535,23 @@ export default function RoundHolePage() {
           setSettingsOpen(false);
           if (courseId) router.push(`/admin/courses/${courseId}/hole/${holeNumber}`);
         }}
+      />
+
+      <EndRoundDialog
+        open={endDialogOpen}
+        isHost={isHost}
+        hasIncompleteHoles={hasIncompleteHoles}
+        saving={savingGroup}
+        onLeaveSelf={() => void leaveForMe()}
+        onEndForAll={requestEndForAll}
+        onCancel={() => setEndDialogOpen(false)}
+      />
+
+      <EndRoundConfirmIncomplete
+        open={confirmIncompleteOpen}
+        saving={savingGroup}
+        onConfirm={() => void endForAll()}
+        onCancel={() => setConfirmIncompleteOpen(false)}
       />
     </div>
   );

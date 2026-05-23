@@ -629,14 +629,15 @@ model Round {
 }
 
 model RoundPlayer {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   roundId             String
   userId              String
   displayNameSnapshot String
   team                String?
   order               Int
-  isHost              Boolean  @default(false)
-  createdAt           DateTime @default(now())
+  isHost              Boolean   @default(false)
+  leftAt              DateTime?
+  createdAt           DateTime  @default(now())
 
   round  Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
   user   User             @relation("UserRoundPlayers", fields: [userId], references: [id], onDelete: Cascade)

@@ -11,6 +11,7 @@ export async function roundsRoutes(app: FastifyInstance) {
   app.get('/:roundId/public', roundsController.getByIdPublic);
   app.patch('/:roundId', roundsController.update);
   app.patch('/:roundId/image', roundsController.setImage);
+  app.post('/:roundId/leave', roundsController.leave);
   app.delete('/:roundId', roundsController.remove);
   app.patch('/:roundId/holes/:holeNumber', roundsController.updateHole);
   app.patch('/:roundId/holes/:holeNumber/scores/:playerId', roundsController.updatePlayerScore);
