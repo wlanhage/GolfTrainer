@@ -1,0 +1,1 @@
+ALTER TABLE "RoundPlayer" ADD COLUMN "leftAt" TIMESTAMP(3);

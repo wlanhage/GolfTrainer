@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import { useToast } from '@/lib/ToastProvider';
@@ -48,7 +49,7 @@ export default function PlayPage() {
   const [inProgress, setInProgress] = useState<InProgressRoundSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [endTarget, setEndTarget] = useState<InProgressRoundSummary | null>(null);
-  const [mode, setMode] = useState<'solo' | 'group'>('solo');
+  const [blockedByActive, setBlockedByActive] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const refresh = useCallback(async () => {
@@ -136,17 +137,17 @@ export default function PlayPage() {
   const showSearch = courses.length > PAGE_SIZE;
 
   const onCoursePick = async (course: Course) => {
+    if (inProgress.length > 0) {
+      setBlockedByActive(true);
+      return;
+    }
     try {
       const detail = await api.getCourseDetail(course.id);
       if (!detail) throw new Error('Banan hittades inte.');
       if (detail.holes.length === 0) {
         await api.ensureHoles(course.id, course.holeCount);
       }
-      if (mode === 'solo') {
-        router.push(`/play/format?mode=solo&courseId=${course.id}`);
-      } else {
-        router.push(`/play/group/${course.id}`);
-      }
+      router.push(`/play/group/${course.id}`);
     } catch (e) {
       toast.error(`Kunde inte starta runda: ${(e as Error).message}`);
     }
@@ -172,50 +173,44 @@ export default function PlayPage() {
     <div className="p-4 flex flex-col gap-3">
       <h1 className="text-3xl font-extrabold text-ink">Spela</h1>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setMode('solo')}
-          className={`rounded-xl border-2 py-4 font-bold ${
-            mode === 'solo' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'
-          }`}
-        >
-          🏌️ Spela ensam
-        </button>
-        <button
-          onClick={() => setMode('group')}
-          className={`rounded-xl border-2 py-4 font-bold ${
-            mode === 'group' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'
-          }`}
-        >
-          👥 Spela i grupp
-        </button>
-      </div>
-
       <p className="text-slate-700 text-sm">
-        {mode === 'solo' ? 'Välj bana — du väljer spelform i nästa steg.' : 'Välj bana — lägg sen till spelare och välj spelform.'}
+        Välj bana — lägg sen till spelare (eller spela själv) och välj spelform.
       </p>
 
       {inProgress.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-bold text-ink">Pågående rundor</h2>
           {inProgress.map((round) => (
-            <div key={round.roundId} className="card flex items-center justify-between gap-2">
-              <div className="flex-1">
-                <p className="font-bold text-ink">{round.courseName}</p>
-                <p className="text-slate-600 text-sm">{round.clubName} • Hål {round.currentHoleNumber}</p>
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <button onClick={() => setEndTarget(round)} className="text-danger font-bold text-sm">
-                  Avsluta
-                </button>
-                <Link
-                  href={`/play/round/${round.roundId}/${round.currentHoleNumber}`}
-                  className="bg-primary text-white rounded-lg px-3 py-2 font-bold text-sm"
+            <Link
+              key={round.roundId}
+              href={`/play/round/${round.roundId}/${round.currentHoleNumber}`}
+              className="relative block overflow-hidden rounded-2xl border border-primary/30 bg-primary-softer p-4"
+            >
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-primary/15 animate-breathe"
+              />
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs uppercase tracking-wider font-bold text-primary">Fortsätt runda</p>
+                  <p className="font-extrabold text-ink truncate">{round.courseName}</p>
+                  <p className="text-slate-700 text-sm">
+                    {round.clubName} • Hål {round.currentHoleNumber}
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEndTarget(round);
+                  }}
+                  aria-label="Avsluta runda"
+                  className="shrink-0 w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center text-danger active:bg-slate-100"
                 >
-                  Fortsätt
-                </Link>
+                  <Trash2 size={20} aria-hidden="true" />
+                </button>
               </div>
-            </div>
+            </Link>
           ))}
         </section>
       ) : null}
@@ -279,6 +274,26 @@ export default function PlayPage() {
               Avsluta och ta bort
             </button>
             <button onClick={() => setEndTarget(null)} className="btn-ghost">
+              Avbryt
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {blockedByActive && inProgress[0] ? (
+        <div className="fixed inset-0 z-40 bg-slate-900/45 flex flex-col justify-end">
+          <button className="flex-1" aria-label="Stäng" onClick={() => setBlockedByActive(false)} />
+          <div className="bg-white rounded-t-2xl p-4 flex flex-col gap-3">
+            <h3 className="text-lg font-extrabold">Pågående runda</h3>
+            <p className="text-sm text-slate-600">Avsluta din runda innan du påbörjar en ny.</p>
+            <Link
+              href={`/play/round/${inProgress[0].roundId}/${inProgress[0].currentHoleNumber}`}
+              className="btn-primary text-center"
+              onClick={() => setBlockedByActive(false)}
+            >
+              Fortsätt rundan
+            </Link>
+            <button onClick={() => setBlockedByActive(false)} className="btn-ghost">
               Avbryt
             </button>
           </div>

@@ -312,6 +312,7 @@ export type ServerRound = {
   courseNameSnapshot: string;
   clubNameSnapshot: string;
   totalScore: number | null;
+  image: string | null;
 };
 
 export type ServerRoundHoleScore = {
@@ -343,6 +344,7 @@ export type ServerRoundPlayer = {
   displayNameSnapshot: string;
   team: string | null;
   order: number;
+  leftAt?: string | null;
 };
 
 export type ServerRoundDetail = ServerRound & {
@@ -398,7 +400,14 @@ export function useRoundsApi() {
             method: 'PATCH',
             body: JSON.stringify(patch)
           }
-        )
+        ),
+      setImage: (roundId: string, image: string) =>
+        client.request<ServerRoundDetail>(`/rounds/${roundId}/image`, {
+          method: 'PATCH',
+          body: JSON.stringify({ image })
+        }),
+      leave: (roundId: string) =>
+        client.request<null>(`/rounds/${roundId}/leave`, { method: 'POST' })
     }),
     [client]
   );

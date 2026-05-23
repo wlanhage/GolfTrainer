@@ -4,7 +4,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useFollowsApi, useCoursesApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthProvider';
-import { useToast } from '@/lib/ToastProvider';
 import { UserAvatar } from '@/components/UserAvatar';
 import type { MutualFollower } from '@/lib/types';
 import { saveGroupSetup } from '@/lib/groupSetupStorage';
@@ -15,7 +14,6 @@ export default function GroupSetupPage() {
   const courseId = String(params?.courseId ?? '');
   const followsApi = useFollowsApi();
   const coursesApi = useCoursesApi();
-  const toast = useToast();
   const { me } = useAuth();
 
   const [course, setCourse] = useState<{ courseName: string; clubName: string } | null>(null);
@@ -47,7 +45,7 @@ export default function GroupSetupPage() {
 
   const proceed = () => {
     if (invited.size === 0) {
-      toast.info('Lägg till minst en spelare för att fortsätta.');
+      router.push(`/play/format?mode=solo&courseId=${courseId}`);
       return;
     }
     saveGroupSetup({ courseId, invitedUserIds: Array.from(invited) });
@@ -70,7 +68,7 @@ export default function GroupSetupPage() {
         </p>
       ) : null}
       <p className="text-slate-700 text-sm">
-        Lägg till spelare. Du kan bjuda in personer du följer som följer dig tillbaka.
+        Lägg till medspelare om du vill spela i grupp — eller fortsätt direkt för att spela själv.
       </p>
 
       <div className="grid grid-cols-2 gap-2">
@@ -109,7 +107,7 @@ export default function GroupSetupPage() {
         <p className="text-sm text-slate-700">
           Totalt: <strong>{totalPlayers} spelare</strong>
         </p>
-        <button onClick={proceed} disabled={invited.size === 0} className="btn-primary disabled:opacity-50">
+        <button onClick={proceed} className="btn-primary">
           Välj spelform
         </button>
         <button onClick={() => router.back()} className="btn-ghost">

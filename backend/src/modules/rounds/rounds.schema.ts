@@ -63,6 +63,10 @@ export const updateRoundHoleSchema = z
     message: 'At least one field must be provided'
   });
 
+export const setRoundImageSchema = z.object({
+  image: z.string().min(1).max(2_000_000)
+});
+
 export const listRoundsQuerySchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED', 'ABANDONED']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -75,4 +79,5 @@ export type UpdateRoundInput = z.infer<typeof updateRoundSchema>;
 export type UpdateRoundHoleInput = z.infer<typeof updateRoundHoleSchema>;
 export type UpdatePlayerScoreInput = z.infer<typeof updatePlayerScoreSchema>;
 export type ListRoundsQuery = z.infer<typeof listRoundsQuerySchema>;
+export type SetRoundImageInput = z.infer<typeof setRoundImageSchema>;
 export type RoundFormatValue = z.infer<typeof roundFormatEnum>;

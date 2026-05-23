@@ -246,6 +246,7 @@ export type WolfRole = 'WOLF' | 'PARTNER' | 'OPPONENT';
 
 export type Round = {
   id: string;
+  userId: string;
   courseId: string;
   startedAt: string;
   finishedAt: string | null;

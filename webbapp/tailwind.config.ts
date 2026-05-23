@@ -22,6 +22,15 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif']
+      },
+      keyframes: {
+        breathe: {
+          '0%, 100%': { opacity: '0' },
+          '50%': { opacity: '1' }
+        }
+      },
+      animation: {
+        breathe: 'breathe 3.5s ease-in-out infinite'
       }
     }
   },

@@ -1,18 +1,21 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/lib/AuthProvider';
 import { useCaddyApi, useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import type { ServerRoundHole, ServerRoundHoleScore, ServerRoundPlayer, ServerWolfRole } from '@/lib/api';
 import { useRoundsApi } from '@/lib/api';
 import { stablefordPoints } from '@/lib/scoring';
 import { GroupScoreBoard } from '@/components/play/GroupScoreBoard';
+import { ScoreChipBar } from '@/components/play/ScoreChipBar';
+import { ScorePadSheet } from '@/components/play/ScorePadSheet';
 import { GroupControlBar } from '@/components/round-hole/GroupControlBar';
+import { EndRoundConfirmIncomplete, EndRoundDialog } from '@/components/round-hole/EndRoundDialog';
 import { caddyClubs } from '@/lib/caddyClubs';
-import { getDistanceToGreenMeters, resolveHeatmapBearing } from '@/lib/holeGeometry';
+import { getGreenDistances, resolveHeatmapBearing } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS, HEATMAP_GRID_SIZE } from '@/lib/heatmapConfig';
 import { useHeatmapAuto } from '@/lib/heatmapAutoStore';
 import { recommendClub } from '@/lib/clubRecommender';
@@ -36,6 +39,7 @@ export default function RoundHolePage() {
   const roundId = String(params?.roundId ?? '');
   const holeNumber = Number(params?.holeNumber ?? 1);
 
+  const { me } = useAuth();
   const coursesApi = useCoursesApi();
   const caddyApi = useCaddyApi();
   const roundsApi = useRoundsApi();
@@ -46,7 +50,11 @@ export default function RoundHolePage() {
   const [roundHole, setRoundHole] = useState<ServerRoundHole | null>(null);
   const [players, setPlayers] = useState<ServerRoundPlayer[]>([]);
   const [scoresByPlayer, setScoresByPlayer] = useState<Map<string, ServerRoundHoleScore>>(new Map());
+  const [allRoundHoles, setAllRoundHoles] = useState<ServerRoundHole[]>([]);
+  const [scorePadPlayerId, setScorePadPlayerId] = useState<string | null>(null);
   const [savingGroup, setSavingGroup] = useState(false);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const [confirmIncompleteOpen, setConfirmIncompleteOpen] = useState(false);
   const [maxHole, setMaxHole] = useState(18);
   const [layout, setLayout] = useState<HoleLayoutGeometry | null>(null);
   const [score, setScore] = useState('');
@@ -77,6 +85,7 @@ export default function RoundHolePage() {
           return;
         }
         setRound(r.round);
+        setAllRoundHoles(r.roundHoles);
         setMaxHole(r.roundHoles.length);
         setCourseId(r.round.courseId);
         // Defensiv: backend kan vara på en äldre deploy som inte returnerar
@@ -170,9 +179,9 @@ export default function RoundHolePage() {
     setHeatmapShots(shotsByClub.get(selectedClubId) ?? []);
   }, [shotsByClub, selectedClubId]);
 
-  const distanceToGreen = useMemo(() => {
+  const greenDistances = useMemo(() => {
     if (!layout || !playerPosition) return null;
-    return getDistanceToGreenMeters(playerPosition, layout);
+    return getGreenDistances(playerPosition, layout);
   }, [layout, playerPosition]);
 
   const caddyHeatmap = useMemo<CaddyMapHeatmap | null>(() => {
@@ -250,6 +259,8 @@ export default function RoundHolePage() {
   const isGroup = players.length > 1;
   const format = round?.format ?? 'STROKE_PLAY';
   const isStableford = format === 'STABLEFORD';
+  const isWolf = format === 'WOLF';
+  const scorePadPlayer = scorePadPlayerId ? players.find((p) => p.id === scorePadPlayerId) ?? null : null;
 
   const saveAndNext = async () => {
     const parsed = parseStrokes(score);
@@ -268,7 +279,7 @@ export default function RoundHolePage() {
       }
       if (holeNumber >= maxHole) {
         await roundsStore.completeRound(roundId);
-        router.replace(`/play/round/${roundId}/overview`);
+        router.replace(`/play/round/${roundId}/summary`);
         return;
       }
       await roundsStore.setCurrentHole(roundId, holeNumber + 1);
@@ -278,12 +289,23 @@ export default function RoundHolePage() {
     }
   };
 
+  const isLastHole = holeNumber >= maxHole;
+  const isHost = !!(me?.id && round?.userId === me.id);
+  const activePlayers = players.filter((p) => !p.leftAt);
+  const hasIncompleteHoles = allRoundHoles.some((h) =>
+    activePlayers.some((p) => (h.scores?.find((s) => s.playerId === p.id)?.strokes ?? null) === null)
+  );
+
   const groupNext = async () => {
+    if (isLastHole && players.length > 1) {
+      setEndDialogOpen(true);
+      return;
+    }
     setSavingGroup(true);
     try {
-      if (holeNumber >= maxHole) {
+      if (isLastHole) {
         await roundsStore.completeRound(roundId);
-        router.replace(`/play/round/${roundId}/overview`);
+        router.replace(`/play/round/${roundId}/summary`);
         return;
       }
       await roundsStore.setCurrentHole(roundId, holeNumber + 1);
@@ -292,6 +314,42 @@ export default function RoundHolePage() {
       toast.error(`Kunde inte gå vidare: ${(e as Error).message}`);
     } finally {
       setSavingGroup(false);
+    }
+  };
+
+  const requestEndForAll = () => {
+    if (hasIncompleteHoles) {
+      setEndDialogOpen(false);
+      setConfirmIncompleteOpen(true);
+      return;
+    }
+    void endForAll();
+  };
+
+  const endForAll = async () => {
+    setSavingGroup(true);
+    try {
+      await roundsStore.completeRound(roundId);
+      router.replace(`/play/round/${roundId}/summary`);
+    } catch (e) {
+      toast.error(`Kunde inte avsluta: ${(e as Error).message}`);
+    } finally {
+      setSavingGroup(false);
+      setEndDialogOpen(false);
+      setConfirmIncompleteOpen(false);
+    }
+  };
+
+  const leaveForMe = async () => {
+    setSavingGroup(true);
+    try {
+      await roundsApi.leave(roundId);
+      router.replace(`/play/round/${roundId}/summary`);
+    } catch (e) {
+      toast.error(`Kunde inte lämna runda: ${(e as Error).message}`);
+    } finally {
+      setSavingGroup(false);
+      setEndDialogOpen(false);
     }
   };
 
@@ -336,7 +394,8 @@ export default function RoundHolePage() {
     }
   };
 
-  const soloPoints = isStableford ? stablefordPoints(parseStrokes(score), roundHole.parSnapshot) : null;
+  const hostPlayerStrokes = players[0] ? scoresByPlayer.get(players[0].id)?.strokes ?? null : parseStrokes(score);
+  const soloPoints = isStableford ? stablefordPoints(hostPlayerStrokes, roundHole.parSnapshot) : null;
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-slate-900">
@@ -353,29 +412,20 @@ export default function RoundHolePage() {
         )}
       </div>
 
-      <BackButton onClick={() => router.back()} />
-
-      {/* Overview shortcut — small pill at top-left below back button */}
-      <Link
-        href={`/play/round/${roundId}/overview`}
-        className="absolute left-3 top-16 z-20 flex items-center gap-1 bg-white/90 text-slate-800 text-xs font-semibold rounded-full px-3 py-1 shadow"
-        aria-label="Se rund-översikt"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        Översikt
-      </Link>
+      <BackButton onClick={() => router.push('/')} />
 
       <HoleHeader
         holeNumber={roundHole.holeNumber}
         par={roundHole.parSnapshot}
         length={roundHole.lengthSnapshot}
         hcpIndex={roundHole.hcpIndexSnapshot}
-        distanceToGreenMeters={distanceToGreen}
+        greenDistances={greenDistances}
       />
 
-      <TopRightFabs onSettings={() => setSettingsOpen(true)} />
+      <TopRightFabs
+        onSettings={() => setSettingsOpen(true)}
+        overviewHref={`/play/round/${roundId}/overview`}
+      />
 
       <HeatmapRail
         hasCaddyData={hasCaddyData}
@@ -393,7 +443,7 @@ export default function RoundHolePage() {
         onResetAuto={() => setManualOverride(false)}
       />
 
-      {isGroup ? (
+      {isWolf ? (
         <>
           <div className="absolute left-0 right-0 bottom-16 z-10 px-3 pb-2 max-h-[55vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2 px-1">
@@ -425,20 +475,41 @@ export default function RoundHolePage() {
             saving={savingGroup}
           />
         </>
-      ) : (
+      ) : players.length >= 1 ? (
         <>
-          {soloPoints !== null ? (
+          {soloPoints !== null && !isGroup ? (
             <div className="absolute right-3 bottom-20 z-10 bg-white/95 rounded-full px-3 py-1 text-sm font-bold text-primary shadow">
               {soloPoints}p
             </div>
           ) : null}
-          <RoundControlBar
-            score={score}
-            onScoreChange={setScore}
+          <ScoreChipBar
+            players={players}
+            scoresByPlayer={scoresByPlayer}
             isLastHole={holeNumber >= maxHole}
-            onSubmit={saveAndNext}
+            saving={savingGroup}
+            onTapPlayer={(id) => setScorePadPlayerId(id)}
+            onSubmit={groupNext}
+          />
+          <ScorePadSheet
+            open={scorePadPlayer !== null}
+            player={scorePadPlayer}
+            holeNumber={roundHole.holeNumber}
+            par={roundHole.parSnapshot}
+            currentStrokes={scorePadPlayer ? scoresByPlayer.get(scorePadPlayer.id)?.strokes ?? null : null}
+            onClose={() => setScorePadPlayerId(null)}
+            onSubmit={(strokes) => {
+              if (scorePadPlayer) void updatePlayerStrokes(scorePadPlayer.id, strokes);
+              setScorePadPlayerId(null);
+            }}
           />
         </>
+      ) : (
+        <RoundControlBar
+          score={score}
+          onScoreChange={setScore}
+          isLastHole={holeNumber >= maxHole}
+          onSubmit={saveAndNext}
+        />
       )}
 
       <HoleSettingsSheet
@@ -453,10 +524,34 @@ export default function RoundHolePage() {
         recommendation={recommendation}
         courseId={courseId}
         holeNumber={holeNumber}
+        maxHole={maxHole}
+        onSelectHole={(n) => {
+          if (n === holeNumber) return;
+          setSettingsOpen(false);
+          void roundsStore.setCurrentHole(roundId, n).catch(() => undefined);
+          router.replace(`/play/round/${roundId}/${n}`);
+        }}
         onOpenEdit={() => {
           setSettingsOpen(false);
           if (courseId) router.push(`/admin/courses/${courseId}/hole/${holeNumber}`);
         }}
+      />
+
+      <EndRoundDialog
+        open={endDialogOpen}
+        isHost={isHost}
+        hasIncompleteHoles={hasIncompleteHoles}
+        saving={savingGroup}
+        onLeaveSelf={() => void leaveForMe()}
+        onEndForAll={requestEndForAll}
+        onCancel={() => setEndDialogOpen(false)}
+      />
+
+      <EndRoundConfirmIncomplete
+        open={confirmIncompleteOpen}
+        saving={savingGroup}
+        onConfirm={() => void endForAll()}
+        onCancel={() => setConfirmIncompleteOpen(false)}
       />
     </div>
   );
