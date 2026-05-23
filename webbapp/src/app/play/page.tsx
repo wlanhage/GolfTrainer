@@ -48,7 +48,6 @@ export default function PlayPage() {
   const [inProgress, setInProgress] = useState<InProgressRoundSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [endTarget, setEndTarget] = useState<InProgressRoundSummary | null>(null);
-  const [mode, setMode] = useState<'solo' | 'group'>('solo');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const refresh = useCallback(async () => {
@@ -142,11 +141,7 @@ export default function PlayPage() {
       if (detail.holes.length === 0) {
         await api.ensureHoles(course.id, course.holeCount);
       }
-      if (mode === 'solo') {
-        router.push(`/play/format?mode=solo&courseId=${course.id}`);
-      } else {
-        router.push(`/play/group/${course.id}`);
-      }
+      router.push(`/play/group/${course.id}`);
     } catch (e) {
       toast.error(`Kunde inte starta runda: ${(e as Error).message}`);
     }
@@ -172,27 +167,8 @@ export default function PlayPage() {
     <div className="p-4 flex flex-col gap-3">
       <h1 className="text-3xl font-extrabold text-ink">Spela</h1>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setMode('solo')}
-          className={`rounded-xl border-2 py-4 font-bold ${
-            mode === 'solo' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'
-          }`}
-        >
-          🏌️ Spela ensam
-        </button>
-        <button
-          onClick={() => setMode('group')}
-          className={`rounded-xl border-2 py-4 font-bold ${
-            mode === 'group' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'
-          }`}
-        >
-          👥 Spela i grupp
-        </button>
-      </div>
-
       <p className="text-slate-700 text-sm">
-        {mode === 'solo' ? 'Välj bana — du väljer spelform i nästa steg.' : 'Välj bana — lägg sen till spelare och välj spelform.'}
+        Välj bana — lägg sen till spelare (eller spela själv) och välj spelform.
       </p>
 
       {inProgress.length > 0 ? (
