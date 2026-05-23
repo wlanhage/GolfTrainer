@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Camera, ChevronDown } from 'lucide-react';
 import { useRoundsApi, type ServerRoundDetail, type ServerRoundHole, type ServerRoundPlayer } from '@/lib/api';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { Loader } from '@/components/Loader';
@@ -347,6 +347,7 @@ export default function RoundOverviewPage() {
   const [round, setRound] = useState<ServerRoundDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
 
   useEffect(() => {
     if (!roundId) return;
@@ -424,15 +425,27 @@ export default function RoundOverviewPage() {
       </button>
 
       {/* Header */}
-      <header className="flex flex-col gap-0.5">
-        <h1 className="text-2xl font-extrabold text-ink leading-tight">{round.courseNameSnapshot}</h1>
-        <p className="text-sm text-slate-500">
-          {round.clubNameSnapshot}
-          {round.teeNameSnapshot ? ` · ${round.teeNameSnapshot}` : ''}
-        </p>
-        <p className="text-sm text-slate-500">
-          {dateStr} · {formatStr}
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <h1 className="text-2xl font-extrabold text-ink leading-tight">{round.courseNameSnapshot}</h1>
+          <p className="text-sm text-slate-500">
+            {round.clubNameSnapshot}
+            {round.teeNameSnapshot ? ` · ${round.teeNameSnapshot}` : ''}
+          </p>
+          <p className="text-sm text-slate-500">
+            {dateStr} · {formatStr}
+          </p>
+        </div>
+        {round.image ? (
+          <button
+            type="button"
+            onClick={() => setImageOpen(true)}
+            aria-label="Visa bild från rundan"
+            className="shrink-0 w-10 h-10 rounded-full bg-primary-softer border border-primary/30 flex items-center justify-center text-primary"
+          >
+            <Camera size={20} aria-hidden="true" />
+          </button>
+        ) : null}
       </header>
 
       {/* If no players, show a simple fallback */}
@@ -464,6 +477,18 @@ export default function RoundOverviewPage() {
           Fortsätt runda · Hål {round.currentHoleNumber}
         </Link>
       )}
+
+      {imageOpen && round.image ? (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/90 flex items-center justify-center p-4"
+          onClick={() => setImageOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={round.image} alt="Bild från rundan" className="max-w-full max-h-full rounded-2xl" />
+        </div>
+      ) : null}
     </div>
   );
 }

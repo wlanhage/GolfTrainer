@@ -138,6 +138,26 @@ export const roundsRepository = {
     });
   },
 
+  /**
+   * Sätter rundans image. Endast hosten (Round.userId) får ändra, och bara
+   * om image är null — när den är satt en gång kan den inte ändras.
+   */
+  async setImage(roundId: string, userId: string, image: string) {
+    const round = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: { userId: true, image: true }
+    });
+    if (!round) return { ok: false as const, reason: 'not_found' as const };
+    if (round.userId !== userId) return { ok: false as const, reason: 'forbidden' as const };
+    if (round.image !== null) return { ok: false as const, reason: 'already_set' as const };
+    const updated = await prisma.round.update({
+      where: { id: roundId },
+      data: { image },
+      include: ROUND_INCLUDE
+    });
+    return { ok: true as const, round: updated };
+  },
+
   async updateRoundHole(
     roundId: string,
     userId: string,

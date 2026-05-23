@@ -287,5 +287,15 @@ export const roundsService = {
   async deleteRound(roundId: string, userId: string) {
     const ok = await roundsRepository.deleteRound(roundId, userId);
     if (!ok) throw new NotFoundError('Round not found');
+  },
+
+  async setRoundImage(roundId: string, userId: string, image: string) {
+    const result = await roundsRepository.setImage(roundId, userId, image);
+    if (!result.ok) {
+      if (result.reason === 'not_found') throw new NotFoundError('Round not found');
+      if (result.reason === 'forbidden') throw new ForbiddenError('Only the round host can add an image');
+      if (result.reason === 'already_set') throw new BadRequestError('Round image is already set');
+    }
+    return result.round;
   }
 };

@@ -5,6 +5,7 @@ import {
   playerScoreParamSchema,
   roundHoleParamSchema,
   roundIdParamSchema,
+  setRoundImageSchema,
   updatePlayerScoreSchema,
   updateRoundHoleSchema,
   updateRoundSchema
@@ -61,5 +62,12 @@ export const roundsController = {
     const { roundId } = roundIdParamSchema.parse(request.params);
     await roundsService.deleteRound(roundId, request.auth!.userId);
     return reply.code(204).send();
+  },
+
+  async setImage(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const { image } = setRoundImageSchema.parse(request.body);
+    const round = await roundsService.setRoundImage(roundId, request.auth!.userId, image);
+    return reply.send(round);
   }
 };

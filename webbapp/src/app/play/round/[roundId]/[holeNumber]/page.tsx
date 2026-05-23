@@ -272,7 +272,7 @@ export default function RoundHolePage() {
       }
       if (holeNumber >= maxHole) {
         await roundsStore.completeRound(roundId);
-        router.replace(`/play/round/${roundId}/overview`);
+        router.replace(`/play/round/${roundId}/summary`);
         return;
       }
       await roundsStore.setCurrentHole(roundId, holeNumber + 1);
@@ -287,7 +287,7 @@ export default function RoundHolePage() {
     try {
       if (holeNumber >= maxHole) {
         await roundsStore.completeRound(roundId);
-        router.replace(`/play/round/${roundId}/overview`);
+        router.replace(`/play/round/${roundId}/summary`);
         return;
       }
       await roundsStore.setCurrentHole(roundId, holeNumber + 1);
