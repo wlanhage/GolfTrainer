@@ -53,20 +53,28 @@ export function HoleSettingsSheet({
         <h3 className="text-lg font-extrabold">Inställningar</h3>
         <p className="text-xs text-slate-600">Kartvyn används alltid i fullskärm under spel.</p>
 
-        <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
-          <span className="font-bold text-ink">Visa hål</span>
-          <select
-            value={holeNumber}
-            onChange={(e) => onSelectHole(Number(e.target.value))}
-            className="text-base font-semibold border border-slate-300 rounded-lg px-3 py-2 bg-white"
-          >
-            {Array.from({ length: maxHole }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                Hål {n}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs uppercase tracking-wider font-bold text-slate-500">Visa hål</span>
+          <div className="relative">
+            <select
+              value={holeNumber}
+              onChange={(e) => onSelectHole(Number(e.target.value))}
+              className="appearance-none w-full text-3xl font-extrabold text-ink bg-white border-2 border-primary rounded-xl pl-5 pr-14 py-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {Array.from({ length: maxHole }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  Hål {n}
+                </option>
+              ))}
+            </select>
+            <span
+              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-primary text-3xl leading-none"
+              aria-hidden="true"
+            >
+              ▾
+            </span>
+          </div>
+        </div>
 
         {hasCaddyData ? (
           <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
