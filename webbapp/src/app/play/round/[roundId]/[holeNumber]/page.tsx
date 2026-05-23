@@ -358,7 +358,7 @@ export default function RoundHolePage() {
         )}
       </div>
 
-      <BackButton onClick={() => router.back()} />
+      <BackButton onClick={() => router.push('/')} />
 
       {/* Overview shortcut — small pill at top-left below back button */}
       <Link

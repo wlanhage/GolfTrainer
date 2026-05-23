@@ -49,6 +49,7 @@ export default function PlayPage() {
   const [inProgress, setInProgress] = useState<InProgressRoundSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [endTarget, setEndTarget] = useState<InProgressRoundSummary | null>(null);
+  const [blockedByActive, setBlockedByActive] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const refresh = useCallback(async () => {
@@ -136,6 +137,10 @@ export default function PlayPage() {
   const showSearch = courses.length > PAGE_SIZE;
 
   const onCoursePick = async (course: Course) => {
+    if (inProgress.length > 0) {
+      setBlockedByActive(true);
+      return;
+    }
     try {
       const detail = await api.getCourseDetail(course.id);
       if (!detail) throw new Error('Banan hittades inte.');
@@ -269,6 +274,26 @@ export default function PlayPage() {
               Avsluta och ta bort
             </button>
             <button onClick={() => setEndTarget(null)} className="btn-ghost">
+              Avbryt
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {blockedByActive && inProgress[0] ? (
+        <div className="fixed inset-0 z-40 bg-slate-900/45 flex flex-col justify-end">
+          <button className="flex-1" aria-label="Stäng" onClick={() => setBlockedByActive(false)} />
+          <div className="bg-white rounded-t-2xl p-4 flex flex-col gap-3">
+            <h3 className="text-lg font-extrabold">Pågående runda</h3>
+            <p className="text-sm text-slate-600">Avsluta din runda innan du påbörjar en ny.</p>
+            <Link
+              href={`/play/round/${inProgress[0].roundId}/${inProgress[0].currentHoleNumber}`}
+              className="btn-primary text-center"
+              onClick={() => setBlockedByActive(false)}
+            >
+              Fortsätt rundan
+            </Link>
+            <button onClick={() => setBlockedByActive(false)} className="btn-ghost">
               Avbryt
             </button>
           </div>
