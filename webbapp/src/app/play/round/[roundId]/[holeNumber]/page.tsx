@@ -10,6 +10,8 @@ import type { ServerRoundHole, ServerRoundHoleScore, ServerRoundPlayer, ServerWo
 import { useRoundsApi } from '@/lib/api';
 import { stablefordPoints } from '@/lib/scoring';
 import { GroupScoreBoard } from '@/components/play/GroupScoreBoard';
+import { ScoreChipBar } from '@/components/play/ScoreChipBar';
+import { ScorePadSheet } from '@/components/play/ScorePadSheet';
 import { GroupControlBar } from '@/components/round-hole/GroupControlBar';
 import { caddyClubs } from '@/lib/caddyClubs';
 import { getDistanceToGreenMeters, resolveHeatmapBearing } from '@/lib/holeGeometry';
@@ -46,6 +48,7 @@ export default function RoundHolePage() {
   const [roundHole, setRoundHole] = useState<ServerRoundHole | null>(null);
   const [players, setPlayers] = useState<ServerRoundPlayer[]>([]);
   const [scoresByPlayer, setScoresByPlayer] = useState<Map<string, ServerRoundHoleScore>>(new Map());
+  const [scorePadPlayerId, setScorePadPlayerId] = useState<string | null>(null);
   const [savingGroup, setSavingGroup] = useState(false);
   const [maxHole, setMaxHole] = useState(18);
   const [layout, setLayout] = useState<HoleLayoutGeometry | null>(null);
@@ -250,6 +253,8 @@ export default function RoundHolePage() {
   const isGroup = players.length > 1;
   const format = round?.format ?? 'STROKE_PLAY';
   const isStableford = format === 'STABLEFORD';
+  const isWolf = format === 'WOLF';
+  const scorePadPlayer = scorePadPlayerId ? players.find((p) => p.id === scorePadPlayerId) ?? null : null;
 
   const saveAndNext = async () => {
     const parsed = parseStrokes(score);
@@ -393,7 +398,7 @@ export default function RoundHolePage() {
         onResetAuto={() => setManualOverride(false)}
       />
 
-      {isGroup ? (
+      {isGroup && isWolf ? (
         <>
           <div className="absolute left-0 right-0 bottom-16 z-10 px-3 pb-2 max-h-[55vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2 px-1">
@@ -423,6 +428,29 @@ export default function RoundHolePage() {
             isLastHole={holeNumber >= maxHole}
             onSubmit={groupNext}
             saving={savingGroup}
+          />
+        </>
+      ) : isGroup ? (
+        <>
+          <ScoreChipBar
+            players={players}
+            scoresByPlayer={scoresByPlayer}
+            isLastHole={holeNumber >= maxHole}
+            saving={savingGroup}
+            onTapPlayer={(id) => setScorePadPlayerId(id)}
+            onSubmit={groupNext}
+          />
+          <ScorePadSheet
+            open={scorePadPlayer !== null}
+            player={scorePadPlayer}
+            holeNumber={roundHole.holeNumber}
+            par={roundHole.parSnapshot}
+            currentStrokes={scorePadPlayer ? scoresByPlayer.get(scorePadPlayer.id)?.strokes ?? null : null}
+            onClose={() => setScorePadPlayerId(null)}
+            onSubmit={(strokes) => {
+              if (scorePadPlayer) void updatePlayerStrokes(scorePadPlayer.id, strokes);
+              setScorePadPlayerId(null);
+            }}
           />
         </>
       ) : (
