@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { ServerRoundPlayer } from '@/lib/api';
 
 type Props = {
@@ -13,7 +12,7 @@ type Props = {
   onSubmit: (strokes: number | null) => void;
 };
 
-const MAX_STROKES = 99;
+const PRIMARY_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export function ScorePadSheet({
   open,
@@ -24,45 +23,7 @@ export function ScorePadSheet({
   onClose,
   onSubmit
 }: Props) {
-  const [entry, setEntry] = useState<string>('');
-
-  useEffect(() => {
-    if (open) setEntry(currentStrokes !== null ? String(currentStrokes) : '');
-  }, [open, currentStrokes]);
-
   if (!open || !player) return null;
-
-  const pushDigit = (d: number) => {
-    setEntry((prev) => {
-      const next = prev + String(d);
-      const n = Number(next);
-      if (!Number.isFinite(n) || n > MAX_STROKES) return prev;
-      // Strip leading zeros så "04" blir "4"
-      return String(n);
-    });
-  };
-
-  const backspace = () => {
-    setEntry((prev) => prev.slice(0, -1));
-  };
-
-  const submit = () => {
-    if (entry === '') {
-      onSubmit(null);
-    } else {
-      const n = Number(entry);
-      onSubmit(Number.isFinite(n) ? n : null);
-    }
-  };
-
-  const Digit = ({ value }: { value: number }) => (
-    <button
-      onClick={() => pushDigit(value)}
-      className="aspect-square bg-white text-ink rounded-2xl text-3xl font-extrabold active:bg-slate-200"
-    >
-      {value}
-    </button>
-  );
 
   return (
     <div
@@ -72,61 +33,56 @@ export function ScorePadSheet({
       aria-modal="true"
     >
       <div
-        className="mt-auto w-full bg-slate-100 rounded-t-3xl p-4 flex flex-col gap-4"
+        className="mt-auto w-full bg-slate-100 rounded-t-3xl p-4 flex flex-col gap-3 max-h-[90dvh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-lg font-extrabold text-ink leading-tight">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-lg font-extrabold text-ink leading-tight truncate">
               {player.displayNameSnapshot}
             </p>
             <p className="text-sm text-slate-500">
               Hål {holeNumber}
               {par !== null ? ` · Par ${par}` : ''}
+              {currentStrokes !== null ? ` · Nu: ${currentStrokes}` : ''}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl text-slate-600"
+            className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-600 shrink-0"
             aria-label="Stäng"
           >
             ✕
           </button>
         </div>
 
-        <div className="bg-white rounded-2xl py-6 text-center text-5xl font-extrabold text-primary">
-          {entry === '' ? <span className="text-slate-300">—</span> : entry}
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          <Digit value={1} />
-          <Digit value={2} />
-          <Digit value={3} />
-          <Digit value={4} />
-          <Digit value={5} />
-          <Digit value={6} />
-          <Digit value={7} />
-          <Digit value={8} />
-          <Digit value={9} />
+        <div className="flex-1 grid grid-cols-3 grid-rows-4 gap-2 min-h-0">
+          {PRIMARY_DIGITS.map((n) => (
+            <button
+              key={n}
+              onClick={() => onSubmit(n)}
+              className="bg-white text-ink rounded-2xl text-3xl font-extrabold active:bg-slate-200"
+            >
+              {n}
+            </button>
+          ))}
           <button
-            onClick={backspace}
-            className="aspect-square bg-white text-slate-600 rounded-2xl text-2xl font-bold active:bg-slate-200"
-            aria-label="Radera siffra"
+            onClick={() => onSubmit(null)}
+            className="bg-white text-slate-600 rounded-2xl text-sm font-bold active:bg-slate-200"
           >
-            ←
+            Rensa
           </button>
           <button
-            onClick={() => pushDigit(0)}
-            className="aspect-square bg-white text-ink rounded-2xl text-3xl font-extrabold active:bg-slate-200"
+            onClick={() => onSubmit(10)}
+            className="bg-white text-ink rounded-2xl text-3xl font-extrabold active:bg-slate-200"
           >
-            0
+            10
           </button>
           <button
-            onClick={submit}
-            className="aspect-square bg-primary text-white rounded-2xl text-2xl font-extrabold active:opacity-90"
-            aria-label="Klar"
+            onClick={onClose}
+            className="bg-white text-slate-600 rounded-2xl text-sm font-bold active:bg-slate-200"
           >
-            ✓
+            Avbryt
           </button>
         </div>
       </div>

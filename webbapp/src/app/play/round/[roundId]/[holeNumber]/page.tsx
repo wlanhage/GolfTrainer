@@ -341,7 +341,8 @@ export default function RoundHolePage() {
     }
   };
 
-  const soloPoints = isStableford ? stablefordPoints(parseStrokes(score), roundHole.parSnapshot) : null;
+  const hostPlayerStrokes = players[0] ? scoresByPlayer.get(players[0].id)?.strokes ?? null : parseStrokes(score);
+  const soloPoints = isStableford ? stablefordPoints(hostPlayerStrokes, roundHole.parSnapshot) : null;
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-slate-900">
@@ -398,7 +399,7 @@ export default function RoundHolePage() {
         onResetAuto={() => setManualOverride(false)}
       />
 
-      {isGroup && isWolf ? (
+      {isWolf ? (
         <>
           <div className="absolute left-0 right-0 bottom-16 z-10 px-3 pb-2 max-h-[55vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2 px-1">
@@ -430,8 +431,13 @@ export default function RoundHolePage() {
             saving={savingGroup}
           />
         </>
-      ) : isGroup ? (
+      ) : players.length >= 1 ? (
         <>
+          {soloPoints !== null && !isGroup ? (
+            <div className="absolute right-3 bottom-20 z-10 bg-white/95 rounded-full px-3 py-1 text-sm font-bold text-primary shadow">
+              {soloPoints}p
+            </div>
+          ) : null}
           <ScoreChipBar
             players={players}
             scoresByPlayer={scoresByPlayer}
@@ -454,19 +460,12 @@ export default function RoundHolePage() {
           />
         </>
       ) : (
-        <>
-          {soloPoints !== null ? (
-            <div className="absolute right-3 bottom-20 z-10 bg-white/95 rounded-full px-3 py-1 text-sm font-bold text-primary shadow">
-              {soloPoints}p
-            </div>
-          ) : null}
-          <RoundControlBar
-            score={score}
-            onScoreChange={setScore}
-            isLastHole={holeNumber >= maxHole}
-            onSubmit={saveAndNext}
-          />
-        </>
+        <RoundControlBar
+          score={score}
+          onScoreChange={setScore}
+          isLastHole={holeNumber >= maxHole}
+          onSubmit={saveAndNext}
+        />
       )}
 
       <HoleSettingsSheet
