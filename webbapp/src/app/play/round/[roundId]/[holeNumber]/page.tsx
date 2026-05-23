@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaddyApi, useCoursesApi } from '@/lib/api';
@@ -14,7 +13,7 @@ import { ScoreChipBar } from '@/components/play/ScoreChipBar';
 import { ScorePadSheet } from '@/components/play/ScorePadSheet';
 import { GroupControlBar } from '@/components/round-hole/GroupControlBar';
 import { caddyClubs } from '@/lib/caddyClubs';
-import { getDistanceToGreenMeters, resolveHeatmapBearing } from '@/lib/holeGeometry';
+import { getGreenDistances, resolveHeatmapBearing } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS, HEATMAP_GRID_SIZE } from '@/lib/heatmapConfig';
 import { useHeatmapAuto } from '@/lib/heatmapAutoStore';
 import { recommendClub } from '@/lib/clubRecommender';
@@ -173,9 +172,9 @@ export default function RoundHolePage() {
     setHeatmapShots(shotsByClub.get(selectedClubId) ?? []);
   }, [shotsByClub, selectedClubId]);
 
-  const distanceToGreen = useMemo(() => {
+  const greenDistances = useMemo(() => {
     if (!layout || !playerPosition) return null;
-    return getDistanceToGreenMeters(playerPosition, layout);
+    return getGreenDistances(playerPosition, layout);
   }, [layout, playerPosition]);
 
   const caddyHeatmap = useMemo<CaddyMapHeatmap | null>(() => {
@@ -361,27 +360,18 @@ export default function RoundHolePage() {
 
       <BackButton onClick={() => router.push('/')} />
 
-      {/* Overview shortcut — small pill at top-left below back button */}
-      <Link
-        href={`/play/round/${roundId}/overview`}
-        className="absolute left-3 top-16 z-20 flex items-center gap-1 bg-white/90 text-slate-800 text-xs font-semibold rounded-full px-3 py-1 shadow"
-        aria-label="Se rund-översikt"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        Översikt
-      </Link>
-
       <HoleHeader
         holeNumber={roundHole.holeNumber}
         par={roundHole.parSnapshot}
         length={roundHole.lengthSnapshot}
         hcpIndex={roundHole.hcpIndexSnapshot}
-        distanceToGreenMeters={distanceToGreen}
+        greenDistances={greenDistances}
       />
 
-      <TopRightFabs onSettings={() => setSettingsOpen(true)} />
+      <TopRightFabs
+        onSettings={() => setSettingsOpen(true)}
+        overviewHref={`/play/round/${roundId}/overview`}
+      />
 
       <HeatmapRail
         hasCaddyData={hasCaddyData}

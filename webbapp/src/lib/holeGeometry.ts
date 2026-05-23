@@ -104,6 +104,32 @@ export const getDistanceToGreenMeters = (player: GeoPoint, geometry: HoleLayoutG
   return getGeoDistanceMeters(player, center);
 };
 
+export type GreenDistances = {
+  front: number | null;
+  middle: number | null;
+  back: number | null;
+};
+
+export const getGreenDistances = (player: GeoPoint, geometry: HoleLayoutGeometry): GreenDistances => {
+  const points = geometry.greenPolygon;
+  if (points.length === 0) return { front: null, middle: null, back: null };
+  if (points.length < 3) {
+    const c = getPolygonCenter(points);
+    if (!c) return { front: null, middle: null, back: null };
+    const d = getGeoDistanceMeters(player, c);
+    return { front: d, middle: d, back: d };
+  }
+  const front = getDistanceToGreenMeters(player, geometry);
+  const center = getPolygonCenter(points);
+  const middle = center ? getGeoDistanceMeters(player, center) : null;
+  let back: number | null = null;
+  for (const v of points) {
+    const d = getGeoDistanceMeters(player, v);
+    if (back === null || d > back) back = d;
+  }
+  return { front, middle, back };
+};
+
 const hasPolygon = (p: GeoPoint[]) => p.length >= 3;
 export const hasRequiredLayout = (g: HoleLayoutGeometry) => Boolean(g.teePoint && hasPolygon(g.greenPolygon));
 

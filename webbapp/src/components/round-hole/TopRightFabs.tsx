@@ -1,14 +1,23 @@
 'use client';
 
-import { Settings } from 'lucide-react';
+import Link from 'next/link';
+import { LayoutGrid, Settings } from 'lucide-react';
 
 type Props = {
   onSettings: () => void;
+  overviewHref: string;
 };
 
-export function TopRightFabs({ onSettings }: Props) {
+export function TopRightFabs({ onSettings, overviewHref }: Props) {
   return (
-    <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
+    <div className="absolute right-3 top-3 z-10 flex flex-row gap-2">
+      <Link
+        href={overviewHref}
+        aria-label="Översikt"
+        className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-slate-700"
+      >
+        <LayoutGrid size={20} aria-hidden="true" />
+      </Link>
       <button
         onClick={onSettings}
         aria-label="Inställningar"
