@@ -77,8 +77,8 @@ function buildScorecard(
     if (strokes !== null) {
       totalBrutto += strokes;
       holesPlayed += 1;
+      if (hole.parSnapshot !== null) totalPar += hole.parSnapshot;
     }
-    if (hole.parSnapshot !== null) totalPar += hole.parSnapshot;
     if (hole.hcpIndexSnapshot !== null) hasHcpData = true;
   }
 
