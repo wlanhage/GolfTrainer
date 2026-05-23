@@ -47,9 +47,11 @@ const toInProgressSummary = (r: ServerRound): InProgressRoundSummary => ({
 });
 
 const detailToLatest = (detail: ServerRoundDetail): LatestRoundSummary => {
-  const totalScore = detail.roundHoles.reduce((s, h) => s + (h.strokes ?? 0), 0);
-  const totalPar = detail.roundHoles.reduce((s, h) => s + (h.parSnapshot ?? 0), 0);
-  const completedHoles = detail.roundHoles.filter((h) => h.strokes !== null).length;
+  // Summera bara över spelade hål så relativeToPar inte blir −totalPar
+  // för en tom (men COMPLETED) runda.
+  const playedHoles = detail.roundHoles.filter((h) => h.strokes !== null);
+  const totalScore = playedHoles.reduce((s, h) => s + (h.strokes ?? 0), 0);
+  const totalPar = playedHoles.reduce((s, h) => s + (h.parSnapshot ?? 0), 0);
   return {
     roundId: detail.id,
     courseId: detail.courseId,
@@ -61,7 +63,7 @@ const detailToLatest = (detail: ServerRoundDetail): LatestRoundSummary => {
     totalScore,
     totalPar,
     relativeToPar: totalPar === 0 ? null : totalScore - totalPar,
-    completedHoles,
+    completedHoles: playedHoles.length,
     totalHoles: detail.roundHoles.length
   };
 };
@@ -231,7 +233,9 @@ export function useRoundsStore(): RoundsStore {
         const completed = await api.list('COMPLETED');
         if (completed.length === 0) return null;
         const details = await Promise.all(completed.map((r) => api.getById(r.id)));
-        const summaries = details.map(detailToLatest);
+        const summaries = details
+          .map(detailToLatest)
+          .filter((s) => s.completedHoles > 0);
         summaries.sort((a, b) => {
           const ra = a.relativeToPar;
           const rb = b.relativeToPar;

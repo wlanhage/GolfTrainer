@@ -239,8 +239,9 @@ function NotificationsSection() {
 const formatRel = (r: LatestRoundSummary | null) => {
   if (!r) return '-';
   if (r.relativeToPar === null) return `${r.totalScore}`;
+  if (r.relativeToPar === 0) return 'EVEN';
   const sign = r.relativeToPar > 0 ? '+' : '';
-  return `${sign}${r.relativeToPar}`;
+  return `${r.totalScore} (${sign}${r.relativeToPar})`;
 };
 
 export default function ProfilePage() {
