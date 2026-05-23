@@ -481,6 +481,13 @@ export default function RoundHolePage() {
         recommendation={recommendation}
         courseId={courseId}
         holeNumber={holeNumber}
+        maxHole={maxHole}
+        onSelectHole={(n) => {
+          if (n === holeNumber) return;
+          setSettingsOpen(false);
+          void roundsStore.setCurrentHole(roundId, n).catch(() => undefined);
+          router.replace(`/play/round/${roundId}/${n}`);
+        }}
         onOpenEdit={() => {
           setSettingsOpen(false);
           if (courseId) router.push(`/admin/courses/${courseId}/hole/${holeNumber}`);

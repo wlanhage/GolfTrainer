@@ -12,6 +12,8 @@ type Props = {
   recommendation: ClubRecommendation | null;
   courseId: string | null;
   holeNumber: number;
+  maxHole: number;
+  onSelectHole: (holeNumber: number) => void;
   onOpenEdit: () => void;
 };
 
@@ -24,6 +26,8 @@ export function HoleSettingsSheet({
   recommendation,
   courseId,
   holeNumber,
+  maxHole,
+  onSelectHole,
   onOpenEdit
 }: Props) {
   if (!isOpen) return null;
@@ -48,6 +52,21 @@ export function HoleSettingsSheet({
       <div className="bg-white rounded-t-2xl p-4 flex flex-col gap-3">
         <h3 className="text-lg font-extrabold">Inställningar</h3>
         <p className="text-xs text-slate-600">Kartvyn används alltid i fullskärm under spel.</p>
+
+        <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
+          <span className="font-bold text-ink">Visa hål</span>
+          <select
+            value={holeNumber}
+            onChange={(e) => onSelectHole(Number(e.target.value))}
+            className="text-base font-semibold border border-slate-300 rounded-lg px-3 py-2 bg-white"
+          >
+            {Array.from({ length: maxHole }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                Hål {n}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {hasCaddyData ? (
           <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
