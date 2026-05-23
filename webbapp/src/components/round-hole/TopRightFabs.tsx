@@ -1,5 +1,7 @@
 'use client';
 
+import { Settings } from 'lucide-react';
+
 type Props = {
   onSettings: () => void;
 };
@@ -10,9 +12,9 @@ export function TopRightFabs({ onSettings }: Props) {
       <button
         onClick={onSettings}
         aria-label="Inställningar"
-        className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-xl"
+        className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-slate-700"
       >
-        ⚙️
+        <Settings size={20} aria-hidden="true" />
       </button>
     </div>
   );
