@@ -407,7 +407,43 @@ export function useRoundsApi() {
           body: JSON.stringify({ image })
         }),
       leave: (roundId: string) =>
-        client.request<null>(`/rounds/${roundId}/leave`, { method: 'POST' })
+        client.request<null>(`/rounds/${roundId}/leave`, { method: 'POST' }),
+      logShot: (roundId: string, payload: { holeNumber: number; clubId: string; fromLat: number; fromLng: number; toLat?: number; toLng?: number }) =>
+        client.request<{ id: string; roundId: string; holeNumber: number; shotOrder: number; clubId: string; distanceMeters: number | null }>(`/rounds/${roundId}/shots`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        }),
+      listShots: (roundId: string) =>
+        client.request<Array<{ id: string; roundId: string; holeNumber: number; shotOrder: number; clubId: string; fromLat: number; fromLng: number; toLat: number | null; toLng: number | null; distanceMeters: number | null }>>(`/rounds/${roundId}/shots`),
+      deleteShot: (roundId: string, shotId: string) =>
+        client.request<null>(`/rounds/${roundId}/shots/${shotId}`, { method: 'DELETE' })
+    }),
+    [client]
+  );
+}
+
+export function useAiApi() {
+  const client = useApiClient();
+  return useMemo(
+    () => ({
+      caddyChat: (message: string, roundId?: string) =>
+        client.request<{ response: string }>('/ai/caddy-chat', {
+          method: 'POST',
+          body: JSON.stringify({ message, roundId })
+        }),
+      recommendClub: (payload: {
+        imageBase64: string;
+        distanceToGreenFront?: number;
+        distanceToGreenMiddle?: number;
+        distanceToGreenBack?: number;
+        holeNumber?: number;
+        par?: number;
+        roundId?: string;
+      }) =>
+        client.request<{ response: string }>('/ai/recommend-club', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        })
     }),
     [client]
   );

@@ -621,6 +621,7 @@ model Round {
   course     Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
   roundHoles RoundHole[]
   players    RoundPlayer[]
+  shots      RoundShot[]
 
   @@index([userId, startedAt])
   @@index([userId, totalScore])
@@ -683,4 +684,23 @@ model RoundHole {
 
   @@unique([roundId, holeNumber])
   @@index([roundId, holeId])
+}
+
+model RoundShot {
+  id              String   @id @default(cuid())
+  roundId         String
+  holeNumber      Int
+  shotOrder       Int
+  clubId          String   // caddyClubs id e.g. "driver", "iron-7"
+  fromLat         Decimal  @db.Decimal(10, 7)
+  fromLng         Decimal  @db.Decimal(10, 7)
+  toLat           Decimal? @db.Decimal(10, 7)
+  toLng           Decimal? @db.Decimal(10, 7)
+  distanceMeters  Decimal? @db.Decimal(6, 1)
+  createdAt       DateTime @default(now())
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, holeNumber, shotOrder])
+  @@index([roundId, holeNumber])
 }

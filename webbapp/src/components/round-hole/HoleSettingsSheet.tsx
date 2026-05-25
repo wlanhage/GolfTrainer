@@ -15,6 +15,8 @@ type Props = {
   maxHole: number;
   onSelectHole: (holeNumber: number) => void;
   onOpenEdit: () => void;
+  shotTrackingEnabled?: boolean;
+  onOpenShotReview?: () => void;
 };
 
 export function HoleSettingsSheet({
@@ -28,7 +30,9 @@ export function HoleSettingsSheet({
   holeNumber,
   maxHole,
   onSelectHole,
-  onOpenEdit
+  onOpenEdit,
+  shotTrackingEnabled,
+  onOpenShotReview
 }: Props) {
   if (!isOpen) return null;
 
@@ -98,6 +102,15 @@ export function HoleSettingsSheet({
               ) : null}
             </span>
           </label>
+        ) : null}
+
+        {shotTrackingEnabled && onOpenShotReview ? (
+          <button
+            onClick={() => { onClose(); onOpenShotReview(); }}
+            className="btn-secondary"
+          >
+            Ändra slag (hål {holeNumber})
+          </button>
         ) : null}
 
         {courseId ? (

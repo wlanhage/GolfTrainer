@@ -5,12 +5,29 @@ import { pushService } from '../push/push.service.js';
 import { notificationsService } from '../notifications/notifications.service.js';
 import type {
   CreateRoundInput,
+  CreateRoundShotInput,
   ListRoundsQuery,
   UpdatePlayerScoreInput,
   UpdateRoundHoleInput,
   UpdateRoundInput
 } from './rounds.schema.js';
 import type { RoundFormat } from '@prisma/client';
+
+const EARTH_RADIUS_M = 6371000;
+const toRadians = (v: number) => (v * Math.PI) / 180;
+const getGeoDistanceMeters = (fromLat: number, fromLng: number, toLat: number, toLng: number) => {
+  const dLat = toRadians(toLat - fromLat);
+  const dLng = toRadians(toLng - fromLng);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(dLng / 2) ** 2;
+  return EARTH_RADIUS_M * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+};
+
+const assertParticipant = async (roundId: string, userId: string) => {
+  const player = await prisma.roundPlayer.findUnique({
+    where: { roundId_userId: { roundId, userId } }
+  });
+  if (!player) throw new ForbiddenError('You are not a participant in this round');
+};
 
 const DEFAULT_FORMAT: RoundFormat = 'STROKE_PLAY';
 
@@ -305,5 +322,52 @@ export const roundsService = {
       if (result.reason === 'already_set') throw new BadRequestError('Round image is already set');
     }
     return result.round;
+  },
+
+  async createRoundShot(roundId: string, userId: string, input: CreateRoundShotInput) {
+    await assertParticipant(roundId, userId);
+
+    // Compute next shotOrder for this round+hole
+    const lastShot = await prisma.roundShot.findFirst({
+      where: { roundId, holeNumber: input.holeNumber },
+      orderBy: { shotOrder: 'desc' },
+      select: { shotOrder: true }
+    });
+    const shotOrder = (lastShot?.shotOrder ?? 0) + 1;
+
+    // Compute distance if both from/to are provided
+    let distanceMeters: number | undefined;
+    if (input.toLat !== undefined && input.toLng !== undefined) {
+      distanceMeters = getGeoDistanceMeters(input.fromLat, input.fromLng, input.toLat, input.toLng);
+    }
+
+    return prisma.roundShot.create({
+      data: {
+        roundId,
+        holeNumber: input.holeNumber,
+        shotOrder,
+        clubId: input.clubId,
+        fromLat: input.fromLat,
+        fromLng: input.fromLng,
+        toLat: input.toLat,
+        toLng: input.toLng,
+        distanceMeters: distanceMeters !== undefined ? Math.round(distanceMeters * 10) / 10 : undefined
+      }
+    });
+  },
+
+  async getRoundShots(roundId: string, userId: string) {
+    await assertParticipant(roundId, userId);
+    return prisma.roundShot.findMany({
+      where: { roundId },
+      orderBy: [{ holeNumber: 'asc' }, { shotOrder: 'asc' }]
+    });
+  },
+
+  async deleteRoundShot(roundId: string, userId: string, shotId: string) {
+    await assertParticipant(roundId, userId);
+    const shot = await prisma.roundShot.findUnique({ where: { id: shotId } });
+    if (!shot || shot.roundId !== roundId) throw new NotFoundError('Shot not found');
+    await prisma.roundShot.delete({ where: { id: shotId } });
   }
 };

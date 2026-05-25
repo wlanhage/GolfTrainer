@@ -81,3 +81,18 @@ export type UpdatePlayerScoreInput = z.infer<typeof updatePlayerScoreSchema>;
 export type ListRoundsQuery = z.infer<typeof listRoundsQuerySchema>;
 export type SetRoundImageInput = z.infer<typeof setRoundImageSchema>;
 export type RoundFormatValue = z.infer<typeof roundFormatEnum>;
+
+export const createRoundShotSchema = z.object({
+  holeNumber: z.number().int().min(1).max(18),
+  clubId: z.string().min(1),
+  fromLat: z.number(),
+  fromLng: z.number(),
+  toLat: z.number().optional(),
+  toLng: z.number().optional(),
+});
+export type CreateRoundShotInput = z.infer<typeof createRoundShotSchema>;
+
+export const roundShotIdParamSchema = z.object({
+  roundId: z.string().min(1),
+  shotId: z.string().min(1),
+});

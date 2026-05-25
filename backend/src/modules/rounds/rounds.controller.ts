@@ -1,10 +1,12 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import {
   createRoundSchema,
+  createRoundShotSchema,
   listRoundsQuerySchema,
   playerScoreParamSchema,
   roundHoleParamSchema,
   roundIdParamSchema,
+  roundShotIdParamSchema,
   setRoundImageSchema,
   updatePlayerScoreSchema,
   updateRoundHoleSchema,
@@ -74,6 +76,25 @@ export const roundsController = {
   async leave(request: FastifyRequest, reply: FastifyReply) {
     const { roundId } = roundIdParamSchema.parse(request.params);
     await roundsService.leaveRound(roundId, request.auth!.userId);
+    return reply.code(204).send();
+  },
+
+  async createShot(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const input = createRoundShotSchema.parse(request.body);
+    const shot = await roundsService.createRoundShot(roundId, request.auth!.userId, input);
+    return reply.code(201).send(shot);
+  },
+
+  async listShots(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const shots = await roundsService.getRoundShots(roundId, request.auth!.userId);
+    return reply.send(shots);
+  },
+
+  async deleteShot(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId, shotId } = roundShotIdParamSchema.parse(request.params);
+    await roundsService.deleteRoundShot(roundId, request.auth!.userId, shotId);
     return reply.code(204).send();
   }
 };
