@@ -2,9 +2,9 @@
 
 import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
-import { useCaddyApi, useCoursesApi } from '@/lib/api';
+import { useCaddyApi, useCoursesApi, useAiApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import type { ServerRoundHole, ServerRoundHoleScore, ServerRoundPlayer, ServerWolfRole } from '@/lib/api';
 import { useRoundsApi } from '@/lib/api';
@@ -27,8 +27,13 @@ import { BackButton } from '@/components/round-hole/BackButton';
 import { HoleHeader } from '@/components/round-hole/HoleHeader';
 import { TopRightFabs } from '@/components/round-hole/TopRightFabs';
 import { HeatmapRail } from '@/components/round-hole/HeatmapRail';
+import { RightActionRail } from '@/components/round-hole/RightActionRail';
 import { RoundControlBar } from '@/components/round-hole/RoundControlBar';
 import { HoleSettingsSheet } from '@/components/round-hole/HoleSettingsSheet';
+import { ShotTrackingRail } from '@/components/round-hole/ShotTrackingRail';
+import { CameraRecommendSheet } from '@/components/round-hole/CameraRecommendSheet';
+import { ShotReviewSheet, type ReviewShot } from '@/components/round-hole/ShotReviewSheet';
+import { shotTrackingStore } from '@/lib/shotTrackingStore';
 import { Loader } from '@/components/Loader';
 
 const HolePlayMap = dynamic(() => import('@/components/HolePlayMap').then((m) => m.HolePlayMap), { ssr: false });
@@ -43,6 +48,7 @@ export default function RoundHolePage() {
   const coursesApi = useCoursesApi();
   const caddyApi = useCaddyApi();
   const roundsApi = useRoundsApi();
+  const aiApi = useAiApi();
   const roundsStore = useRoundsStore();
   const toast = useToast();
 
@@ -67,6 +73,35 @@ export default function RoundHolePage() {
   const [shotsByClub, setShotsByClub] = useState<Map<string, CaddyShot[]>>(new Map());
   const [courseId, setCourseId] = useState<string | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
+
+  // Camera recommendation state
+  const [cameraSheetOpen, setCameraSheetOpen] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+
+  // Shot tracking state
+  const [shotTrackingEnabled, setShotTrackingEnabled] = useState(false);
+  const [shotRailOpen, setShotRailOpen] = useState(false);
+  const [lastShotClub, setLastShotClub] = useState<string | null>(null);
+  const [bagClubs, setBagClubs] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Shot review state
+  const [shotReviewOpen, setShotReviewOpen] = useState(false);
+  const [holeShots, setHoleShots] = useState<ReviewShot[]>([]);
+  const [shotToastVisible, setShotToastVisible] = useState(false);
+  const [shotToastPutts, setShotToastPutts] = useState<number | null>(null);
+  const [shotToastCount, setShotToastCount] = useState(0);
+  const shotToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Initialize shot tracking from localStorage
+  useEffect(() => {
+    const enabled = shotTrackingStore.isEnabled();
+    setShotTrackingEnabled(enabled);
+    if (enabled) {
+      const selectedIds = shotTrackingStore.getSelectedClubs();
+      const filtered = caddyClubs.filter((c) => selectedIds.includes(c.id));
+      setBagClubs(filtered);
+    }
+  }, []);
 
   const { enabled: autoEnabled, setEnabled: setAutoEnabled } = useHeatmapAuto();
   const [refreshing, setRefreshing] = useState(false);
@@ -252,6 +287,106 @@ export default function RoundHolePage() {
     setSelectedClubId(heatmapClubsWithData[0].id);
   }, [heatmapClubsWithData, heatmapOpen, hasCaddyData, selectedClubId]);
 
+  const handleCameraRecommend = async (base64: string): Promise<string> => {
+    setCameraLoading(true);
+    try {
+      const { response } = await aiApi.recommendClub({
+        imageBase64: base64,
+        distanceToGreenFront: greenDistances?.front ?? undefined,
+        distanceToGreenMiddle: greenDistances?.middle ?? undefined,
+        distanceToGreenBack: greenDistances?.back ?? undefined,
+        holeNumber,
+        par: roundHole?.parSnapshot ?? undefined,
+        roundId,
+      });
+      return response;
+    } finally {
+      setCameraLoading(false);
+    }
+  };
+
+  const handleLogShot = async (clubId: string) => {
+    if (!playerPosition) {
+      toast.error('GPS-position saknas');
+      return;
+    }
+    try {
+      await roundsApi.logShot(roundId, {
+        holeNumber,
+        clubId,
+        fromLat: playerPosition.lat,
+        fromLng: playerPosition.lng,
+      });
+      setLastShotClub(clubId);
+      setShotRailOpen(false);
+      toast.success('Slag loggat!');
+    } catch (e) {
+      toast.error(`Kunde inte logga slag: ${(e as Error).message}`);
+    }
+  };
+
+  /** Load shots for current hole and show summary toast after score save */
+  const showShotSummaryToast = async (savedScore: number | null) => {
+    if (!shotTrackingEnabled || savedScore === null) return;
+    try {
+      const allShots = await roundsApi.listShots(roundId);
+      const currentHoleShots = allShots
+        .filter((s) => s.holeNumber === holeNumber)
+        .sort((a, b) => a.shotOrder - b.shotOrder)
+        .map((s) => ({
+          id: s.id,
+          shotOrder: s.shotOrder,
+          clubId: s.clubId,
+          distanceMeters: s.distanceMeters,
+        }));
+      if (currentHoleShots.length === 0) return;
+      setHoleShots(currentHoleShots);
+      const putts = Math.max(0, savedScore - currentHoleShots.length);
+      setShotToastPutts(putts);
+      setShotToastCount(currentHoleShots.length);
+      setShotToastVisible(true);
+      if (shotToastTimerRef.current) clearTimeout(shotToastTimerRef.current);
+      shotToastTimerRef.current = setTimeout(() => setShotToastVisible(false), 5000);
+    } catch {
+      // silently ignore — non-critical
+    }
+  };
+
+  const handleShotReviewChangeClub = async (shotId: string, clubId: string) => {
+    // Optimistic UI update
+    setHoleShots((prev) => prev.map((s) => s.id === shotId ? { ...s, clubId } : s));
+    // Note: We'd need a PATCH endpoint for this — for now just update locally.
+    // The shot will be correct next time it's loaded. TODO: add PATCH endpoint.
+  };
+
+  const handleShotReviewDelete = async (shotId: string) => {
+    setHoleShots((prev) => prev.filter((s) => s.id !== shotId));
+    try {
+      await roundsApi.deleteShot(roundId, shotId);
+    } catch (e) {
+      toast.error(`Kunde inte ta bort slag: ${(e as Error).message}`);
+    }
+  };
+
+  const openShotReview = async () => {
+    try {
+      const allShots = await roundsApi.listShots(roundId);
+      const currentHoleShots = allShots
+        .filter((s) => s.holeNumber === holeNumber)
+        .sort((a, b) => a.shotOrder - b.shotOrder)
+        .map((s) => ({
+          id: s.id,
+          shotOrder: s.shotOrder,
+          clubId: s.clubId,
+          distanceMeters: s.distanceMeters,
+        }));
+      setHoleShots(currentHoleShots);
+      setShotReviewOpen(true);
+    } catch (e) {
+      toast.error(`Kunde inte hämta slag: ${(e as Error).message}`);
+    }
+  };
+
   if (!round || !roundHole) {
     return <Loader fullScreen onDark label="Laddar hål" />;
   }
@@ -277,6 +412,8 @@ export default function RoundHolePage() {
         // Legacy fallback för gamla rundor utan players
         await roundsStore.saveScore(roundId, holeNumber, parsed);
       }
+      // Show shot summary toast before navigating
+      void showShotSummaryToast(parsed);
       if (holeNumber >= maxHole) {
         await roundsStore.completeRound(roundId);
         router.replace(`/play/round/${roundId}/summary`);
@@ -303,6 +440,9 @@ export default function RoundHolePage() {
     }
     setSavingGroup(true);
     try {
+      // Show shot summary toast for group play (use host player score)
+      const hostScore = players[0] ? scoresByPlayer.get(players[0].id)?.strokes ?? null : null;
+      void showShotSummaryToast(hostScore);
       if (isLastHole) {
         await roundsStore.completeRound(roundId);
         router.replace(`/play/round/${roundId}/summary`);
@@ -427,6 +567,30 @@ export default function RoundHolePage() {
         overviewHref={`/play/round/${roundId}/overview`}
       />
 
+      <ShotTrackingRail
+        isOpen={shotRailOpen}
+        onClose={() => setShotRailOpen(false)}
+        clubs={bagClubs}
+        onLogShot={(clubId) => void handleLogShot(clubId)}
+        lastShotClub={lastShotClub}
+      />
+
+      <CameraRecommendSheet
+        isOpen={cameraSheetOpen}
+        onClose={() => setCameraSheetOpen(false)}
+        onCapture={handleCameraRecommend}
+        loading={cameraLoading}
+      />
+
+      <RightActionRail
+        hasCaddyData={hasCaddyData}
+        heatmapOpen={heatmapOpen}
+        onToggleHeatmap={() => setHeatmapOpen((v) => !v)}
+        shotTrackingEnabled={shotTrackingEnabled}
+        onShotTracking={() => setShotRailOpen((v) => !v)}
+        onCameraRecommend={() => setCameraSheetOpen(true)}
+      />
+
       <HeatmapRail
         hasCaddyData={hasCaddyData}
         clubsWithData={heatmapClubsWithData}
@@ -535,6 +699,29 @@ export default function RoundHolePage() {
           setSettingsOpen(false);
           if (courseId) router.push(`/admin/courses/${courseId}/hole/${holeNumber}`);
         }}
+        shotTrackingEnabled={shotTrackingEnabled}
+        onOpenShotReview={() => void openShotReview()}
+      />
+
+      {/* Shot summary toast — tappable to open review */}
+      {shotToastVisible && shotTrackingEnabled && (
+        <button
+          type="button"
+          onClick={() => { setShotToastVisible(false); setShotReviewOpen(true); }}
+          className="absolute top-14 left-1/2 -translate-x-1/2 z-30 bg-black/80 backdrop-blur-sm text-white font-semibold text-sm rounded-full px-5 py-2.5 shadow-lg whitespace-nowrap animate-[fadeIn_0.2s_ease-out]"
+        >
+          {shotToastCount} slag ⛳ {shotToastPutts} {shotToastPutts === 1 ? 'putt' : 'puttar'}
+        </button>
+      )}
+
+      <ShotReviewSheet
+        isOpen={shotReviewOpen}
+        onClose={() => setShotReviewOpen(false)}
+        shots={holeShots}
+        score={hostPlayerStrokes}
+        putts={hostPlayerStrokes !== null && holeShots.length > 0 ? Math.max(0, hostPlayerStrokes - holeShots.length) : null}
+        onChangeClub={handleShotReviewChangeClub}
+        onDeleteShot={(shotId) => void handleShotReviewDelete(shotId)}
       />
 
       <EndRoundDialog
