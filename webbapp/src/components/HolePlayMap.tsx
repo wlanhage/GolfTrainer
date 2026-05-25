@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { LngLatBoundsLike, Map as MlMap } from 'maplibre-gl';
 import type { GeoPoint, HoleLayoutGeometry } from '@/lib/types';
-import { fromHoleLocalCoordinates, resolveHoleAxis } from '@/lib/holeGeometry';
+import { fromHoleLocalCoordinates, getGeoDistanceMeters, resolveHoleAxis } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS } from '@/lib/heatmapConfig';
 import { HOLE_COLORS } from '@/lib/holeColors';
 import { DEFAULT_MAP_STYLE } from '@/lib/mapStyle';
@@ -164,6 +164,12 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
   // Flagga som temporärt stänger av userMoved-detektion när vi själva animerar kameran
   const programmaticMoveRef = useRef(false);
 
+  // Tap-to-measure state
+  const [tapDistance, setTapDistance] = useState<number | null>(null);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playerPosRef = useRef<GeoPoint | null>(playerPosition);
+  playerPosRef.current = playerPosition;
+
   const fittedRef = useRef<{ key: string; geometry: HoleLayoutGeometry | null }>({ key: '', geometry: null });
 
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
@@ -292,7 +298,60 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
         }
       });
 
+      // Tap-target marker source + layer (empty initially)
+      map.addSource('tap-target', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({
+        id: 'tap-target-ring',
+        type: 'circle',
+        source: 'tap-target',
+        paint: {
+          'circle-color': 'transparent',
+          'circle-radius': 10,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2.5,
+          'circle-stroke-opacity': 0.9
+        }
+      });
+      map.addLayer({
+        id: 'tap-target-dot',
+        type: 'circle',
+        source: 'tap-target',
+        paint: {
+          'circle-color': '#ffffff',
+          'circle-radius': 3.5,
+          'circle-opacity': 0.9
+        }
+      });
+
       setLoaded(true);
+    });
+
+    // Tap-to-measure: click on map shows distance from player
+    map.on('click', (e) => {
+      const pos = playerPosRef.current;
+      if (!pos) return;
+      const tapped: GeoPoint = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+      const dist = getGeoDistanceMeters(pos, tapped);
+      setTapDistance(Math.round(dist));
+
+      // Show tap marker on map
+      const src = map.getSource('tap-target') as maplibregl.GeoJSONSource | undefined;
+      src?.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'Point', coordinates: [tapped.lng, tapped.lat] }
+        }]
+      });
+
+      // Auto-hide after 4 seconds
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = setTimeout(() => {
+        setTapDistance(null);
+        const s = map.getSource('tap-target') as maplibregl.GeoJSONSource | undefined;
+        s?.setData(EMPTY_FC);
+      }, 4000);
     });
 
     // Detektera när användaren manuellt rör kameran (drag/zoom/rotate)
@@ -363,9 +422,30 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recenterTick, loaded]);
 
+  // Clear tap distance when hole changes
+  useEffect(() => {
+    setTapDistance(null);
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    const map = mapRef.current;
+    if (map && loaded) {
+      const src = map.getSource('tap-target') as maplibregl.GeoJSONSource | undefined;
+      src?.setData(EMPTY_FC);
+    }
+  }, [holeKey, loaded]);
+
   return (
     <div className="absolute inset-0">
       <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Distance toast — replaces on each tap */}
+      {tapDistance !== null && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="bg-black/75 backdrop-blur-sm text-white font-bold text-sm rounded-full px-4 py-2 shadow-lg whitespace-nowrap">
+            📍 {tapDistance} m
+          </div>
+        </div>
+      )}
+
       {!loaded ? (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm pointer-events-none">
           <div className="text-white/80 text-sm font-semibold">Laddar karta...</div>
