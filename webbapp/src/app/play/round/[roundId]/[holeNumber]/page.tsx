@@ -82,6 +82,8 @@ export default function RoundHolePage() {
   const [shotTrackingEnabled, setShotTrackingEnabled] = useState(false);
   const [shotRailOpen, setShotRailOpen] = useState(false);
   const [lastShotClub, setLastShotClub] = useState<string | null>(null);
+  const [lastShotId, setLastShotId] = useState<string | null>(null);
+  const [lastShotPosition, setLastShotPosition] = useState<GeoPoint | null>(null);
   const [bagClubs, setBagClubs] = useState<Array<{ id: string; name: string }>>([]);
 
   // Shot review state
@@ -305,21 +307,47 @@ export default function RoundHolePage() {
     }
   };
 
+  /** Haversine distance in meters between two geo points */
+  const geoDistanceM = (a: GeoPoint, b: GeoPoint) => {
+    const R = 6371000;
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  };
+
+  const SAME_SPOT_THRESHOLD_M = 5;
+
   const handleLogShot = async (clubId: string) => {
     if (!playerPosition) {
       toast.error('GPS-position saknas');
       return;
     }
+
+    // If we haven't moved more than 5m since last shot → club change (replace)
+    const isSameSpot =
+      lastShotId &&
+      lastShotPosition &&
+      geoDistanceM(playerPosition, lastShotPosition) < SAME_SPOT_THRESHOLD_M;
+
     try {
-      await roundsApi.logShot(roundId, {
+      if (isSameSpot && lastShotId) {
+        // Delete old shot, then log new one with updated club
+        await roundsApi.deleteShot(roundId, lastShotId);
+      }
+
+      const result = await roundsApi.logShot(roundId, {
         holeNumber,
         clubId,
         fromLat: playerPosition.lat,
         fromLng: playerPosition.lng,
       });
       setLastShotClub(clubId);
+      setLastShotId(result.id);
+      setLastShotPosition({ lat: playerPosition.lat, lng: playerPosition.lng });
       setShotRailOpen(false);
-      toast.success('Slag loggat!');
+      toast.success(isSameSpot ? 'Klubba bytt!' : 'Slag loggat!');
     } catch (e) {
       toast.error(`Kunde inte logga slag: ${(e as Error).message}`);
     }

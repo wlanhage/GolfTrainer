@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, RefreshCw, Globe, ChevronRight, Crosshair, Check } from 'lucide-react';
+import { LogOut, RefreshCw, Globe, ChevronRight, Crosshair, Check, HelpCircle, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useI18n, useT } from '@/lib/i18n/I18nProvider';
@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const [langOpen, setLangOpen] = useState(false);
   const [shotTrackingEnabled, setShotTrackingEnabled] = useState(false);
   const [selectedClubs, setSelectedClubs] = useState<string[]>([]);
+  const [bagOpen, setBagOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     setShotTrackingEnabled(shotTrackingStore.isEnabled());
@@ -27,6 +29,9 @@ export default function SettingsPage() {
     setShotTrackingEnabled(next);
     if (next) {
       setSelectedClubs(shotTrackingStore.getSelectedClubs());
+      setBagOpen(true);
+    } else {
+      setBagOpen(false);
     }
   };
 
@@ -50,12 +55,23 @@ export default function SettingsPage() {
     <div className="p-4 flex flex-col gap-4">
       {/* Shot tracking section */}
       <section className="card flex flex-col gap-0">
-        <h2 className="font-bold text-base mb-2">{t('settings.shotTracking')}</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-bold text-base">{t('settings.shotTracking')}</h2>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="text-slate-400 active:text-slate-600"
+            aria-label={t('settings.shotTrackingHelpTitle')}
+          >
+            <HelpCircle size={20} />
+          </button>
+        </div>
 
+        {/* Toggle row */}
         <button
           type="button"
           onClick={toggleShotTracking}
-          className="flex items-center justify-between py-3 border-b border-slate-100"
+          className="flex items-center justify-between py-3"
         >
           <div className="flex items-center gap-3">
             <Crosshair size={20} className="text-slate-500" />
@@ -77,35 +93,75 @@ export default function SettingsPage() {
           </div>
         </button>
 
+        {/* Collapsible club bag dropdown */}
         {shotTrackingEnabled && (
-          <div className="py-3">
-            <div className="mb-2">
-              <span className="text-sm font-semibold text-ink">{t('settings.clubBag')}</span>
-              <span className="text-xs text-slate-400 ml-2">{t('settings.clubBagDesc')}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {caddyClubs.map((club) => {
-                const isSelected = selectedClubs.includes(club.id);
-                return (
-                  <button
-                    key={club.id}
-                    type="button"
-                    onClick={() => toggleClub(club.id)}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border transition-colors ${
-                      isSelected
-                        ? 'bg-primary/10 border-primary text-primary'
-                        : 'bg-white border-slate-200 text-slate-500'
-                    }`}
-                  >
-                    {isSelected && <Check size={14} />}
-                    {club.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <>
+            <button
+              type="button"
+              onClick={() => setBagOpen((v) => !v)}
+              className="flex items-center justify-between py-3 border-t border-slate-100"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-ink">{t('settings.clubBag')}</span>
+                <span className="text-xs text-slate-400">{t('settings.clubBagDesc')}</span>
+              </div>
+              <ChevronRight
+                size={16}
+                className={`text-slate-400 transition-transform ${bagOpen ? 'rotate-90' : ''}`}
+              />
+            </button>
+
+            {bagOpen && (
+              <div className="pb-3 pt-1">
+                <div className="flex flex-wrap gap-2">
+                  {caddyClubs.map((club) => {
+                    const isSelected = selectedClubs.includes(club.id);
+                    return (
+                      <button
+                        key={club.id}
+                        type="button"
+                        onClick={() => toggleClub(club.id)}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border transition-colors ${
+                          isSelected
+                            ? 'bg-primary/10 border-primary text-primary'
+                            : 'bg-white border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {isSelected && <Check size={14} />}
+                        {club.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
+
+      {/* Help popup */}
+      {helpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setHelpOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-ink">{t('settings.shotTrackingHelpTitle')}</h3>
+              <button onClick={() => setHelpOpen(false)} className="text-slate-400">
+                <X size={22} />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {t('settings.shotTrackingHelp')}
+            </p>
+            <button
+              onClick={() => setHelpOpen(false)}
+              className="mt-4 w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold"
+            >
+              {t('common.close')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <section className="card flex flex-col gap-0">
         <h2 className="font-bold text-base mb-2">{t('settings.general')}</h2>
