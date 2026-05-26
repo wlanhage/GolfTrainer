@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 
 type Props = {
   fullScreen?: boolean;
@@ -24,13 +23,13 @@ export function Loader({ fullScreen = false, label = 'Loading', onDark = false }
   return (
     <div className={wrapper}>
       <div className="flex flex-col items-center gap-4">
-        <Image
-          src="/logo.png"
-          alt="GolfTrainer"
-          width={96}
-          height={96}
-          priority
-          className="animate-pulse"
+        <video
+          src="/loader.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-24 h-24 object-cover rounded-2xl"
         />
         <div className={`font-extrabold text-xl tracking-tight ${textColor}`}>
           <span>{label}</span>
