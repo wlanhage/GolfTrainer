@@ -32,6 +32,7 @@ import { RoundControlBar } from '@/components/round-hole/RoundControlBar';
 import { HoleSettingsSheet } from '@/components/round-hole/HoleSettingsSheet';
 import { ShotTrackingRail } from '@/components/round-hole/ShotTrackingRail';
 import { CameraRecommendSheet } from '@/components/round-hole/CameraRecommendSheet';
+import { AiChoiceSheet } from '@/components/round-hole/AiChoiceSheet';
 import { ShotReviewSheet, type ReviewShot } from '@/components/round-hole/ShotReviewSheet';
 import { shotTrackingStore } from '@/lib/shotTrackingStore';
 import { Loader } from '@/components/Loader';
@@ -74,9 +75,14 @@ export default function RoundHolePage() {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
 
-  // Camera recommendation state
+  // AI recommendation state
+  const [aiChoiceOpen, setAiChoiceOpen] = useState(false);
   const [cameraSheetOpen, setCameraSheetOpen] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [dataRecOpen, setDataRecOpen] = useState(false);
+  const [dataRecLoading, setDataRecLoading] = useState(false);
+  const [dataRecResult, setDataRecResult] = useState<string | null>(null);
+  const [dataRecError, setDataRecError] = useState<string | null>(null);
 
   // Shot tracking state
   const [shotTrackingEnabled, setShotTrackingEnabled] = useState(false);
@@ -304,6 +310,29 @@ export default function RoundHolePage() {
       return response;
     } finally {
       setCameraLoading(false);
+    }
+  };
+
+  const handleDataRecommend = async () => {
+    setDataRecOpen(true);
+    setDataRecLoading(true);
+    setDataRecResult(null);
+    setDataRecError(null);
+    try {
+      const { response } = await aiApi.dataRecommendClub({
+        distanceToGreenFront: greenDistances?.front ?? undefined,
+        distanceToGreenMiddle: greenDistances?.middle ?? undefined,
+        distanceToGreenBack: greenDistances?.back ?? undefined,
+        holeNumber,
+        par: roundHole?.parSnapshot ?? undefined,
+        roundId,
+      });
+      setDataRecResult(response);
+    } catch (err) {
+      const { getAiErrorKey } = await import('@/lib/aiErrorMapper');
+      setDataRecError(getAiErrorKey(err));
+    } finally {
+      setDataRecLoading(false);
     }
   };
 
@@ -603,6 +632,13 @@ export default function RoundHolePage() {
         lastShotClub={lastShotClub}
       />
 
+      <AiChoiceSheet
+        isOpen={aiChoiceOpen}
+        onClose={() => setAiChoiceOpen(false)}
+        onCamera={() => setCameraSheetOpen(true)}
+        onData={() => void handleDataRecommend()}
+      />
+
       <CameraRecommendSheet
         isOpen={cameraSheetOpen}
         onClose={() => setCameraSheetOpen(false)}
@@ -610,13 +646,54 @@ export default function RoundHolePage() {
         loading={cameraLoading}
       />
 
+      {/* Data-only AI recommendation sheet */}
+      {dataRecOpen && (
+        <div className="absolute inset-0 z-40 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDataRecOpen(false)} />
+          <div className="relative bg-white rounded-t-2xl px-4 pt-4 pb-8 max-h-[60vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-800">AI Klubbrekommendation</h3>
+              <button onClick={() => setDataRecOpen(false)} className="text-slate-400 text-xl font-bold">&times;</button>
+            </div>
+
+            {dataRecLoading && (
+              <div className="flex items-center gap-3 py-6 justify-center">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-slate-600">Analyserar...</span>
+              </div>
+            )}
+
+            {dataRecResult && !dataRecLoading && (
+              <div className="py-4 px-4 bg-green-50 border border-green-100 rounded-xl">
+                <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{dataRecResult}</p>
+              </div>
+            )}
+
+            {dataRecError && !dataRecLoading && (
+              <div className="py-4 px-4 bg-red-50 border border-red-100 rounded-xl">
+                <p className="text-sm text-red-700">{dataRecError}</p>
+              </div>
+            )}
+
+            {!dataRecLoading && (
+              <button
+                onClick={() => setDataRecOpen(false)}
+                className="w-full mt-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold"
+              >
+                Stäng
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <RightActionRail
         hasCaddyData={hasCaddyData}
         heatmapOpen={heatmapOpen}
         onToggleHeatmap={() => setHeatmapOpen((v) => !v)}
         shotTrackingEnabled={shotTrackingEnabled}
         onShotTracking={() => setShotRailOpen((v) => !v)}
-        onCameraRecommend={() => setCameraSheetOpen(true)}
+        onAi={() => setAiChoiceOpen(true)}
       />
 
       <HeatmapRail

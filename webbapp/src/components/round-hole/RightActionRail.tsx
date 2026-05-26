@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, PlusCircle } from 'lucide-react';
+import { PlusCircle, Sparkles } from 'lucide-react';
 
 type Props = {
   /** Whether heatmap data exists (show heatmap toggle) */
@@ -10,8 +10,8 @@ type Props = {
   /** Shot tracking */
   shotTrackingEnabled: boolean;
   onShotTracking: () => void;
-  /** Camera recommend */
-  onCameraRecommend: () => void;
+  /** AI recommendation */
+  onAi: () => void;
 };
 
 export function RightActionRail({
@@ -20,13 +20,10 @@ export function RightActionRail({
   onToggleHeatmap,
   shotTrackingEnabled,
   onShotTracking,
-  onCameraRecommend,
+  onAi,
 }: Props) {
   const showHeatmap = hasCaddyData;
   const showShot = shotTrackingEnabled;
-  // Always show camera
-  const hasAny = showHeatmap || showShot || true;
-  if (!hasAny) return null;
 
   return (
     <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex flex-col items-end gap-2">
@@ -55,13 +52,13 @@ export function RightActionRail({
         </button>
       )}
 
-      {/* Camera recommend */}
+      {/* AI recommendation */}
       <button
-        onClick={onCameraRecommend}
-        aria-label="Kamera klubbrekommendation"
-        className="w-10 h-10 rounded-l-lg shadow-lg bg-white/95 flex items-center justify-center text-slate-700 border-l border-y border-slate-300"
+        onClick={onAi}
+        aria-label="AI klubbrekommendation"
+        className="w-10 h-10 rounded-l-lg shadow-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white border-l border-y border-primary/30"
       >
-        <Camera size={20} aria-hidden="true" />
+        <Sparkles size={18} aria-hidden="true" />
       </button>
     </div>
   );

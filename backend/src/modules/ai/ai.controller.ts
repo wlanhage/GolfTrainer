@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { caddyChatSchema, clubRecommendSchema } from './ai.schema.js';
+import { caddyChatSchema, clubRecommendSchema, dataClubRecommendSchema } from './ai.schema.js';
 import { aiService } from './ai.service.js';
 
 export const aiController = {
@@ -12,6 +12,12 @@ export const aiController = {
   async recommendClub(request: FastifyRequest, reply: FastifyReply) {
     const input = clubRecommendSchema.parse(request.body);
     const response = await aiService.recommendClub(request.auth!.userId, input);
+    return reply.send({ response });
+  },
+
+  async dataRecommendClub(request: FastifyRequest, reply: FastifyReply) {
+    const input = dataClubRecommendSchema.parse(request.body);
+    const response = await aiService.dataRecommendClub(request.auth!.userId, input);
     return reply.send({ response });
   },
 };

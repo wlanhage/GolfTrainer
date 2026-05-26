@@ -17,3 +17,13 @@ export const clubRecommendSchema = z.object({
   roundId: z.string().optional(),
 });
 export type ClubRecommendInput = z.infer<typeof clubRecommendSchema>;
+
+export const dataClubRecommendSchema = z.object({
+  distanceToGreenFront: z.number().optional(),
+  distanceToGreenMiddle: z.number().optional(),
+  distanceToGreenBack: z.number().optional(),
+  holeNumber: z.number().int().min(1).max(18).optional(),
+  par: z.number().int().optional(),
+  roundId: z.string().optional(),
+});
+export type DataClubRecommendInput = z.infer<typeof dataClubRecommendSchema>;

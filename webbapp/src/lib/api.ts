@@ -443,6 +443,18 @@ export function useAiApi() {
         client.request<{ response: string }>('/ai/recommend-club', {
           method: 'POST',
           body: JSON.stringify(payload)
+        }),
+      dataRecommendClub: (payload: {
+        distanceToGreenFront?: number;
+        distanceToGreenMiddle?: number;
+        distanceToGreenBack?: number;
+        holeNumber?: number;
+        par?: number;
+        roundId?: string;
+      }) =>
+        client.request<{ response: string }>('/ai/data-recommend-club', {
+          method: 'POST',
+          body: JSON.stringify(payload)
         })
     }),
     [client]

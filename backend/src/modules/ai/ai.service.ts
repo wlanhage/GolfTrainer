@@ -1,6 +1,6 @@
 import { prisma } from '../../infrastructure/prisma/client.js';
 import { AppError } from '../../common/errors/AppError.js';
-import type { ClubRecommendInput } from './ai.schema.js';
+import type { ClubRecommendInput, DataClubRecommendInput } from './ai.schema.js';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? '';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -183,6 +183,132 @@ const buildHoleLayoutContext = async (roundId: string, holeNumber: number): Prom
   return parts.join('\n');
 };
 
+const SHORT_GAME_THRESHOLD_M = 30;
+
+/** Minimum distance from a point to any vertex of a polygon */
+const distanceToPolygon = (point: GeoPoint, polygon: GeoPoint[]): number => {
+  if (polygon.length === 0) return Infinity;
+  return Math.min(...polygon.map((v) => geoDistance(point, v)));
+};
+
+type ShortGameClubStats = {
+  clubId: string;
+  count: number;
+  avgPuttsAfter: number;
+  upAndDownPct: number; // % with <= 1 putt after
+};
+
+/**
+ * Build short game context for the AI prompt.
+ * Queries all historical rounds for this user, finds shots played within
+ * SHORT_GAME_THRESHOLD_M of the green, and computes putts-after per club.
+ */
+const buildShortGameContext = async (userId: string): Promise<string> => {
+  // Get all completed rounds for this user that have shots
+  const rounds = await prisma.round.findMany({
+    where: { userId, status: 'COMPLETED' },
+    select: {
+      id: true,
+      courseId: true,
+      roundHoles: {
+        select: {
+          holeNumber: true,
+          holeId: true,
+          scores: { select: { strokes: true }, take: 1 },
+        },
+      },
+      shots: {
+        orderBy: [{ holeNumber: 'asc' }, { shotOrder: 'asc' }],
+        select: {
+          holeNumber: true,
+          shotOrder: true,
+          clubId: true,
+          fromLat: true,
+          fromLng: true,
+        },
+      },
+    },
+    orderBy: { startedAt: 'desc' },
+    take: 30, // last 30 rounds is plenty of data
+  });
+
+  if (rounds.length === 0) return '';
+
+  // Collect green polygons per courseId+holeNumber (cache to avoid re-fetching)
+  const greenCache = new Map<string, GeoPoint[]>();
+  const getGreen = async (courseId: string, holeNumber: number): Promise<GeoPoint[]> => {
+    const key = `${courseId}:${holeNumber}`;
+    if (greenCache.has(key)) return greenCache.get(key)!;
+    const hole = await prisma.hole.findFirst({
+      where: { courseId, holeNumber },
+      include: { holeLayout: { select: { greenPolygon: true } } },
+    });
+    const poly = hole?.holeLayout ? parsePolygon(hole.holeLayout.greenPolygon) : [];
+    greenCache.set(key, poly);
+    return poly;
+  };
+
+  // Accumulate per-club stats
+  const clubData = new Map<string, { puttsAfterList: number[] }>();
+
+  for (const round of rounds) {
+    for (const rh of round.roundHoles) {
+      const strokes = rh.scores[0]?.strokes;
+      if (strokes === null || strokes === undefined) continue;
+
+      const holeShots = round.shots.filter((s) => s.holeNumber === rh.holeNumber);
+      if (holeShots.length === 0) continue;
+
+      const green = await getGreen(round.courseId, rh.holeNumber);
+      if (green.length < 3) continue;
+
+      for (const shot of holeShots) {
+        const shotPos: GeoPoint = { lat: Number(shot.fromLat), lng: Number(shot.fromLng) };
+        const distToGreen = distanceToPolygon(shotPos, green);
+
+        if (distToGreen <= SHORT_GAME_THRESHOLD_M) {
+          // Putts after this shot = total strokes - shot order
+          // (shot order is 1-based, so shot 3 on a score of 5 = 2 putts)
+          const puttsAfter = strokes - shot.shotOrder;
+          if (puttsAfter < 0) continue; // data inconsistency, skip
+
+          const entry = clubData.get(shot.clubId) ?? { puttsAfterList: [] };
+          entry.puttsAfterList.push(puttsAfter);
+          clubData.set(shot.clubId, entry);
+        }
+      }
+    }
+  }
+
+  if (clubData.size === 0) return '';
+
+  // Compute stats
+  const stats: ShortGameClubStats[] = [];
+  for (const [clubId, data] of clubData.entries()) {
+    if (data.puttsAfterList.length < 2) continue; // need at least 2 data points
+    const count = data.puttsAfterList.length;
+    const avg = data.puttsAfterList.reduce((a, b) => a + b, 0) / count;
+    const upAndDown = data.puttsAfterList.filter((p) => p <= 1).length;
+    stats.push({
+      clubId,
+      count,
+      avgPuttsAfter: Math.round(avg * 10) / 10,
+      upAndDownPct: Math.round((upAndDown / count) * 100),
+    });
+  }
+
+  if (stats.length === 0) return '';
+
+  // Sort by up & down % descending (best first)
+  stats.sort((a, b) => b.upAndDownPct - a.upAndDownPct);
+
+  let ctx = 'Spelarens kort spel-statistik (slag inom 30m från green):\n';
+  for (const s of stats) {
+    ctx += `- ${s.clubId}: ${s.count} tillfällen, snitt ${s.avgPuttsAfter} puttar efter, ${s.upAndDownPct}% up & down\n`;
+  }
+  return ctx;
+};
+
 /** Map OpenRouter HTTP status to a structured AppError */
 const throwAiError = (status: number, _rawBody: string): never => {
   if (status === 429) {
@@ -306,6 +432,17 @@ export const aiService = {
       holeLayoutContext = await buildHoleLayoutContext(input.roundId, input.holeNumber);
     }
 
+    // Fetch short game stats if player is near green (<= 50m)
+    const closestGreenDist = Math.min(
+      input.distanceToGreenFront ?? Infinity,
+      input.distanceToGreenMiddle ?? Infinity,
+      input.distanceToGreenBack ?? Infinity,
+    );
+    let shortGameContext = '';
+    if (closestGreenDist <= 50) {
+      shortGameContext = await buildShortGameContext(userId);
+    }
+
     const hcpRiskProfile = `HCP-baserad riskprofil:
 - plus-HCP till 5: Elitspelare. Attackera flaggan, shape:a slag, kan spela högrisk.
 - 5-10: Låg-HCP. Attackera goda lägen, spela smart vid svåra, undvik dubbelbogey.
@@ -329,6 +466,7 @@ ${hcpRiskProfile}
 
 ${clubContext}
 ${holeLayoutContext ? `\nHåldata:\n${holeLayoutContext}` : ''}
+${shortGameContext ? `\nKort spel-historik:\n${shortGameContext}\nVIKTIGT för kort spel (inom ~30m från green): Rekommendera den klubba som ger lägst antal puttar efteråt baserat på spelarens historik. Högre up & down-procent = bättre klubba runt green. Om en klubba har markant bättre up & down %, rekommendera den och motivera med statistiken.` : ''}
 
 Svara KORT och KONKRET. Max 3-4 meningar. Formatera som:
 🏌️ **[Klubba]** — [Sikta mot X]
@@ -359,6 +497,130 @@ Svara KORT och KONKRET. Max 3-4 meningar. Formatera som:
           { type: 'text', text: userText },
         ],
       },
+    ];
+
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://golftrainer.app',
+        'X-Title': 'GolfTrainer',
+      },
+      body: JSON.stringify({ model: MODEL, messages }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throwAiError(response.status, err);
+    }
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content ?? 'Kunde inte generera rekommendation.';
+  },
+
+  async dataRecommendClub(userId: string, input: DataClubRecommendInput) {
+    if (!OPENROUTER_API_KEY) {
+      throw new AppError('AI_NOT_CONFIGURED', 503, 'AI is not configured');
+    }
+
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { handicap: true },
+    });
+    const hcp = profile?.handicap !== null && profile?.handicap !== undefined
+      ? Number(profile.handicap)
+      : null;
+
+    // Fetch user's club data
+    const userClubs = await prisma.userClub.findMany({
+      where: { userId, isActive: true },
+      include: {
+        distanceSamples: { orderBy: { recordedAt: 'desc' }, take: 50 },
+      },
+    });
+
+    let clubContext = '';
+    if (userClubs.length > 0) {
+      clubContext = 'Spelarens klubbor:\n';
+      for (const club of userClubs) {
+        if (club.distanceSamples.length === 0) {
+          clubContext += `- ${club.label}: inga registrerade slag\n`;
+          continue;
+        }
+        const distances = club.distanceSamples.map(s => Number(s.carryMeters));
+        const avg = distances.reduce((a, b) => a + b, 0) / distances.length;
+        const stdDev = Math.sqrt(
+          distances.reduce((sum, d) => sum + (d - avg) ** 2, 0) / distances.length
+        );
+        clubContext += `- ${club.label}: snitt ${Math.round(avg)}m, spridning ±${Math.round(stdDev)}m (${distances.length} slag)\n`;
+      }
+    }
+
+    let holeLayoutContext = '';
+    if (input.roundId && input.holeNumber) {
+      holeLayoutContext = await buildHoleLayoutContext(input.roundId, input.holeNumber);
+    }
+
+    const closestGreenDist = Math.min(
+      input.distanceToGreenFront ?? Infinity,
+      input.distanceToGreenMiddle ?? Infinity,
+      input.distanceToGreenBack ?? Infinity,
+    );
+    let shortGameContext = '';
+    if (closestGreenDist <= 50) {
+      shortGameContext = await buildShortGameContext(userId);
+    }
+
+    const hcpRiskProfile = `HCP-baserad riskprofil:
+- plus-HCP till 5: Elitspelare. Attackera flaggan, shape:a slag, kan spela högrisk.
+- 5-10: Låg-HCP. Attackera goda lägen, spela smart vid svåra, undvik dubbelbogey.
+- 10-15: Medel-bra. Sikta bredare del av green, ta en klubba mer vid tveksamt läge.
+- 15-20: Medel. Center green, undvik bunkers, prioritera att vara på green.
+- 20-28: Hög-HCP. Spela säkert, undvik hazards, layup är ofta bättre.
+- 28-36: Nybörjare. Kortaste vägen till green, undvik OB till varje pris, ta klubban du träffar bäst.
+- 36+: Ny i spelet. Fokusera på att komma framåt, lita på din bästa klubba.`;
+
+    const systemPrompt = `Du är en erfaren golfcaddy-AI. Spelaren ber om klubbrekommendation baserat på sin position på banan.
+
+Du har INGEN bild — basera allt på distans till green, håldata, spelarens HCP, klubbdata och kort spel-historik.
+
+Rekommendera:
+1. Vilken klubba att använda
+2. Var att sikta (center green, vänster, höger, layup etc.)
+3. Kort motivering (1-2 meningar)
+
+Ta hänsyn till håldata: bunkrar, OB-zoner, trädlinjer, greenens storlek och fairwayns bredd. Om green är liten eller smal — var mer konservativ. Om det finns OB nära — undvik den sidan.
+
+Anpassa risknivån baserat på spelarens HCP:
+${hcpRiskProfile}
+
+${clubContext}
+${holeLayoutContext ? `\nHåldata:\n${holeLayoutContext}` : ''}
+${shortGameContext ? `\nKort spel-historik:\n${shortGameContext}\nVIKTIGT för kort spel (inom ~30m från green): Rekommendera den klubba som ger lägst antal puttar efteråt baserat på spelarens historik. Högre up & down-procent = bättre klubba runt green. Om en klubba har markant bättre up & down %, rekommendera den och motivera med statistiken.` : ''}
+
+Svara KORT och KONKRET. Max 3-4 meningar. Formatera som:
+🏌️ **[Klubba]** — [Sikta mot X]
+[Kort motivering]`;
+
+    const parts: string[] = [];
+    if (input.distanceToGreenFront != null || input.distanceToGreenMiddle != null || input.distanceToGreenBack != null) {
+      const dParts: string[] = [];
+      if (input.distanceToGreenFront != null) dParts.push(`fram: ${input.distanceToGreenFront}m`);
+      if (input.distanceToGreenMiddle != null) dParts.push(`mitt: ${input.distanceToGreenMiddle}m`);
+      if (input.distanceToGreenBack != null) dParts.push(`bak: ${input.distanceToGreenBack}m`);
+      parts.push(`Distans till green: ${dParts.join(', ')}`);
+    }
+    if (input.holeNumber != null) parts.push(`Hål ${input.holeNumber}`);
+    if (input.par != null) parts.push(`Par ${input.par}`);
+    if (hcp !== null) parts.push(`Mitt HCP: ${hcp}`);
+    const userText = parts.length > 0
+      ? `Jag står på banan. ${parts.join('. ')}. Vilken klubba rekommenderar du?`
+      : 'Vilken klubba rekommenderar du?';
+
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userText },
     ];
 
     const response = await fetch(OPENROUTER_URL, {
