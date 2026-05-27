@@ -20,6 +20,8 @@ import { HEATMAP_BIN_SIZE_METERS, HEATMAP_GRID_SIZE } from '@/lib/heatmapConfig'
 import { useHeatmapAuto } from '@/lib/heatmapAutoStore';
 import { recommendClub } from '@/lib/clubRecommender';
 import { useToast } from '@/lib/ToastProvider';
+import { useT } from '@/lib/i18n/I18nProvider';
+import { getAiErrorKey } from '@/lib/aiErrorMapper';
 import { parseStrokes } from '@/lib/validation';
 import type { CaddyClubSummary, CaddyShot, GeoPoint, HoleLayoutGeometry, Round } from '@/lib/types';
 import type { CaddyMapHeatmap } from '@/components/HolePlayMap';
@@ -52,6 +54,7 @@ export default function RoundHolePage() {
   const aiApi = useAiApi();
   const roundsStore = useRoundsStore();
   const toast = useToast();
+  const t = useT();
 
   const [round, setRound] = useState<Round | null>(null);
   const [roundHole, setRoundHole] = useState<ServerRoundHole | null>(null);
@@ -329,8 +332,7 @@ export default function RoundHolePage() {
       });
       setDataRecResult(response);
     } catch (err) {
-      const { getAiErrorKey } = await import('@/lib/aiErrorMapper');
-      setDataRecError(getAiErrorKey(err));
+      setDataRecError(t(getAiErrorKey(err)));
     } finally {
       setDataRecLoading(false);
     }
