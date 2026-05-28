@@ -6,18 +6,16 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { computeHoleLength } from '../lib/holeMetrics';
 import { courseRepo } from '../lib/storage';
 import { Course, GeoPoint, HoleLayoutGeometry } from '../lib/types';
-import { EditorToolbar } from './EditorToolbar';
-import { LayerPanel } from './LayerPanel';
-import { ProgressChecklist } from './ProgressChecklist';
-import { ValidationPanel } from './ValidationPanel';
+import { HoleStrip } from './editor/HoleStrip';
+import { Inspector } from './editor/Inspector';
+import { MapControls } from './editor/MapControls';
+import { ToolRail } from './editor/ToolRail';
+import { Layer, LAYER_BY_KEY, LayerGlyph, Tool } from './editor/layers';
 import { ConfirmDialog } from './common/ConfirmDialog';
-import { EmptyState } from './common/EmptyState';
-import { PageHeader } from './common/PageHeader';
+import { SaveStatusBadge } from './common/SaveStatusBadge';
 import { useToast } from './common/ToastProvider';
 
 type Props = { initialCourse: Course };
-type Layer = 'tee' | 'green' | 'fairway' | 'bunker' | 'trees' | 'ob';
-type Tool = 'pan' | Layer;
 type Selection = { layer: Layer; index: number; pointIndex?: number } | null;
 type MapCenter = { lng: number; lat: number };
 type MapPoint = { x: number; y: number };
@@ -78,8 +76,6 @@ const applyToLayer = (layout: HoleLayoutGeometry, layer: Layer, points: GeoPoint
   if (layer === 'trees') return polygon.length ? { ...layout, treesPolygons: [...layout.treesPolygons, polygon] } : layout;
   return polygon.length ? { ...layout, obPolygons: [...layout.obPolygons, polygon] } : layout;
 };
-
-const layerPalette: Record<Layer, string> = { tee: '#ef4444', green: '#22c55e', fairway: '#16a34a', bunker: '#f59e0b', trees: '#15803d', ob: '#dc2626' };
 
 const rasterStyle = {
   version: 8,
@@ -144,15 +140,14 @@ export function HoleManager({ initialCourse }: Props) {
   const [mapReady, setMapReady] = useState(false);
   const [undoStack, setUndoStack] = useState<HoleLayoutGeometry[]>([]);
   const [redoStack, setRedoStack] = useState<HoleLayoutGeometry[]>([]);
-  const [confirmClear, setConfirmClear] = useState(false);
   const [confirmResetAll, setConfirmResetAll] = useState(false);
+  const [confirmClearLayer, setConfirmClearLayer] = useState<Layer | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [dragVertex, setDragVertex] = useState<Selection>(null);
-  const [showTooltips, setShowTooltips] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [visibility, setVisibility] = useState<Record<Layer, boolean>>({ tee: true, green: true, fairway: true, bunker: true, trees: true, ob: true });
   const [locks, setLocks] = useState<Record<Layer, boolean>>({ tee: false, green: false, fairway: false, bunker: false, trees: false, ob: false });
-  const [showQuickHelp, setShowQuickHelp] = useState(false);
-  const [sectionsOpen, setSectionsOpen] = useState({ metadata: true, layers: true, quality: true });
   const [coordPopupOpen, setCoordPopupOpen] = useState(false);
   const [coordInput, setCoordInput] = useState('');
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -161,7 +156,7 @@ export function HoleManager({ initialCourse }: Props) {
 
   useEffect(() => {
     const seen = window.localStorage.getItem(TOOLTIP_KEY);
-    setShowTooltips(!seen);
+    setShowGuide(!seen);
   }, []);
 
   const hole = useMemo(() => course.holes.find((candidate) => candidate.holeNumber === selectedHole)!, [course.holes, selectedHole]);
@@ -170,6 +165,15 @@ export function HoleManager({ initialCourse }: Props) {
     [hole.layout.fairwayPolygon, hole.layout.fairwayPolygons]
   );
   const center = manualCenter ?? userPosition ?? DEFAULT_CENTER;
+
+  const counts: Record<Layer, number> = {
+    tee: hole.layout.teePoint ? 1 : 0,
+    green: hole.layout.greenPolygon.length >= 3 ? 1 : 0,
+    fairway: fairwayPolygons.filter((polygon) => polygon.length >= 3).length,
+    bunker: hole.layout.bunkerPolygons.length,
+    trees: hole.layout.treesPolygons.length,
+    ob: hole.layout.obPolygons.length
+  };
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -311,6 +315,22 @@ export function HoleManager({ initialCourse }: Props) {
     setRedoStack([]);
   };
 
+  const undo = () => {
+    const prev = undoStack[undoStack.length - 1];
+    if (!prev) return;
+    setUndoStack((stack) => stack.slice(0, -1));
+    setRedoStack((stack) => [...stack, hole.layout]);
+    persistHole(prev);
+  };
+
+  const redo = () => {
+    const next = redoStack[redoStack.length - 1];
+    if (!next) return;
+    setRedoStack((stack) => stack.slice(0, -1));
+    setUndoStack((stack) => [...stack, hole.layout]);
+    persistHole(next);
+  };
+
   const toGeo = (clientX: number, clientY: number): GeoPoint | null => {
     const rect = boardRef.current?.getBoundingClientRect();
     const map = mapRef.current;
@@ -356,7 +376,7 @@ export function HoleManager({ initialCourse }: Props) {
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (dragVertex) return;
     if (activeTool !== 'pan' && locks[activeTool]) {
-      push(`${activeTool.toUpperCase()} är låst`, 'error');
+      push(`${LAYER_BY_KEY[activeTool].label} är låst`, 'error');
       return;
     }
     if (activeTool === 'pan') return;
@@ -408,11 +428,11 @@ export function HoleManager({ initialCourse }: Props) {
   const insertPoint = () => {
     const polygon = readSelectedPolygon();
     if (!polygon || polygon.length < 2) return;
-    snapshotUndo();
     if (!selection?.pointIndex || selection.pointIndex <= 0) {
-      push('Välj två intilliggande punkter genom att markera en vertex (ej första).', 'error');
+      push('Markera en punkt (ej den första) för att infoga en ny intill.', 'error');
       return;
     }
+    snapshotUndo();
     const index = selection.pointIndex;
     const a = polygon[index - 1];
     const b = polygon[index];
@@ -458,6 +478,40 @@ export function HoleManager({ initialCourse }: Props) {
     push('Valt objekt borttaget', 'info');
   };
 
+  const simplifySelected = () => {
+    if (!selection || selection.layer === 'tee') {
+      push('Markera en polygon först.', 'error');
+      return;
+    }
+    const polygon = readSelectedPolygon();
+    if (!polygon || polygon.length < 8) {
+      push('Behöver minst 8 punkter för förenkling.', 'error');
+      return;
+    }
+    snapshotUndo();
+    const closed = polygon[0].lat === polygon[polygon.length - 1].lat && polygon[0].lng === polygon[polygon.length - 1].lng;
+    const body = closed ? polygon.slice(0, -1) : polygon.slice();
+    const simplifiedBody = body.filter((_, index) => index % 2 === 0);
+    const candidate = simplifiedBody.length >= 3 ? simplifiedBody : body;
+    const next = closed ? [...candidate, candidate[0]] : candidate;
+    writeSelectedPolygon(next);
+    push('Polygon förenklad', 'success');
+  };
+
+  const clearLayer = (layer: Layer) => {
+    snapshotUndo();
+    const next = { ...hole.layout };
+    if (layer === 'tee') next.teePoint = null;
+    if (layer === 'green') next.greenPolygon = [];
+    if (layer === 'fairway') { next.fairwayPolygons = []; next.fairwayPolygon = []; }
+    if (layer === 'bunker') next.bunkerPolygons = [];
+    if (layer === 'trees') next.treesPolygons = [];
+    if (layer === 'ob') next.obPolygons = [];
+    if (selection?.layer === layer) setSelection(null);
+    persistHole(next);
+    push(`${LAYER_BY_KEY[layer].label} rensat`, 'info');
+  };
+
   const setMeta = (field: 'par' | 'length' | 'hcpIndex', value: string) => {
     const parsed = value.trim() ? Number(value) : null;
     persistHole(hole.layout, { [field]: parsed });
@@ -470,10 +524,39 @@ export function HoleManager({ initialCourse }: Props) {
     persistHole(hole.layout, { length: teeToGreenMeters });
   }, [hole.holeNumber, hole.layout, hole.length, teeToGreenMeters]);
 
+  const jumpToCoord = () => {
+    const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
+    if (parts.length < 2) {
+      push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
+      return;
+    }
+    const [lat, lng] = parts;
+    const map = mapRef.current;
+    if (map) {
+      map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
+      setManualCenter({ lat, lng });
+    }
+    setCoordPopupOpen(false);
+    setCoordInput('');
+  };
+
+  const zoomBy = (delta: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.zoomTo(Math.max(MIN_EDITOR_ZOOM, Math.min(MAX_EDITOR_ZOOM, map.getZoom() + delta)));
+  };
+
+  const fitTee = () => {
+    const map = mapRef.current;
+    const tee = hole.layout.teePoint;
+    if (!map || !tee) return;
+    map.flyTo({ center: [tee.lng, tee.lat], zoom: Math.max(map.getZoom(), 16), essential: true });
+  };
+
   const drawPolygon = (polygon: GeoPoint[], color: string, key: string, onClick: () => void, selected: boolean, fill?: string) => {
     if (polygon.length < 3) return null;
     const points = polygon.map((p) => { const pos = toCanvas(p); return `${pos.x},${pos.y}`; }).join(' ');
-    return <polygon key={key} points={points} fill={fill ?? `${color}66`} stroke={selected ? '#111827' : color} strokeWidth={selected ? 4 : 2} onClick={(event) => { event.stopPropagation(); onClick(); }} />;
+    return <polygon key={key} points={points} fill={fill ?? `${color}55`} stroke={selected ? '#f8fafc' : color} strokeWidth={selected ? 4 : 2.5} strokeDasharray={selected ? '6 4' : undefined} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ cursor: 'pointer' }} />;
   };
 
   const renderHandles = () => {
@@ -481,15 +564,17 @@ export function HoleManager({ initialCourse }: Props) {
     if (!polygon) return null;
     return polygon.map((point, pointIndex) => {
       const pos = toCanvas(point);
+      const isActive = selection?.pointIndex === pointIndex;
       return (
         <circle
           key={`handle_${pointIndex}`}
           cx={pos.x}
           cy={pos.y}
-          r={5}
-          fill="#fff"
-          stroke="#111827"
+          r={isActive ? 7 : 5}
+          fill={isActive ? '#0f766e' : '#fff'}
+          stroke="#0f172a"
           strokeWidth={2}
+          style={{ cursor: 'grab' }}
           onPointerDown={(event) => {
             event.stopPropagation();
             if (!selection) return;
@@ -501,318 +586,209 @@ export function HoleManager({ initialCourse }: Props) {
     });
   };
 
+  const dismissGuide = () => {
+    setShowGuide(false);
+    window.localStorage.setItem(TOOLTIP_KEY, '1');
+  };
+
+  const isDrawingTool = activeTool !== 'pan';
+  const activeDef = isDrawingTool ? LAYER_BY_KEY[activeTool] : null;
+  const isEmptyHole = !hole.layout.teePoint && !hole.layout.greenPolygon.length;
+  const selectedPointCount = selection && selection.layer !== 'tee' ? (readSelectedPolygon()?.length ?? 0) : 0;
+
   return (
-    <>
-      <PageHeader title={`Editor · ${course.courseName}`} description="Välj hål, fyll metadata och rita layout. Nästa steg visas i valideringspanelen." />
+    <div className="editor">
+      <div className="editor-topbar">
+        <div className="editor-topbar-left">
+          <span className="editor-course-name">{course.courseName}</span>
+          <HoleStrip holes={course.holes} selectedHole={selectedHole} onSelect={setSelectedHole} />
+        </div>
 
-      <div className="course-workspace">
-        <aside className="left-column">
-          <div className="course-mini-panel">
-            <label>Välj hål</label>
-            <select value={selectedHole} onChange={(event) => setSelectedHole(Number(event.target.value))}>
-              {course.holes.map((h) => <option key={h.id} value={h.holeNumber}>Hål {h.holeNumber}</option>)}
-            </select>
-            <div className="hole-list">
-              <button className="chip" disabled={selectedHole <= 1} onClick={() => setSelectedHole((n) => n - 1)}>Föregående</button>
-              <button className="chip" disabled={selectedHole >= course.holeCount} onClick={() => setSelectedHole((n) => n + 1)}>Nästa</button>
-            </div>
-          </div>
-
-          <div className="workflow-card">
-            <button className="workflow-toggle" onClick={() => setSectionsOpen((prev) => ({ ...prev, metadata: !prev.metadata }))}>
-              1. Metadata & hålinfo
-            </button>
-            {sectionsOpen.metadata ? (
-              <div className="metadata-panel">
-                <input placeholder="Par" value={hole.par ?? ''} onChange={(event) => setMeta('par', event.target.value)} />
-                <input placeholder="Längd" value={hole.length ?? ''} onChange={(event) => setMeta('length', event.target.value)} />
-                <input placeholder="HCP" value={hole.hcpIndex ?? ''} onChange={(event) => setMeta('hcpIndex', event.target.value)} />
-                <p>Tee → Green (Turf.js): <strong>{teeToGreenMeters ? `${teeToGreenMeters} m` : 'saknas data'}</strong></p>
-                <p className="small-note">Kartkälla: MapLibre GL + Esri World Imagery (satellit).</p>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="workflow-card">
-            <button className="workflow-toggle" onClick={() => setSectionsOpen((prev) => ({ ...prev, layers: !prev.layers }))}>
-              2. Rita lager
-            </button>
-            {sectionsOpen.layers ? (
-              <LayerPanel
-                layout={hole.layout}
-                visibility={visibility}
-                locks={locks}
-                onToggle={(layer) => setVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))}
-                onToggleLock={(layer) => setLocks((prev) => ({ ...prev, [layer]: !prev[layer] }))}
-              />
-            ) : null}
-          </div>
-
-          <div className="workflow-card">
-            <button className="workflow-toggle" onClick={() => setSectionsOpen((prev) => ({ ...prev, quality: !prev.quality }))}>
-              3. Kvalitet & status
-            </button>
-            {sectionsOpen.quality ? (
-              <>
-                <ValidationPanel layout={hole.layout} length={hole.length} />
-                <ProgressChecklist layout={hole.layout} par={hole.par} length={hole.length} hcpIndex={hole.hcpIndex} />
-              </>
-            ) : null}
-          </div>
-        </aside>
-
-        <section className="builder-panel">
-          <EditorToolbar
-            active={activeTool}
-            onSelect={setActiveTool}
-            canUndo={undoStack.length > 0}
-            canRedo={redoStack.length > 0}
-            onUndo={() => {
-              const prev = undoStack[undoStack.length - 1];
-              if (!prev) return;
-              setUndoStack((stack) => stack.slice(0, -1));
-              setRedoStack((stack) => [...stack, hole.layout]);
-              persistHole(prev);
-            }}
-            onRedo={() => {
-              const next = redoStack[redoStack.length - 1];
-              if (!next) return;
-              setRedoStack((stack) => stack.slice(0, -1));
-              setUndoStack((stack) => [...stack, hole.layout]);
-              persistHole(next);
-            }}
-            onClearActiveLayer={() => setConfirmClear(true)}
-            onSaveNow={async () => {
+        <div className="editor-topbar-right">
+          <button className="chip" disabled={undoStack.length === 0} onClick={undo} title="Ångra (Ctrl/Cmd+Z)">↶ Ångra</button>
+          <button className="chip" disabled={redoStack.length === 0} onClick={redo} title="Gör om">↷ Gör om</button>
+          <button className={`chip ${showShortcuts ? 'active-chip' : ''}`} onClick={() => setShowShortcuts((prev) => !prev)} title="Tangentbordsgenvägar">?</button>
+          <SaveStatusBadge state={saveState} lastSavedAt={lastSavedAt} />
+          <button
+            className="primary-btn"
+            onClick={async () => {
               const ok = await saveNow();
               push(ok ? 'Banan sparad' : 'Kunde inte spara banan', ok ? 'success' : 'error');
             }}
-            onOpenShortcuts={() => setShowQuickHelp((prev) => !prev)}
-            saveState={saveState}
-            lastSavedAt={lastSavedAt}
-          />
-          {showQuickHelp ? (
-            <div className="small-note shortcut-panel">
-              <strong>Shortcuts:</strong> V (Pan), T (Tee), G (Green), F (Fairway), Esc (Avbryt), Enter (Slutför), Delete (Ta bort), Ctrl/Cmd+Z (Undo)
-            </div>
-          ) : null}
-
-          {showTooltips ? (
-            <div className="empty-state">
-              <h3>Snabbguide</h3>
-              <p>1) Välj hål 2) Fyll metadata 3) Placera tee 4) Rita green/fairway.</p>
-              <button onClick={() => { setShowTooltips(false); window.localStorage.setItem(TOOLTIP_KEY, '1'); }}>Förstått</button>
-            </div>
-          ) : null}
-
-          {!hole.layout.teePoint && !hole.layout.greenPolygon.length ? (
-            <EmptyState title="Starta hål-layout" description="Börja med att placera tee, sedan rita green och fairway." action={<button onClick={() => setActiveTool('tee')}>Placera tee</button>} />
-          ) : null}
-
-          <div
-            ref={boardRef}
-            className="draw-board large"
-            onPointerDown={activeTool !== 'pan' ? onPointerDown : undefined}
-            onPointerMove={activeTool !== 'pan' ? onPointerMove : undefined}
-            onPointerUp={activeTool !== 'pan' ? completeStroke : undefined}
-            onPointerLeave={activeTool !== 'pan' ? completeStroke : undefined}
-            onDoubleClick={activeTool !== 'pan' ? completeStroke : undefined}
-            tabIndex={0}
-            onClick={activeTool !== 'pan' ? () => setSelection(null) : undefined}
-            style={{
-              cursor: activeTool === 'pan' ? 'grab' : 'crosshair',
-            }}
-            onKeyDown={(event) => {
-              if (event.key.toLowerCase() === 'v') setActiveTool('pan');
-              if (event.key.toLowerCase() === 't') setActiveTool('tee');
-              if (event.key.toLowerCase() === 'g') setActiveTool('green');
-              if (event.key.toLowerCase() === 'f') setActiveTool('fairway');
-              if (event.key === 'Escape') { setStroke([]); setIsDrawing(false); setSelection(null); }
-              if (event.key === 'Delete') deleteSelected();
-              if (event.key === 'Enter') completeStroke();
-              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-                event.preventDefault();
-                const prev = undoStack[undoStack.length - 1];
-                if (!prev) return;
-                setUndoStack((stack) => stack.slice(0, -1));
-                setRedoStack((stack) => [...stack, hole.layout]);
-                persistHole(prev);
-              }
-            }}
           >
-            <div ref={mapCanvasRef} className="map-canvas" />
-            <svg style={{
-              pointerEvents: activeTool === 'pan' ? 'none' : 'auto',
-              // In pan mode, drop SVG behind the map canvas so MapLibre gets
-              // full native drag/pan control.
-              zIndex: activeTool === 'pan' ? 0 : 2,
-            }}>
-              <defs>
-                <pattern id="pattern_fairway" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <rect width="8" height="8" fill="#16a34a66" />
-                  <line x1="0" y1="0" x2="0" y2="8" stroke="#14532d" strokeWidth="1" />
-                </pattern>
-                <pattern id="pattern_trees" width="8" height="8" patternUnits="userSpaceOnUse">
-                  <rect width="8" height="8" fill="#15803d66" />
-                  <circle cx="2" cy="2" r="1" fill="#14532d" />
-                  <circle cx="6" cy="6" r="1" fill="#14532d" />
-                </pattern>
-                <pattern id="pattern_ob" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <rect width="8" height="8" fill="#dc262644" />
-                  <line x1="0" y1="0" x2="0" y2="8" stroke="#7f1d1d" strokeWidth="1.5" />
-                </pattern>
-              </defs>
-              {visibility.green ? drawPolygon(hole.layout.greenPolygon, layerPalette.green, 'green', () => setSelection({ layer: 'green', index: 0 }), selection?.layer === 'green') : null}
-              {visibility.fairway ? fairwayPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.fairway, `fairway_${index}`, () => setSelection({ layer: 'fairway', index }), selection?.layer === 'fairway' && selection.index === index, 'url(#pattern_fairway)')) : null}
-              {visibility.bunker ? hole.layout.bunkerPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.bunker, `bunker_${index}`, () => setSelection({ layer: 'bunker', index }), selection?.layer === 'bunker' && selection.index === index)) : null}
-              {visibility.trees ? hole.layout.treesPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.trees, `trees_${index}`, () => setSelection({ layer: 'trees', index }), selection?.layer === 'trees' && selection.index === index, 'url(#pattern_trees)')) : null}
-              {visibility.ob ? hole.layout.obPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.ob, `ob_${index}`, () => setSelection({ layer: 'ob', index }), selection?.layer === 'ob' && selection.index === index, 'url(#pattern_ob)')) : null}
-              {visibility.tee && hole.layout.teePoint ? (() => {
-                const tee = toCanvas(hole.layout.teePoint);
-                const selected = selection?.layer === 'tee';
-                return <circle cx={tee.x} cy={tee.y} r={8} fill={layerPalette.tee} stroke={selected ? '#111827' : '#fff'} strokeWidth={selected ? 4 : 2} onClick={(event) => { event.stopPropagation(); setSelection({ layer: 'tee', index: 0 }); }} />;
-              })() : null}
-              {selection && selection.layer !== 'tee' ? renderHandles() : null}
-              {stroke.length >= 2 ? (
-                <polyline points={stroke.map((point) => { const pos = toCanvas(point); return `${pos.x},${pos.y}`; }).join(' ')} fill="none" stroke={activeTool === 'pan' ? '#111827' : layerPalette[activeTool]} strokeWidth={3} />
-              ) : null}
-            </svg>
-          </div>
+            Spara nu
+          </button>
+        </div>
+      </div>
 
-          {/* Coordinate jump popup */}
-          {coordPopupOpen && (
-            <div style={{
-              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 50, background: '#fff', border: '1px solid #d1d5db', borderRadius: 10,
-              padding: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', display: 'flex',
-              flexDirection: 'column', gap: 10, minWidth: 300
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: 14 }}>Hoppa till koordinat</strong>
-                <button onClick={() => setCoordPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+      {showShortcuts ? (
+        <div className="shortcut-bar">
+          <strong>Genvägar:</strong>
+          <span><kbd>V</kbd> Panorera</span>
+          <span><kbd>T</kbd> Tee</span>
+          <span><kbd>G</kbd> Green</span>
+          <span><kbd>F</kbd> Fairway</span>
+          <span><kbd>Enter</kbd> Slutför</span>
+          <span><kbd>Esc</kbd> Avbryt</span>
+          <span><kbd>Delete</kbd> Ta bort</span>
+          <span><kbd>Ctrl/Cmd+Z</kbd> Ångra</span>
+        </div>
+      ) : null}
+
+      <div className="editor-stage">
+        <ToolRail
+          activeTool={activeTool}
+          onSelectTool={setActiveTool}
+          counts={counts}
+          visibility={visibility}
+          locks={locks}
+          onToggleVisibility={(layer) => setVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))}
+          onToggleLock={(layer) => setLocks((prev) => ({ ...prev, [layer]: !prev[layer] }))}
+          onClearLayer={(layer) => setConfirmClearLayer(layer)}
+        />
+
+        <div
+          ref={boardRef}
+          className="map-stage"
+          onPointerDown={isDrawingTool ? onPointerDown : undefined}
+          onPointerMove={isDrawingTool ? onPointerMove : undefined}
+          onPointerUp={isDrawingTool ? completeStroke : undefined}
+          onPointerLeave={isDrawingTool ? completeStroke : undefined}
+          onDoubleClick={isDrawingTool ? completeStroke : undefined}
+          tabIndex={0}
+          onClick={isDrawingTool ? () => setSelection(null) : undefined}
+          style={{ cursor: activeTool === 'pan' ? 'grab' : 'crosshair' }}
+          onKeyDown={(event) => {
+            if (event.key.toLowerCase() === 'v') setActiveTool('pan');
+            if (event.key.toLowerCase() === 't') setActiveTool('tee');
+            if (event.key.toLowerCase() === 'g') setActiveTool('green');
+            if (event.key.toLowerCase() === 'f') setActiveTool('fairway');
+            if (event.key === 'Escape') { setStroke([]); setIsDrawing(false); setSelection(null); }
+            if (event.key === 'Delete') deleteSelected();
+            if (event.key === 'Enter') completeStroke();
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+              event.preventDefault();
+              undo();
+            }
+          }}
+        >
+          <div ref={mapCanvasRef} className="map-canvas" />
+          <svg style={{
+            pointerEvents: activeTool === 'pan' ? 'none' : 'auto',
+            zIndex: activeTool === 'pan' ? 0 : 2,
+          }}>
+            <defs>
+              <pattern id="pattern_fairway" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="8" height="8" fill="#16a34a55" />
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#14532d" strokeWidth="1" />
+              </pattern>
+              <pattern id="pattern_trees" width="8" height="8" patternUnits="userSpaceOnUse">
+                <rect width="8" height="8" fill="#15803d55" />
+                <circle cx="2" cy="2" r="1" fill="#14532d" />
+                <circle cx="6" cy="6" r="1" fill="#14532d" />
+              </pattern>
+              <pattern id="pattern_ob" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="8" height="8" fill="#dc262644" />
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#7f1d1d" strokeWidth="1.5" />
+              </pattern>
+            </defs>
+            {visibility.green ? drawPolygon(hole.layout.greenPolygon, LAYER_BY_KEY.green.color, 'green', () => setSelection({ layer: 'green', index: 0 }), selection?.layer === 'green') : null}
+            {visibility.fairway ? fairwayPolygons.map((polygon, index) => drawPolygon(polygon, LAYER_BY_KEY.fairway.color, `fairway_${index}`, () => setSelection({ layer: 'fairway', index }), selection?.layer === 'fairway' && selection.index === index, 'url(#pattern_fairway)')) : null}
+            {visibility.bunker ? hole.layout.bunkerPolygons.map((polygon, index) => drawPolygon(polygon, LAYER_BY_KEY.bunker.color, `bunker_${index}`, () => setSelection({ layer: 'bunker', index }), selection?.layer === 'bunker' && selection.index === index)) : null}
+            {visibility.trees ? hole.layout.treesPolygons.map((polygon, index) => drawPolygon(polygon, LAYER_BY_KEY.trees.color, `trees_${index}`, () => setSelection({ layer: 'trees', index }), selection?.layer === 'trees' && selection.index === index, 'url(#pattern_trees)')) : null}
+            {visibility.ob ? hole.layout.obPolygons.map((polygon, index) => drawPolygon(polygon, LAYER_BY_KEY.ob.color, `ob_${index}`, () => setSelection({ layer: 'ob', index }), selection?.layer === 'ob' && selection.index === index, 'url(#pattern_ob)')) : null}
+            {visibility.tee && hole.layout.teePoint ? (() => {
+              const tee = toCanvas(hole.layout.teePoint);
+              const selected = selection?.layer === 'tee';
+              return <circle cx={tee.x} cy={tee.y} r={9} fill={LAYER_BY_KEY.tee.color} stroke={selected ? '#f8fafc' : '#fff'} strokeWidth={selected ? 4 : 2.5} style={{ cursor: 'pointer' }} onClick={(event) => { event.stopPropagation(); setSelection({ layer: 'tee', index: 0 }); }} />;
+            })() : null}
+            {selection && selection.layer !== 'tee' ? renderHandles() : null}
+            {stroke.length >= 2 ? (
+              <polyline points={stroke.map((point) => { const pos = toCanvas(point); return `${pos.x},${pos.y}`; }).join(' ')} fill="none" stroke={activeTool === 'pan' ? '#111827' : LAYER_BY_KEY[activeTool].color} strokeWidth={3} strokeLinejoin="round" />
+            ) : null}
+          </svg>
+
+          {activeDef ? (
+            <div className="draw-hint" style={{ ['--layer' as string]: activeDef.color }}>
+              <span className="draw-hint-swatch" style={{ background: activeDef.color }}><LayerGlyph layer={activeDef.key} size={13} /></span>
+              <span>Ritar <strong>{activeDef.label}</strong> · {activeDef.hint} · <kbd>Esc</kbd> avbryt</span>
+            </div>
+          ) : null}
+
+          {showGuide ? (
+            <div className="map-guide">
+              <h3>Kom igång på 3 steg</h3>
+              <ol>
+                <li>Placera <strong>tee</strong> med tee-verktyget i raden till vänster.</li>
+                <li>Rita <strong>green</strong> och <strong>fairway</strong> — dra för att rita, dubbelklicka för att slutför.</li>
+                <li>Fyll i <strong>hålinfo</strong> till höger. Allt sparas automatiskt.</li>
+              </ol>
+              <button className="primary-btn" onClick={dismissGuide}>Sätt igång</button>
+            </div>
+          ) : null}
+
+          {isEmptyHole && !showGuide && activeTool === 'pan' ? (
+            <div className="map-empty-cta">
+              <p>Hål {selectedHole} är tomt</p>
+              <button className="primary-btn" onClick={() => setActiveTool('tee')}>Placera tee</button>
+            </div>
+          ) : null}
+
+          <MapControls
+            onZoomIn={() => zoomBy(1)}
+            onZoomOut={() => zoomBy(-1)}
+            onFitTee={fitTee}
+            canFitTee={Boolean(hole.layout.teePoint)}
+            onOpenCoord={() => setCoordPopupOpen(true)}
+          />
+
+          {coordPopupOpen ? (
+            <div className="coord-popup">
+              <div className="coord-popup-head">
+                <strong>Hoppa till koordinat</strong>
+                <button className="coord-popup-close" onClick={() => setCoordPopupOpen(false)} aria-label="Stäng">✕</button>
               </div>
               <input
                 type="text"
                 placeholder="lat, lng — t.ex. 55.6050, 13.0038"
                 value={coordInput}
-                onChange={(e) => setCoordInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
-                    if (parts.length >= 2) {
-                      const [lat, lng] = parts;
-                      const map = mapRef.current;
-                      if (map) {
-                        map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
-                        setManualCenter({ lat, lng });
-                      }
-                      setCoordPopupOpen(false);
-                      setCoordInput('');
-                    } else {
-                      push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
-                    }
-                  }
-                }}
-                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+                onChange={(event) => setCoordInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') jumpToCoord(); }}
                 autoFocus
               />
-              <button
-                onClick={() => {
-                  const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
-                  if (parts.length >= 2) {
-                    const [lat, lng] = parts;
-                    const map = mapRef.current;
-                    if (map) {
-                      map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
-                      setManualCenter({ lat, lng });
-                    }
-                    setCoordPopupOpen(false);
-                    setCoordInput('');
-                  } else {
-                    push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
-                  }
-                }}
-                style={{ padding: '8px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
-              >
-                Gå dit
-              </button>
+              <button className="primary-btn" onClick={jumpToCoord}>Gå dit</button>
             </div>
-          )}
+          ) : null}
+        </div>
 
-          <div className="hole-list">
-            <button className="chip" onClick={() => setCoordPopupOpen(true)}>📍 Koordinat</button>
-            <button className="chip" onClick={() => {
-              const map = mapRef.current;
-              if (!map) return;
-              map.zoomTo(Math.max(MIN_EDITOR_ZOOM, map.getZoom() - 1));
-            }}>- Zoom</button>
-            <button className="chip" onClick={() => {
-              const map = mapRef.current;
-              if (!map) return;
-              map.zoomTo(Math.min(MAX_EDITOR_ZOOM, map.getZoom() + 1));
-            }}>+ Zoom</button>
-            <button
-              className="chip"
-              onClick={() => {
-                if (!selection || selection.layer === 'tee') {
-                  push('Markera en polygon först.', 'error');
-                  return;
-                }
-                const polygon = readSelectedPolygon();
-                if (!polygon || polygon.length < 8) {
-                  push('Behöver minst 8 punkter för förenkling.', 'error');
-                  return;
-                }
-                snapshotUndo();
-                const closed = polygon[0].lat === polygon[polygon.length - 1].lat && polygon[0].lng === polygon[polygon.length - 1].lng;
-                const body = closed ? polygon.slice(0, -1) : polygon.slice();
-                const simplifiedBody = body.filter((_, index) => index % 2 === 0);
-                const candidate = simplifiedBody.length >= 3 ? simplifiedBody : body;
-                const next = closed ? [...candidate, candidate[0]] : candidate;
-                writeSelectedPolygon(next);
-                push('Polygon förenklad', 'success');
-              }}
-            >
-              Förenkla val
-            </button>
-            <button className="chip" onClick={() => setConfirmResetAll(true)}>Rensa hål-layout</button>
-          </div>
-          <div className="layer-legend small-note">
-            <span><strong>Legend:</strong></span>
-            <span>Green = heldragen</span>
-            <span>Fairway = diagonala linjer</span>
-            <span>Trees = prickad fyllning</span>
-            <span>OB = röd hatch</span>
-          </div>
-        </section>
+        <Inspector
+          hole={hole}
+          teeToGreenMeters={teeToGreenMeters}
+          onMeta={setMeta}
+          selection={selection}
+          selectedPointCount={selectedPointCount}
+          onSimplify={simplifySelected}
+          onInsertPoint={insertPoint}
+          onDeletePoint={deletePoint}
+          onDeleteSelected={deleteSelected}
+          onResetHole={() => setConfirmResetAll(true)}
+        />
       </div>
 
       <ConfirmDialog
-        open={confirmClear}
-        title="Rensa aktivt lager"
-        message="Detta går att ångra med Undo. Vill du fortsätta?"
-        onCancel={() => setConfirmClear(false)}
+        open={confirmClearLayer !== null}
+        title={`Rensa ${confirmClearLayer ? LAYER_BY_KEY[confirmClearLayer].label.toLowerCase() : ''}`}
+        message="Detta tar bort alla figurer i lagret för det här hålet. Går att ångra."
+        onCancel={() => setConfirmClearLayer(null)}
         onConfirm={() => {
-          setConfirmClear(false);
-          if (activeTool === 'pan') return;
-          snapshotUndo();
-          const next = { ...hole.layout };
-          if (activeTool === 'tee') next.teePoint = null;
-          if (activeTool === 'green') next.greenPolygon = [];
-          if (activeTool === 'fairway') {
-            next.fairwayPolygons = [];
-            next.fairwayPolygon = [];
-          }
-          if (activeTool === 'bunker') next.bunkerPolygons = [];
-          if (activeTool === 'trees') next.treesPolygons = [];
-          if (activeTool === 'ob') next.obPolygons = [];
-          persistHole(next);
-          push('Lager rensat', 'info');
+          if (confirmClearLayer) clearLayer(confirmClearLayer);
+          setConfirmClearLayer(null);
         }}
       />
 
       <ConfirmDialog
         open={confirmResetAll}
-        title="Rensa hål-layout"
+        title="Rensa hela hålet"
         message="Är du säker? Detta tar bort all ritad data för hålet (tee, green, fairway, bunker, träd och OB)."
         onCancel={() => setConfirmResetAll(false)}
         onConfirm={() => {
@@ -838,6 +814,6 @@ export function HoleManager({ initialCourse }: Props) {
           push('Hålet har återställts', 'info');
         }}
       />
-    </>
+    </div>
   );
 }
