@@ -119,7 +119,6 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     section: 'out' | 'in',
     sectionPar: number,
     sectionStrokes: number,
-    showTotal: boolean,
   ) => (
     <tbody>
       {/* Hole numbers row */}
@@ -135,11 +134,6 @@ function ScorecardTable({ player, holes, showHcp, t }: {
         <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
           {section === 'out' ? t('roundOverview.out') : t('roundOverview.in')}
         </td>
-        {showTotal && (
-          <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
-            {t('roundOverview.total')}
-          </td>
-        )}
       </tr>
 
       {/* HCP index row */}
@@ -154,7 +148,6 @@ function ScorecardTable({ player, holes, showHcp, t }: {
             </td>
           ))}
           <td className={`px-1 py-1 text-center text-sm border-l border-border ${subtotalBg}`} />
-          {showTotal && <td className={`border-l border-border ${subtotalBg}`} />}
         </tr>
       )}
 
@@ -171,11 +164,6 @@ function ScorecardTable({ player, holes, showHcp, t }: {
         <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
           {sectionPar > 0 ? sectionPar : '-'}
         </td>
-        {showTotal && (
-          <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
-            {totPar > 0 ? totPar : '-'}
-          </td>
-        )}
       </tr>
 
       {/* Result row */}
@@ -202,11 +190,6 @@ function ScorecardTable({ player, holes, showHcp, t }: {
         <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
           {sectionStrokes > 0 ? sectionStrokes : '-'}
         </td>
-        {showTotal && (
-          <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
-            {totStrokes > 0 ? totStrokes : '-'}
-          </td>
-        )}
       </tr>
     </tbody>
   );
@@ -216,24 +199,22 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     section: 'out' | 'in',
     sectionPar: number,
     sectionStrokes: number,
-    showTotal: boolean,
   ) => (
     <table className="w-full border-collapse text-ink">
       <colgroup>
         <col className="w-16" />
         {hs.map((_, i) => <col key={i} />)}
         <col className="w-12" />
-        {showTotal ? <col className="w-12" /> : null}
       </colgroup>
-      {renderSection(hs, section, sectionPar, sectionStrokes, showTotal)}
+      {renderSection(hs, section, sectionPar, sectionStrokes)}
     </table>
   );
 
   return (
     <div className="flex flex-col gap-2 -mx-4 px-4">
-      {renderTable(firstNine, 'out', outPar, outStrokes, false)}
+      {renderTable(firstNine, 'out', outPar, outStrokes)}
       {is18 && secondNine.length > 0 &&
-        renderTable(secondNine, 'in', inPar ?? 0, inStrokes ?? 0, true)
+        renderTable(secondNine, 'in', inPar ?? 0, inStrokes ?? 0)
       }
     </div>
   );
