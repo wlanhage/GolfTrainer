@@ -114,76 +114,12 @@ function ScorecardTable({ player, holes, showHcp, t }: {
   const headerBg = 'bg-slate-100';
   const subtotalBg = 'bg-slate-50';
 
-  const renderHoleRow = (hs: ServerRoundHole[], section: 'out' | 'in') => (
-    <>
-      {hs.map((hole) => (
-        <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
-          {hole.holeNumber}
-        </td>
-      ))}
-      <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
-        {section === 'out' ? t('roundOverview.out') : t('roundOverview.in')}
-      </td>
-      {is18 && section === 'out' ? <td className={subtotalBg} /> : null}
-    </>
-  );
-
-  const renderHcpRow = (hs: ServerRoundHole[], section: 'out' | 'in') => (
-    <>
-      {hs.map((hole) => (
-        <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm text-slate-500">
-          {hole.hcpIndexSnapshot ?? '-'}
-        </td>
-      ))}
-      <td className={`px-1 py-1 text-center text-sm border-l border-border ${subtotalBg}`} />
-      {is18 && section === 'out' ? <td className={subtotalBg} /> : null}
-    </>
-  );
-
-  const renderParRow = (hs: ServerRoundHole[], section: 'out' | 'in', sectionPar: number) => (
-    <>
-      {hs.map((hole) => (
-        <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
-          {hole.parSnapshot ?? '-'}
-        </td>
-      ))}
-      <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
-        {sectionPar > 0 ? sectionPar : '-'}
-      </td>
-      {is18 && section === 'out' ? <td className={subtotalBg} /> : null}
-    </>
-  );
-
-  const renderResultRow = (hs: ServerRoundHole[], section: 'out' | 'in', sectionStrokes: number) => (
-    <>
-      {hs.map((hole) => {
-        const score = hole.scores?.find((s) => s.playerId === player.id);
-        const strokes = score?.strokes ?? null;
-        const cellClasses = scoreCellClasses(strokes, hole.parSnapshot);
-        return (
-          <td key={hole.holeNumber} className="px-0.5 py-1 text-center">
-            {strokes !== null ? (
-              <span className={`inline-flex items-center justify-center w-8 h-8 text-sm font-bold ${cellClasses}`}>
-                {strokes}
-              </span>
-            ) : (
-              <span className="text-sm text-slate-400">-</span>
-            )}
-          </td>
-        );
-      })}
-      <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
-        {sectionStrokes > 0 ? sectionStrokes : '-'}
-      </td>
-      {is18 && section === 'out' ? <td className={subtotalBg} /> : null}
-    </>
-  );
-
   const renderSection = (
     hs: ServerRoundHole[],
     section: 'out' | 'in',
     sectionPar: number,
-    sectionStrokes: number
+    sectionStrokes: number,
+    showTotal: boolean,
   ) => (
     <tbody>
       {/* Hole numbers row */}
@@ -191,24 +127,34 @@ function ScorecardTable({ player, holes, showHcp, t }: {
         <td className="px-2 py-1 text-sm font-bold text-slate-500 whitespace-nowrap">
           {t('roundOverview.hole')}
         </td>
-        {renderHoleRow(hs, section)}
-        {is18 && section === 'in' ? (
+        {hs.map((hole) => (
+          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
+            {hole.holeNumber}
+          </td>
+        ))}
+        <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
+          {section === 'out' ? t('roundOverview.out') : t('roundOverview.in')}
+        </td>
+        {showTotal && (
           <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
             {t('roundOverview.total')}
           </td>
-        ) : null}
+        )}
       </tr>
 
-      {/* HCP index row — only when data exists */}
+      {/* HCP index row */}
       {showHcp && (
         <tr>
           <td className="px-2 py-1 text-sm text-slate-500 whitespace-nowrap">
             {t('roundOverview.handicap')}
           </td>
-          {renderHcpRow(hs, section)}
-          {is18 && section === 'in' ? (
-            <td className={`border-l border-border ${subtotalBg}`} />
-          ) : null}
+          {hs.map((hole) => (
+            <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm text-slate-500">
+              {hole.hcpIndexSnapshot ?? '-'}
+            </td>
+          ))}
+          <td className={`px-1 py-1 text-center text-sm border-l border-border ${subtotalBg}`} />
+          {showTotal && <td className={`border-l border-border ${subtotalBg}`} />}
         </tr>
       )}
 
@@ -217,12 +163,19 @@ function ScorecardTable({ player, holes, showHcp, t }: {
         <td className="px-2 py-1 text-sm font-semibold text-slate-600 whitespace-nowrap">
           {t('roundOverview.par')}
         </td>
-        {renderParRow(hs, section, sectionPar)}
-        {is18 && section === 'in' ? (
+        {hs.map((hole) => (
+          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
+            {hole.parSnapshot ?? '-'}
+          </td>
+        ))}
+        <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
+          {sectionPar > 0 ? sectionPar : '-'}
+        </td>
+        {showTotal && (
           <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
             {totPar > 0 ? totPar : '-'}
           </td>
-        ) : null}
+        )}
       </tr>
 
       {/* Result row */}
@@ -230,33 +183,58 @@ function ScorecardTable({ player, holes, showHcp, t }: {
         <td className="px-2 py-1 text-sm font-semibold text-slate-600 whitespace-nowrap">
           {t('roundOverview.result')}
         </td>
-        {renderResultRow(hs, section, sectionStrokes)}
-        {is18 && section === 'in' ? (
+        {hs.map((hole) => {
+          const score = hole.scores?.find((s) => s.playerId === player.id);
+          const strokes = score?.strokes ?? null;
+          const cellClasses = scoreCellClasses(strokes, hole.parSnapshot);
+          return (
+            <td key={hole.holeNumber} className="px-0.5 py-1 text-center">
+              {strokes !== null ? (
+                <span className={`inline-flex items-center justify-center w-8 h-8 text-sm font-bold ${cellClasses}`}>
+                  {strokes}
+                </span>
+              ) : (
+                <span className="text-sm text-slate-400">-</span>
+              )}
+            </td>
+          );
+        })}
+        <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
+          {sectionStrokes > 0 ? sectionStrokes : '-'}
+        </td>
+        {showTotal && (
           <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
             {totStrokes > 0 ? totStrokes : '-'}
           </td>
-        ) : null}
+        )}
       </tr>
     </tbody>
   );
 
+  const renderTable = (
+    hs: ServerRoundHole[],
+    section: 'out' | 'in',
+    sectionPar: number,
+    sectionStrokes: number,
+    showTotal: boolean,
+  ) => (
+    <table className="w-full border-collapse text-ink">
+      <colgroup>
+        <col className="w-16" />
+        {hs.map((_, i) => <col key={i} />)}
+        <col className="w-12" />
+        {showTotal ? <col className="w-12" /> : null}
+      </colgroup>
+      {renderSection(hs, section, sectionPar, sectionStrokes, showTotal)}
+    </table>
+  );
+
   return (
-    <div className="overflow-x-auto -mx-4 px-4">
-      <table className="w-full border-collapse text-ink table-fixed">
-        <colgroup>
-          <col style={{ width: '18%' }} />
-          {firstNine.map((_, i) => <col key={`out-${i}`} />)}
-          <col style={{ width: '10%' }} />
-          {is18 ? <col style={{ width: '10%' }} /> : null}
-        </colgroup>
-        {renderSection(firstNine, 'out', outPar, outStrokes)}
-        {is18 && secondNine.length > 0 && (
-          <>
-            <tbody><tr><td colSpan={999} className="h-2" /></tr></tbody>
-            {renderSection(secondNine, 'in', inPar ?? 0, inStrokes ?? 0)}
-          </>
-        )}
-      </table>
+    <div className="flex flex-col gap-2 -mx-4 px-4">
+      {renderTable(firstNine, 'out', outPar, outStrokes, false)}
+      {is18 && secondNine.length > 0 &&
+        renderTable(secondNine, 'in', inPar ?? 0, inStrokes ?? 0, true)
+      }
     </div>
   );
 }
