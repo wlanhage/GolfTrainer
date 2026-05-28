@@ -1,7 +1,7 @@
 {
-  "name": "GolfTrainer",
-  "short_name": "GolfTrainer",
-  "description": "GolfTrainer webbapp",
+  "name": "Kaddy",
+  "short_name": "Kaddy",
+  "description": "Kaddy webbapp",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f1f5f9",

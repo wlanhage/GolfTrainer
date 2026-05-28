@@ -95,7 +95,7 @@ const sv: Messages = {
   'title.roundOverview': 'Översikt',
   'title.followers': 'Följare',
   'title.following': 'Följer',
-  'title.brand': 'GolfTrainer',
+  'title.brand': 'Kaddy',
 
   // Auth
   'auth.login': 'Logga in',
@@ -291,7 +291,7 @@ const en: Messages = {
   'title.roundOverview': 'Overview',
   'title.followers': 'Followers',
   'title.following': 'Following',
-  'title.brand': 'GolfTrainer',
+  'title.brand': 'Kaddy',
 
   'auth.login': 'Log in',
   'auth.loggingIn': 'Logging in...',

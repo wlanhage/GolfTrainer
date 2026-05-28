@@ -8,26 +8,26 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'GolfTrainer',
-    template: '%s · GolfTrainer'
+    default: 'Kaddy',
+    template: '%s · Kaddy'
   },
   description: 'Spåra slag, spela rundor, träna missioner och följ andra golfare.',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'GolfTrainer'
+    title: 'Kaddy'
   },
   openGraph: {
     type: 'website',
-    siteName: 'GolfTrainer',
-    title: 'GolfTrainer',
+    siteName: 'Kaddy',
+    title: 'Kaddy',
     description: 'Spåra slag, spela rundor, träna missioner och följ andra golfare.',
     locale: 'sv_SE'
   },
   twitter: {
     card: 'summary',
-    title: 'GolfTrainer',
+    title: 'Kaddy',
     description: 'Spåra slag, spela rundor, träna missioner och följ andra golfare.'
   }
 };
