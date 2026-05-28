@@ -130,6 +130,12 @@ export default function RoundHolePage() {
           router.replace('/play');
           return;
         }
+        // Round already finished — redirect to overview instead of letting
+        // the user interact with a closed round.
+        if (r.round.status === 'completed' || r.round.status === 'abandoned') {
+          router.replace(`/play/round/${roundId}/overview`);
+          return;
+        }
         setRound(r.round);
         setAllRoundHoles(r.roundHoles);
         setMaxHole(r.roundHoles.length);
