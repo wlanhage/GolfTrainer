@@ -131,7 +131,7 @@ export default function HomePage() {
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between px-4">
           <h2 className="text-lg font-extrabold text-ink">{t('home.activity')}</h2>
-          <Link href="/community" className="text-sm text-primary font-semibold">
+          <Link href="/activity" className="text-sm text-primary font-semibold">
             {t('home.seeMore')}
           </Link>
         </div>
