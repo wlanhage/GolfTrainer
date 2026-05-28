@@ -46,11 +46,20 @@ const toInProgressSummary = (r: ServerRound): InProgressRoundSummary => ({
   startedAt: r.startedAt
 });
 
-const detailToLatest = (detail: ServerRoundDetail): LatestRoundSummary => {
-  // Summera bara över spelade hål så relativeToPar inte blir −totalPar
-  // för en tom (men COMPLETED) runda.
-  const playedHoles = detail.roundHoles.filter((h) => h.strokes !== null);
-  const totalScore = playedHoles.reduce((s, h) => s + (h.strokes ?? 0), 0);
+const detailToLatest = (detail: ServerRoundDetail, userId: string): LatestRoundSummary => {
+  // Hitta spelarens playerId i denna runda
+  const myPlayer = detail.players?.find((p) => p.userId === userId);
+  const myPlayerId = myPlayer?.id;
+
+  // Hämta slag från scores-arrayen (per spelare), inte hole-level strokes
+  const getMyStrokes = (h: ServerRoundHole): number | null => {
+    if (!myPlayerId) return h.strokes ?? null;
+    const sc = h.scores?.find((s) => s.playerId === myPlayerId);
+    return sc?.strokes ?? null;
+  };
+
+  const playedHoles = detail.roundHoles.filter((h) => getMyStrokes(h) !== null);
+  const totalScore = playedHoles.reduce((s, h) => s + (getMyStrokes(h) ?? 0), 0);
   const totalPar = playedHoles.reduce((s, h) => s + (h.parSnapshot ?? 0), 0);
   return {
     roundId: detail.id,
@@ -179,10 +188,19 @@ export function useRoundsStore(): RoundsStore {
         } catch {
           return null;
         }
+        const myPlayer = detail.players?.find((p) => p.userId === me!.id);
+        const myPlayerId = myPlayer?.id;
+        const getStrokes = (rh: ServerRoundHole): number | null => {
+          if (!myPlayerId) return rh.strokes ?? null;
+          const sc = rh.scores?.find((s) => s.playerId === myPlayerId);
+          return sc?.strokes ?? null;
+        };
+
         const items: RoundOverviewItem[] = detail.roundHoles.map((rh) => {
           const geometry = layoutByHoleId.get(rh.holeId);
           const layoutStatus = geometry ? resolveLayoutMappingStatus(geometry) : 'not_started';
-          const scoreStatus: 'missing' | 'done' = rh.strokes === null ? 'missing' : 'done';
+          const strokes = getStrokes(rh);
+          const scoreStatus: 'missing' | 'done' = strokes === null ? 'missing' : 'done';
           const metadataStatus: 'missing' | 'done' =
             rh.parSnapshot === null || rh.lengthSnapshot === null || rh.hcpIndexSnapshot === null ? 'missing' : 'done';
           return {
@@ -190,14 +208,15 @@ export function useRoundsStore(): RoundsStore {
             par: rh.parSnapshot,
             length: rh.lengthSnapshot,
             hcpIndex: rh.hcpIndexSnapshot,
-            strokes: rh.strokes,
+            strokes,
             scoreStatus,
             metadataStatus,
             layoutStatus
           };
         });
-        const totalScore = detail.roundHoles.reduce((s, h) => s + (h.strokes ?? 0), 0);
-        const totalPar = detail.roundHoles.reduce((s, h) => s + (h.parSnapshot ?? 0), 0);
+        const playedHoles = detail.roundHoles.filter((h) => getStrokes(h) !== null);
+        const totalScore = playedHoles.reduce((s, h) => s + (getStrokes(h) ?? 0), 0);
+        const totalPar = playedHoles.reduce((s, h) => s + (h.parSnapshot ?? 0), 0);
         return {
           round: {
             id: detail.id,
@@ -216,7 +235,7 @@ export function useRoundsStore(): RoundsStore {
           totalScore,
           totalPar,
           relativeToPar: totalPar === 0 ? null : totalScore - totalPar,
-          completedHoles: detail.roundHoles.filter((h) => h.strokes !== null).length
+          completedHoles: playedHoles.length
         };
       },
 
@@ -228,7 +247,7 @@ export function useRoundsStore(): RoundsStore {
         const first = finished[0];
         if (!first) return null;
         const detail = await api.getById(first.id);
-        return detailToLatest(detail);
+        return detailToLatest(detail, me!.id);
       },
 
       async getBestFinished() {
@@ -236,7 +255,7 @@ export function useRoundsStore(): RoundsStore {
         if (completed.length === 0) return null;
         const details = await Promise.all(completed.map((r) => api.getById(r.id)));
         const summaries: LatestRoundSummary[] = details
-          .map(detailToLatest)
+          .map((d) => detailToLatest(d, me!.id))
           .filter((s) => s.completedHoles > 0);
         summaries.sort((a: LatestRoundSummary, b: LatestRoundSummary) => {
           const ra = a.relativeToPar;
