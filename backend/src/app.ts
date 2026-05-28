@@ -30,6 +30,8 @@ export const buildApp = () => {
     'http://localhost:8082',
     'http://localhost:3001', // Admin web default dev port
     'http://127.0.0.1:3001',
+    'http://localhost:3005', // Admin web alt dev port
+    'http://127.0.0.1:3005',
     'http://localhost:3002', // Webbapp dev port
     'http://127.0.0.1:3002'
   ];

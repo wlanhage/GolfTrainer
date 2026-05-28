@@ -153,6 +153,8 @@ export function HoleManager({ initialCourse }: Props) {
   const [locks, setLocks] = useState<Record<Layer, boolean>>({ tee: false, green: false, fairway: false, bunker: false, trees: false, ob: false });
   const [showQuickHelp, setShowQuickHelp] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState({ metadata: true, layers: true, quality: true });
+  const [coordPopupOpen, setCoordPopupOpen] = useState(false);
+  const [coordInput, setCoordInput] = useState('');
   const boardRef = useRef<HTMLDivElement | null>(null);
   const mapCanvasRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -203,14 +205,18 @@ export function HoleManager({ initialCourse }: Props) {
 
       mapRef.current = map;
       setMapReady(true);
-      map.on('move', () => {
+
+      // Keep React state in sync when the user pans/zooms the map natively
+      map.on('moveend', () => {
         const movedCenter = map.getCenter();
         setManualCenter({ lat: movedCenter.lat, lng: movedCenter.lng });
         setZoom(map.getZoom());
       });
 
+      // Disable MapLibre's own scroll zoom — we handle it in onWheel to
+      // avoid double-zoom and to keep the SVG overlay working.
       map.on('load', () => {
-        map.scrollZoom.enable();
+        map.scrollZoom.disable();
       });
     };
 
@@ -236,15 +242,42 @@ export function HoleManager({ initialCourse }: Props) {
     }
   }, [activeTool]);
 
+  // Wheel zoom — attached via native event listener so it works even when
+  // the draw-board has pointerEvents:none in pan mode.
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const handler = (event: WheelEvent) => {
+      const map = mapRef.current;
+      if (!map) return;
+      event.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const around = map.unproject([x, y]);
+      const currentZoom = map.getZoom();
+      const step = currentZoom < 8 ? 1.0 : currentZoom < 14 ? 0.6 : 0.35;
+      const delta = event.deltaY > 0 ? -step : step;
+      const nextZoom = Math.max(MIN_EDITOR_ZOOM, Math.min(MAX_EDITOR_ZOOM, currentZoom + delta));
+      map.zoomTo(nextZoom, { around, duration: 0 });
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [mapReady]);
+
+  // Fly to tee when switching holes (NOT when user pans/zooms — that caused loops)
+  const prevSelectedHole = useRef(selectedHole);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    // Only fly on initial load or when the user selects a different hole
+    if (prevSelectedHole.current === selectedHole && mapReady) return;
+    prevSelectedHole.current = selectedHole;
     const teePoint = hole.layout.teePoint;
-    const fallback = teePoint ?? userPosition ?? DEFAULT_CENTER;
-    const targetCenter = teePoint ?? manualCenter ?? fallback;
-    const nextZoom = teePoint ? Math.max(zoom, 16) : zoom;
-    map.flyTo({ center: [targetCenter.lng, targetCenter.lat], zoom: nextZoom, essential: true });
-  }, [hole.layout.teePoint, mapReady, manualCenter, selectedHole, userPosition, zoom]);
+    if (teePoint) {
+      map.flyTo({ center: [teePoint.lng, teePoint.lat], zoom: Math.max(map.getZoom(), 16), essential: true });
+    }
+  }, [selectedHole, mapReady, hole.layout.teePoint]);
 
   const saveCourse = async (nextCourse: Course) => {
     const nextHole = nextCourse.holes.find((entry) => entry.holeNumber === selectedHole);
@@ -578,25 +611,15 @@ export function HoleManager({ initialCourse }: Props) {
           <div
             ref={boardRef}
             className="draw-board large"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={completeStroke}
-            onPointerLeave={completeStroke}
-            onDoubleClick={completeStroke}
+            onPointerDown={activeTool !== 'pan' ? onPointerDown : undefined}
+            onPointerMove={activeTool !== 'pan' ? onPointerMove : undefined}
+            onPointerUp={activeTool !== 'pan' ? completeStroke : undefined}
+            onPointerLeave={activeTool !== 'pan' ? completeStroke : undefined}
+            onDoubleClick={activeTool !== 'pan' ? completeStroke : undefined}
             tabIndex={0}
-            onClick={() => setSelection(null)}
-            style={{ cursor: activeTool === 'pan' ? 'grab' : 'crosshair' }}
-            onWheel={(event) => {
-              const map = mapRef.current;
-              if (!map || !boardRef.current) return;
-              event.preventDefault();
-              const rect = boardRef.current.getBoundingClientRect();
-              const x = event.clientX - rect.left;
-              const y = event.clientY - rect.top;
-              const around = map.unproject([x, y]);
-              const delta = event.deltaY > 0 ? -0.35 : 0.35;
-              const nextZoom = Math.max(MIN_EDITOR_ZOOM, Math.min(MAX_EDITOR_ZOOM, map.getZoom() + delta));
-              map.zoomTo(nextZoom, { around, duration: 0 });
+            onClick={activeTool !== 'pan' ? () => setSelection(null) : undefined}
+            style={{
+              cursor: activeTool === 'pan' ? 'grab' : 'crosshair',
             }}
             onKeyDown={(event) => {
               if (event.key.toLowerCase() === 'v') setActiveTool('pan');
@@ -617,7 +640,12 @@ export function HoleManager({ initialCourse }: Props) {
             }}
           >
             <div ref={mapCanvasRef} className="map-canvas" />
-            <svg style={{ pointerEvents: activeTool === 'pan' ? 'none' : 'auto' }}>
+            <svg style={{
+              pointerEvents: activeTool === 'pan' ? 'none' : 'auto',
+              // In pan mode, drop SVG behind the map canvas so MapLibre gets
+              // full native drag/pan control.
+              zIndex: activeTool === 'pan' ? 0 : 2,
+            }}>
               <defs>
                 <pattern id="pattern_fairway" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                   <rect width="8" height="8" fill="#16a34a66" />
@@ -650,7 +678,68 @@ export function HoleManager({ initialCourse }: Props) {
             </svg>
           </div>
 
+          {/* Coordinate jump popup */}
+          {coordPopupOpen && (
+            <div style={{
+              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 50, background: '#fff', border: '1px solid #d1d5db', borderRadius: 10,
+              padding: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', display: 'flex',
+              flexDirection: 'column', gap: 10, minWidth: 300
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: 14 }}>Hoppa till koordinat</strong>
+                <button onClick={() => setCoordPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+              </div>
+              <input
+                type="text"
+                placeholder="lat, lng — t.ex. 55.6050, 13.0038"
+                value={coordInput}
+                onChange={(e) => setCoordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
+                    if (parts.length >= 2) {
+                      const [lat, lng] = parts;
+                      const map = mapRef.current;
+                      if (map) {
+                        map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
+                        setManualCenter({ lat, lng });
+                      }
+                      setCoordPopupOpen(false);
+                      setCoordInput('');
+                    } else {
+                      push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
+                    }
+                  }
+                }}
+                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+                autoFocus
+              />
+              <button
+                onClick={() => {
+                  const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
+                  if (parts.length >= 2) {
+                    const [lat, lng] = parts;
+                    const map = mapRef.current;
+                    if (map) {
+                      map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
+                      setManualCenter({ lat, lng });
+                    }
+                    setCoordPopupOpen(false);
+                    setCoordInput('');
+                  } else {
+                    push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
+                  }
+                }}
+                style={{ padding: '8px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+              >
+                Gå dit
+              </button>
+            </div>
+          )}
+
           <div className="hole-list">
+            <button className="chip" onClick={() => setCoordPopupOpen(true)}>📍 Koordinat</button>
             <button className="chip" onClick={() => {
               const map = mapRef.current;
               if (!map) return;
