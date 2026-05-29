@@ -60,11 +60,15 @@
  * admin-web/src/app/globals.css applies width:100%, borders, padding and
  * a teal background to ALL <button>/<input>/<select>/<textarea>. Inside
  * the editor we style each control explicitly, so neutralise the cascade.
+ *
+ * Wrapped in :where() so the selector has 0 specificity — that way our
+ * own .he-tool / .he-hole-strip-btn / etc. rules (specificity 0,1,0)
+ * still win and can set their own width/padding/etc.
  */
-.he-root button,
-.he-root input,
-.he-root select,
-.he-root textarea {
+:where(.he-root button),
+:where(.he-root input),
+:where(.he-root select),
+:where(.he-root textarea) {
   width: auto;
   border: none;
   border-radius: 0;
@@ -75,7 +79,7 @@
   font-weight: inherit;
   cursor: inherit;
 }
-.he-root button { cursor: pointer; }
+:where(.he-root button) { cursor: pointer; }
 
 /* ====== MAP CANVAS ====== */
 .he-map-container {
