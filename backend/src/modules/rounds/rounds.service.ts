@@ -180,6 +180,11 @@ export const roundsService = {
     return roundsRepository.adminStats();
   },
 
+  async adminRecomputeTotalScore(roundId: string) {
+    const total = await roundsRepository.adminRecomputeTotalScore(roundId);
+    return { roundId, totalScore: total };
+  },
+
   async getById(roundId: string, userId: string) {
     const round = await roundsRepository.getByIdForParticipant(roundId, userId);
     if (!round) throw new NotFoundError('Round not found');

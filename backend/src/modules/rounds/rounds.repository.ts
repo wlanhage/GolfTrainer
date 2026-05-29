@@ -6,6 +6,7 @@ type CreateRoundPlayerData = {
   displayNameSnapshot: string;
   team: string | null;
   order: number;
+  isHost?: boolean;
 };
 
 type CreateRoundData = {
@@ -59,7 +60,10 @@ export const roundsRepository = {
             userId: p.userId,
             displayNameSnapshot: p.displayNameSnapshot,
             team: p.team,
-            order: p.order
+            order: p.order,
+            // Fallback: if caller didn't explicitly mark a host, treat the
+            // player whose userId matches Round.userId as the host.
+            isHost: p.isHost ?? p.userId === data.hostUserId
           }))
         }
       },
@@ -304,11 +308,26 @@ export const roundsRepository = {
   },
 
   async computeTotalScore(roundId: string): Promise<number | null> {
-    // Compute from the host player's RoundHoleScore rows.
-    const hostPlayer = await prisma.roundPlayer.findFirst({
+    // Find the host player. Primary lookup: isHost flag. Fallback (for
+    // older rounds created before isHost was being set): match the
+    // RoundPlayer whose userId equals Round.userId.
+    let hostPlayer = await prisma.roundPlayer.findFirst({
       where: { roundId, isHost: true },
       select: { id: true }
     });
+
+    if (!hostPlayer) {
+      const round = await prisma.round.findUnique({
+        where: { id: roundId },
+        select: { userId: true }
+      });
+      if (round) {
+        hostPlayer = await prisma.roundPlayer.findFirst({
+          where: { roundId, userId: round.userId },
+          select: { id: true }
+        });
+      }
+    }
     if (!hostPlayer) return null;
 
     const result = await prisma.roundHoleScore.aggregate({
@@ -318,6 +337,20 @@ export const roundsRepository = {
     });
     if (result._count._all === 0) return null;
     return result._sum.strokes ?? 0;
+  },
+
+  /**
+   * Admin: räkna om totalScore för en runda och skriv tillbaka till DB.
+   * Används för att laga rundor som blev COMPLETED med totalScore=null
+   * pga den gamla buggen där isHost aldrig sattes.
+   */
+  async adminRecomputeTotalScore(roundId: string) {
+    const total = await this.computeTotalScore(roundId);
+    await prisma.round.update({
+      where: { id: roundId },
+      data: { totalScore: total }
+    });
+    return total;
   },
 
   async deleteRound(roundId: string, userId: string) {

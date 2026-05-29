@@ -38,6 +38,29 @@ export function RoundDetailView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0); // forces duration recompute
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState<string | null>(null);
+
+  const handleRecompute = async () => {
+    if (!round) return;
+    setRecomputing(true);
+    setRecomputeMsg(null);
+    try {
+      const res = await api.adminRecomputeRoundTotal(round.id);
+      setRecomputeMsg(
+        res.totalScore === null
+          ? 'Räknade om — ingen score-data hittades (totalScore = null)'
+          : `Räknade om — ny totalpoäng: ${res.totalScore}`
+      );
+      // refresh detail view
+      const fresh = await api.getRound(round.id);
+      setRound(fresh);
+    } catch (err) {
+      setRecomputeMsg(err instanceof Error ? `Fel: ${err.message}` : 'Okänt fel');
+    } finally {
+      setRecomputing(false);
+    }
+  };
 
   // Auto-refresh in-progress rounds every 10s so admin sees live updates
   useEffect(() => {
@@ -141,8 +164,48 @@ export function RoundDetailView() {
         <MetaCard label="Format" value={round.format.replace(/_/g, ' ')} />
       </div>
 
+      {/* Admin actions */}
+      <section className="card" style={{ marginTop: 16 }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 14 }}>Admin-åtgärder</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+              Totalpoäng: <strong>{round.totalScore ?? 'Saknas (null)'}</strong>
+              {round.totalScore === null && round.status === 'COMPLETED' ? (
+                <span style={{ marginLeft: 8, color: '#dc2626' }}>
+                  ← Rundan visas inte i aktivitetsflödet förrän detta är satt
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <button
+            onClick={() => void handleRecompute()}
+            disabled={recomputing}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 8,
+              background: '#0f766e',
+              color: 'white',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: recomputing ? 'wait' : 'pointer',
+              width: 'auto',
+              opacity: recomputing ? 0.6 : 1
+            }}
+          >
+            {recomputing ? 'Räknar om...' : 'Räkna om totalpoäng'}
+          </button>
+        </header>
+        {recomputeMsg ? (
+          <p style={{ marginTop: 8, fontSize: 13, color: recomputeMsg.startsWith('Fel') ? '#dc2626' : '#0f766e' }}>
+            {recomputeMsg}
+          </p>
+        ) : null}
+      </section>
+
       {/* Players summary */}
-      <section className="card" style={{ marginTop: 24 }}>
+      <section className="card" style={{ marginTop: 16 }}>
         <h2 style={{ margin: 0 }}>Spelare ({sortedPlayers.length})</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
           {grid.rows.map(({ player, total, relToPar, scores }) => {

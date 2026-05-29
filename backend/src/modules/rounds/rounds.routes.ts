@@ -11,6 +11,7 @@ export async function roundsRoutes(app: FastifyInstance) {
   // the param route. Both require admin role.
   app.get('/admin/stats', { preHandler: [requireAdmin] }, roundsController.adminStats);
   app.get('/admin', { preHandler: [requireAdmin] }, roundsController.adminList);
+  app.post('/admin/:roundId/recompute-total', { preHandler: [requireAdmin] }, roundsController.adminRecomputeTotalScore);
 
   app.get('/', roundsController.list);
   app.post('/', roundsController.create);

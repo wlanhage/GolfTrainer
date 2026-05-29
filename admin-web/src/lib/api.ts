@@ -200,6 +200,13 @@ export const api = {
     return request<RoundDetail>(`/rounds/${roundId}/public`);
   },
 
+  async adminRecomputeRoundTotal(roundId: string) {
+    return request<{ roundId: string; totalScore: number | null }>(
+      `/rounds/admin/${roundId}/recompute-total`,
+      { method: 'POST' }
+    );
+  },
+
   async adminListRounds(opts: { status?: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'; limit?: number; offset?: number } = {}) {
     const params = new URLSearchParams();
     if (opts.status) params.set('status', opts.status);

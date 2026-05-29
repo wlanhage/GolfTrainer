@@ -38,6 +38,12 @@ export const roundsController = {
     return reply.send(stats);
   },
 
+  async adminRecomputeTotalScore(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const result = await roundsService.adminRecomputeTotalScore(roundId);
+    return reply.send(result);
+  },
+
   async getById(request: FastifyRequest, reply: FastifyReply) {
     const { roundId } = roundIdParamSchema.parse(request.params);
     const round = await roundsService.getById(roundId, request.auth!.userId);
