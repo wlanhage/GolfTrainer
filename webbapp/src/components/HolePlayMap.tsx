@@ -275,19 +275,9 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
         }
       });
 
-      // Tee-markering
-      map.addLayer({
-        id: 'layout-tee',
-        type: 'circle',
-        source: 'layout',
-        filter: ['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'kind'], 'tee']],
-        paint: {
-          'circle-color': ['get', 'color'],
-          'circle-radius': 7,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2
-        }
-      });
+      // Tee-markeringen renderas inte i play-mode — den ser ut som
+      // spelarens egen position och skapar förvirring. Tee-punkten finns
+      // kvar i source-datat för avståndsberäkningar och fit-to-hole.
 
       // Spelar-marker överst — pulserande halo + kärna
       map.addLayer({
