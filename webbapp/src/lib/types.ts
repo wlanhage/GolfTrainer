@@ -381,3 +381,22 @@ export type InProgressRoundSummary = {
   currentHoleNumber: number;
   startedAt: string;
 };
+
+export type ChatConversation = {
+  partnerId: string;
+  partnerDisplayName: string;
+  partnerAvatarImage: string | null;
+  lastMessageContent: string;
+  lastMessageAt: string;
+  lastMessageSenderId: string;
+  unreadCount: number;
+};
+
+export type ChatMessageItem = {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  content: string;
+  readAt: string | null;
+  createdAt: string;
+};

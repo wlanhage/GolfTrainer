@@ -19,6 +19,7 @@ import { roundsRoutes } from './modules/rounds/rounds.routes.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { pushRoutes } from './modules/push/push.routes.js';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
+import { chatRoutes } from './modules/chat/chat.routes.js';
 
 export const buildApp = () => {
   const app = Fastify({ logger: true });
@@ -82,6 +83,7 @@ export const buildApp = () => {
   app.register(pushRoutes, { prefix: '/api/v1/push' });
   app.register(notificationsRoutes, { prefix: '/api/v1/notifications' });
   app.register(aiRoutes, { prefix: '/api/v1/ai' });
+  app.register(chatRoutes, { prefix: '/api/v1/chat' });
 
   app.setErrorHandler((err, request, reply) => {
     request.log.error(

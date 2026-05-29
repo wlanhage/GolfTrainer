@@ -2,20 +2,23 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useFollowsApi, useUsersApi } from '@/lib/api';
+import { useFollowsApi, useUsersApi, useChatApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthProvider';
 import { UserAvatar } from '@/components/UserAvatar';
 import { FollowList } from '@/components/FollowList';
+import { ChatList } from '@/components/chat/ChatList';
 import type { FollowEntry, PublicUserSummary } from '@/lib/types';
 
-type Tab = 'search' | 'following' | 'followers';
+type Tab = 'chat' | 'search' | 'following' | 'followers';
 
 export default function CommunityPage() {
   const { me } = useAuth();
   const usersApi = useUsersApi();
   const followsApi = useFollowsApi();
+  const chatApi = useChatApi();
 
-  const [tab, setTab] = useState<Tab>('search');
+  const [tab, setTab] = useState<Tab>('chat');
+  const [unreadChat, setUnreadChat] = useState(0);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PublicUserSummary[]>([]);
   const [searching, setSearching] = useState(false);
@@ -46,6 +49,15 @@ export default function CommunityPage() {
   }, [query, tab, usersApi]);
 
   useEffect(() => {
+    const poll = () => {
+      chatApi.getUnreadCount().then((r) => setUnreadChat(r.count)).catch(() => undefined);
+    };
+    poll();
+    const interval = setInterval(poll, 30_000);
+    return () => clearInterval(interval);
+  }, [chatApi]);
+
+  useEffect(() => {
     if (!me?.id) return;
     if (tab === 'following') {
       followsApi.listFollowing(me.id).then(setFollowing).catch(() => undefined);
@@ -60,6 +72,7 @@ export default function CommunityPage() {
 
       <div className="flex gap-2 border-b border-border">
         {([
+          { id: 'chat' as const, label: 'Chatt' },
           { id: 'search' as const, label: 'Sök' },
           { id: 'following' as const, label: 'Jag följer' },
           { id: 'followers' as const, label: 'Mina följare' }
@@ -69,15 +82,20 @@ export default function CommunityPage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2 font-semibold text-sm border-b-2 ${
+              className={`flex-1 py-2 font-semibold text-sm border-b-2 relative ${
                 active ? 'border-primary text-primary' : 'border-transparent text-slate-600'
               }`}
             >
               {t.label}
+              {t.id === 'chat' && unreadChat > 0 ? (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+              ) : null}
             </button>
           );
         })}
       </div>
+
+      {tab === 'chat' ? <ChatList /> : null}
 
       {tab === 'search' ? (
         <>

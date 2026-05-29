@@ -7,6 +7,8 @@ import type {
   AdminUser,
   CaddyClubSummary,
   CaddyShot,
+  ChatConversation,
+  ChatMessageItem,
   Course,
   CreateCourseInput,
   FollowCounts,
@@ -534,6 +536,31 @@ export function useNotificationsApi() {
       markRead: (notificationId: string) =>
         client.request<null>(`/notifications/${notificationId}/read`, { method: 'POST' }),
       markAllRead: () => client.request<null>('/notifications/read-all', { method: 'POST' })
+    }),
+    [client]
+  );
+}
+
+export function useChatApi() {
+  const client = useApiClient();
+  return useMemo(
+    () => ({
+      listConversations: () =>
+        client.request<ChatConversation[]>('/chat/conversations'),
+      getUnreadCount: () =>
+        client.request<{ count: number }>('/chat/unread-count'),
+      getMessages: (recipientId: string, limit = 50, before?: string) => {
+        const qs = new URLSearchParams({ limit: String(limit) });
+        if (before) qs.set('before', before);
+        return client.request<ChatMessageItem[]>(`/chat/${recipientId}/messages?${qs}`);
+      },
+      sendMessage: (recipientId: string, content: string) =>
+        client.request<ChatMessageItem>(`/chat/${recipientId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({ content })
+        }),
+      markRead: (recipientId: string) =>
+        client.request<void>(`/chat/${recipientId}/read`, { method: 'POST' })
     }),
     [client]
   );
