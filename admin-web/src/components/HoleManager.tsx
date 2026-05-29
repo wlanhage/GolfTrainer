@@ -29,6 +29,7 @@ type MapLibreMap = {
   doubleClickZoom: { enable: () => void; disable: () => void };
   flyTo: (options: { center: [number, number]; zoom?: number; essential?: boolean }) => void;
   zoomTo: (zoom: number, options?: { around?: MapCenter; duration?: number }) => void;
+  resize: () => void;
 };
 
 type MapLibreCtor = new (options: {
@@ -212,13 +213,31 @@ export function HoleManager({ initialCourse }: Props) {
       // We do NOT intercept wheel events or toggle dragPan.
       map.on('load', () => {
         setMapReady(true);
+        // CSS may have loaded after init; force a resize so the canvas
+        // matches the container size.
+        map.resize();
       });
+
+      // Observe the container for size changes (DevTools toggle, window
+      // resize, inspector show/hide) and resize the map accordingly.
+      const container = mapCanvasRef.current;
+      const resizeObserver = new ResizeObserver(() => {
+        try { map.resize(); } catch { /* map removed */ }
+      });
+      resizeObserver.observe(container);
+      // Also resize on next frames as a belt-and-braces for late CSS.
+      requestAnimationFrame(() => map.resize());
+      setTimeout(() => map.resize(), 250);
+
+      cleanup = () => resizeObserver.disconnect();
     };
 
+    let cleanup: (() => void) | null = null;
     void boot();
 
     return () => {
       cancelled = true;
+      cleanup?.();
       mapRef.current?.remove();
       mapRef.current = null;
       setMapReady(false);
