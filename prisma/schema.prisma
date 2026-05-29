@@ -157,6 +157,8 @@ model User {
   pushSubscriptions       PushSubscription[]
   roundPlayers            RoundPlayer[]      @relation("UserRoundPlayers")
   notifications           Notification[]
+  chatMessagesSent        ChatMessage[]      @relation("ChatMessagesSent")
+  chatMessagesReceived    ChatMessage[]      @relation("ChatMessagesReceived")
 }
 
 model UserProfile {
@@ -703,4 +705,22 @@ model RoundShot {
 
   @@unique([roundId, holeNumber, shotOrder])
   @@index([roundId, holeNumber])
+}
+
+// --- Chat ---
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  senderId    String
+  recipientId String
+  content     String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  sender    User @relation("ChatMessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("ChatMessagesReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, readAt])
+  @@map("chat_messages")
 }

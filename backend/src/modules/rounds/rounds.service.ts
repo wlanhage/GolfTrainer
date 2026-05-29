@@ -167,6 +167,24 @@ export const roundsService = {
     });
   },
 
+  /** Admin: list ALL rounds across the platform. */
+  adminListAll(query: ListRoundsQuery) {
+    return roundsRepository.adminListAll({
+      status: query.status,
+      limit: query.limit,
+      offset: query.offset
+    });
+  },
+
+  adminStats() {
+    return roundsRepository.adminStats();
+  },
+
+  async adminRecomputeTotalScore(roundId: string) {
+    const total = await roundsRepository.adminRecomputeTotalScore(roundId);
+    return { roundId, totalScore: total };
+  },
+
   async getById(roundId: string, userId: string) {
     const round = await roundsRepository.getByIdForParticipant(roundId, userId);
     if (!round) throw new NotFoundError('Round not found');

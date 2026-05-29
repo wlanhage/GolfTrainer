@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Camera, ChevronDown } from 'lucide-react';
+import { BarChart3, Camera, ChevronDown, Flag, Pencil, Target } from 'lucide-react';
 import { useRoundsApi, type ServerRoundDetail, type ServerRoundHole, type ServerRoundPlayer } from '@/lib/api';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { Loader } from '@/components/Loader';
@@ -123,11 +123,14 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     <tbody>
       {/* Hole numbers row */}
       <tr className={headerBg}>
-        <td className="px-2 py-1 text-sm font-bold text-slate-500 whitespace-nowrap">
-          {t('roundOverview.hole')}
+        <td
+          className={`px-1 py-1 text-slate-500 sticky left-0 z-10 ${headerBg}`}
+          aria-label={t('roundOverview.hole')}
+        >
+          <Flag size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => (
-          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
+          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm font-bold">
             {hole.holeNumber}
           </td>
         ))}
@@ -139,8 +142,11 @@ function ScorecardTable({ player, holes, showHcp, t }: {
       {/* HCP index row */}
       {showHcp && (
         <tr>
-          <td className="px-2 py-1 text-sm text-slate-500 whitespace-nowrap">
-            {t('roundOverview.handicap')}
+          <td
+            className="px-1 py-1 text-slate-400 sticky left-0 z-10 bg-white"
+            aria-label={t('roundOverview.handicap')}
+          >
+            <BarChart3 size={14} className="mx-auto" strokeWidth={2.25} />
           </td>
           {hs.map((hole) => (
             <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm text-slate-500">
@@ -153,8 +159,11 @@ function ScorecardTable({ player, holes, showHcp, t }: {
 
       {/* Par row */}
       <tr>
-        <td className="px-2 py-1 text-sm font-semibold text-slate-600 whitespace-nowrap">
-          {t('roundOverview.par')}
+        <td
+          className="px-1 py-1 text-slate-600 sticky left-0 z-10 bg-white"
+          aria-label={t('roundOverview.par')}
+        >
+          <Target size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => (
           <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
@@ -168,8 +177,11 @@ function ScorecardTable({ player, holes, showHcp, t }: {
 
       {/* Result row */}
       <tr className="border-t border-border">
-        <td className="px-2 py-1 text-sm font-semibold text-slate-600 whitespace-nowrap">
-          {t('roundOverview.result')}
+        <td
+          className="px-1 py-1 text-slate-700 sticky left-0 z-10 bg-white"
+          aria-label={t('roundOverview.result')}
+        >
+          <Pencil size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => {
           const score = hole.scores?.find((s) => s.playerId === player.id);
@@ -200,14 +212,23 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     sectionPar: number,
     sectionStrokes: number,
   ) => (
-    <table className="w-full border-collapse text-ink">
-      <colgroup>
-        <col className="w-16" />
-        {hs.map((_, i) => <col key={i} />)}
-        <col className="w-12" />
-      </colgroup>
-      {renderSection(hs, section, sectionPar, sectionStrokes)}
-    </table>
+    // Horizontal scroll on narrow screens. Each hole gets a fixed min
+    // width so cells don't squeeze; if it overflows the viewport the
+    // user can swipe sideways. Label column is sticky so the icon stays
+    // visible while scrolling.
+    <div className="overflow-x-auto -mx-1 px-1">
+      <table
+        className="border-collapse text-ink"
+        style={{ minWidth: `${32 + hs.length * 36 + 40}px`, width: '100%' }}
+      >
+        <colgroup>
+          <col style={{ width: 32 }} />
+          {hs.map((_, i) => <col key={i} style={{ minWidth: 36 }} />)}
+          <col style={{ width: 40 }} />
+        </colgroup>
+        {renderSection(hs, section, sectionPar, sectionStrokes)}
+      </table>
+    </div>
   );
 
   return (

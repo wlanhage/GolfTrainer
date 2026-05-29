@@ -6,18 +6,13 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { computeHoleLength } from '../lib/holeMetrics';
 import { courseRepo } from '../lib/storage';
 import { Course, GeoPoint, HoleLayoutGeometry } from '../lib/types';
-import { EditorToolbar } from './EditorToolbar';
-import { LayerPanel } from './LayerPanel';
-import { ProgressChecklist } from './ProgressChecklist';
-import { ValidationPanel } from './ValidationPanel';
-import { ConfirmDialog } from './common/ConfirmDialog';
-import { EmptyState } from './common/EmptyState';
-import { PageHeader } from './common/PageHeader';
-import { useToast } from './common/ToastProvider';
+import { HoleEditorShell } from './hole-editor/HoleEditorShell';
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 type Props = { initialCourse: Course };
 type Layer = 'tee' | 'green' | 'fairway' | 'bunker' | 'trees' | 'ob';
-type Tool = 'pan' | Layer;
+type Tool = 'select' | Layer;
 type Selection = { layer: Layer; index: number; pointIndex?: number } | null;
 type MapCenter = { lng: number; lat: number };
 type MapPoint = { x: number; y: number };
@@ -34,6 +29,7 @@ type MapLibreMap = {
   doubleClickZoom: { enable: () => void; disable: () => void };
   flyTo: (options: { center: [number, number]; zoom?: number; essential?: boolean }) => void;
   zoomTo: (zoom: number, options?: { around?: MapCenter; duration?: number }) => void;
+  resize: () => void;
 };
 
 type MapLibreCtor = new (options: {
@@ -44,42 +40,16 @@ type MapLibreCtor = new (options: {
   attributionControl?: boolean;
 }) => MapLibreMap;
 
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
 const MAPLIBRE_CDN_VERSION = '5.3.0';
 const MAPLIBRE_SCRIPT_ID = 'maplibre-gl-script';
 const MAPLIBRE_CSS_ID = 'maplibre-gl-css';
 const MIN_EDITOR_ZOOM = 2;
 const MAX_EDITOR_ZOOM = 20;
-
 const DEFAULT_CENTER: GeoPoint = { lat: 59.3293, lng: 18.0686 };
-const TOOLTIP_KEY = 'gt_admin_editor_seen_tooltips_v1';
-const UNSAVED_KEY = 'gt_admin_unsaved_changes_v1';
 const MAX_FAIRWAY_POLYGONS = 3;
-
-const closePolygon = (points: GeoPoint[]) => {
-  if (points.length < 3) return [];
-  const first = points[0];
-  const last = points[points.length - 1];
-  return first.lat === last.lat && first.lng === last.lng ? points : [...points, first];
-};
-
-const applyToLayer = (layout: HoleLayoutGeometry, layer: Layer, points: GeoPoint[]): HoleLayoutGeometry => {
-  if (layer === 'tee') return { ...layout, teePoint: points[0] ?? null };
-  const polygon = closePolygon(points);
-  if (layer === 'green') return { ...layout, greenPolygon: polygon };
-  if (layer === 'fairway') {
-    if (!polygon.length) return layout;
-    const fairwayPolygons = layout.fairwayPolygons ?? (layout.fairwayPolygon.length ? [layout.fairwayPolygon] : []);
-    const nextFairways = fairwayPolygons.slice(0, MAX_FAIRWAY_POLYGONS);
-    if (nextFairways.length >= MAX_FAIRWAY_POLYGONS) return layout;
-    const merged = [...nextFairways, polygon];
-    return { ...layout, fairwayPolygons: merged, fairwayPolygon: merged[0] ?? [] };
-  }
-  if (layer === 'bunker') return polygon.length ? { ...layout, bunkerPolygons: [...layout.bunkerPolygons, polygon] } : layout;
-  if (layer === 'trees') return polygon.length ? { ...layout, treesPolygons: [...layout.treesPolygons, polygon] } : layout;
-  return polygon.length ? { ...layout, obPolygons: [...layout.obPolygons, polygon] } : layout;
-};
-
-const layerPalette: Record<Layer, string> = { tee: '#ef4444', green: '#22c55e', fairway: '#16a34a', bunker: '#f59e0b', trees: '#15803d', ob: '#dc2626' };
+const UNSAVED_KEY = 'gt_admin_unsaved_changes_v1';
 
 const rasterStyle = {
   version: 8,
@@ -88,13 +58,43 @@ const rasterStyle = {
       type: 'raster',
       tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      attribution: 'Tiles &copy; Esri'
-    }
+      attribution: 'Tiles &copy; Esri',
+    },
   },
-  layers: [{ id: 'satellite-base', type: 'raster', source: 'satellite' }]
+  layers: [{ id: 'satellite-base', type: 'raster', source: 'satellite' }],
 };
 
-const loadMapLibre = async () => {
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+const closePolygon = (points: GeoPoint[]) => {
+  if (points.length < 3) return [];
+  const first = points[0];
+  const last = points[points.length - 1];
+  return first.lat === last.lat && first.lng === last.lng ? points : [...points, first];
+};
+
+const applyToLayer = (
+  layout: HoleLayoutGeometry,
+  layer: Layer,
+  points: GeoPoint[],
+  fairwayPolygons: GeoPoint[][]
+): HoleLayoutGeometry => {
+  if (layer === 'tee') return { ...layout, teePoint: points[0] ?? null };
+  const polygon = closePolygon(points);
+  if (layer === 'green') return { ...layout, greenPolygon: polygon };
+  if (layer === 'fairway') {
+    if (!polygon.length) return layout;
+    const existing = fairwayPolygons.slice(0, MAX_FAIRWAY_POLYGONS);
+    if (existing.length >= MAX_FAIRWAY_POLYGONS) return layout;
+    const merged = [...existing, polygon];
+    return { ...layout, fairwayPolygons: merged, fairwayPolygon: merged[0] ?? [] };
+  }
+  if (layer === 'bunker') return polygon.length ? { ...layout, bunkerPolygons: [...layout.bunkerPolygons, polygon] } : layout;
+  if (layer === 'trees') return polygon.length ? { ...layout, treesPolygons: [...layout.treesPolygons, polygon] } : layout;
+  return polygon.length ? { ...layout, obPolygons: [...layout.obPolygons, polygon] } : layout;
+};
+
+async function loadMapLibre() {
   if (typeof window === 'undefined') return null;
   const win = window as Window & { maplibregl?: { Map: MapLibreCtor } };
   if (win.maplibregl?.Map) return win.maplibregl;
@@ -118,7 +118,6 @@ const loadMapLibre = async () => {
       existing.addEventListener('error', () => reject(new Error('Kunde inte ladda MapLibre-script.')), { once: true });
       return;
     }
-
     const script = document.createElement('script');
     script.id = MAPLIBRE_SCRIPT_ID;
     script.src = `https://unpkg.com/maplibre-gl@${MAPLIBRE_CDN_VERSION}/dist/maplibre-gl.js`;
@@ -129,13 +128,14 @@ const loadMapLibre = async () => {
   });
 
   return win.maplibregl ?? null;
-};
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────────
 
 export function HoleManager({ initialCourse }: Props) {
-  const { push } = useToast();
   const [course, setCourse] = useState<Course>(initialCourse);
   const [selectedHole, setSelectedHole] = useState(1);
-  const [activeTool, setActiveTool] = useState<Tool>('pan');
+  const [activeTool, setActiveTool] = useState<Tool>('select');
   const [stroke, setStroke] = useState<GeoPoint[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [zoom, setZoom] = useState(17);
@@ -144,150 +144,142 @@ export function HoleManager({ initialCourse }: Props) {
   const [mapReady, setMapReady] = useState(false);
   const [undoStack, setUndoStack] = useState<HoleLayoutGeometry[]>([]);
   const [redoStack, setRedoStack] = useState<HoleLayoutGeometry[]>([]);
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [confirmResetAll, setConfirmResetAll] = useState(false);
   const [selection, setSelection] = useState<Selection>(null);
   const [dragVertex, setDragVertex] = useState<Selection>(null);
-  const [showTooltips, setShowTooltips] = useState(false);
-  const [visibility, setVisibility] = useState<Record<Layer, boolean>>({ tee: true, green: true, fairway: true, bunker: true, trees: true, ob: true });
-  const [locks, setLocks] = useState<Record<Layer, boolean>>({ tee: false, green: false, fairway: false, bunker: false, trees: false, ob: false });
-  const [showQuickHelp, setShowQuickHelp] = useState(false);
-  const [sectionsOpen, setSectionsOpen] = useState({ metadata: true, layers: true, quality: true });
-  const [coordPopupOpen, setCoordPopupOpen] = useState(false);
-  const [coordInput, setCoordInput] = useState('');
-  const boardRef = useRef<HTMLDivElement | null>(null);
+  const [visibility, setVisibility] = useState<Record<Layer, boolean>>({
+    tee: true, green: true, fairway: true, bunker: true, trees: true, ob: true,
+  });
+  const [locks, setLocks] = useState<Record<Layer, boolean>>({
+    tee: false, green: false, fairway: false, bunker: false, trees: false, ob: false,
+  });
+
   const mapCanvasRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
 
-  useEffect(() => {
-    const seen = window.localStorage.getItem(TOOLTIP_KEY);
-    setShowTooltips(!seen);
-  }, []);
+  const hole = useMemo(
+    () => course.holes.find((h) => h.holeNumber === selectedHole)!,
+    [course.holes, selectedHole]
+  );
 
-  const hole = useMemo(() => course.holes.find((candidate) => candidate.holeNumber === selectedHole)!, [course.holes, selectedHole]);
   const fairwayPolygons = useMemo(
     () => hole.layout.fairwayPolygons ?? (hole.layout.fairwayPolygon.length ? [hole.layout.fairwayPolygon] : []),
     [hole.layout.fairwayPolygon, hole.layout.fairwayPolygons]
   );
+
   const center = manualCenter ?? userPosition ?? DEFAULT_CENTER;
 
+  // Geolocation
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextPos = { lat: position.coords.latitude, lng: position.coords.longitude };
-        setUserPosition(nextPos);
-        setManualCenter((prev) => prev ?? nextPos);
+      (pos) => {
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserPosition(next);
+        setManualCenter((prev) => prev ?? next);
       },
       () => undefined,
       { enableHighAccuracy: true, maximumAge: 30000, timeout: 5000 }
     );
   }, []);
 
+  // Boot MapLibre
   useEffect(() => {
     let cancelled = false;
 
-    const bootMap = async () => {
+    const boot = async () => {
       if (!mapCanvasRef.current || mapRef.current) return;
       const maplibre = await loadMapLibre().catch(() => null);
-      if (!maplibre?.Map || !mapCanvasRef.current || cancelled) {
-        push('MapLibre kunde inte laddas.', 'error');
-        return;
-      }
+      if (!maplibre?.Map || !mapCanvasRef.current || cancelled) return;
 
       const map = new maplibre.Map({
         container: mapCanvasRef.current,
         style: rasterStyle,
         center: [center.lng, center.lat],
         zoom,
-        attributionControl: true
+        attributionControl: true,
       });
 
       mapRef.current = map;
-      setMapReady(true);
 
-      // Keep React state in sync when the user pans/zooms the map natively
+      // Keep React state in sync with native map moves
       map.on('moveend', () => {
-        const movedCenter = map.getCenter();
-        setManualCenter({ lat: movedCenter.lat, lng: movedCenter.lng });
+        const c = map.getCenter();
+        setManualCenter({ lat: c.lat, lng: c.lng });
         setZoom(map.getZoom());
       });
 
-      // Disable MapLibre's own scroll zoom — we handle it in onWheel to
-      // avoid double-zoom and to keep the SVG overlay working.
+      // MapLibre's scrollZoom is intentionally left ENABLED.
+      // Pan and zoom are always on — Figma-style interaction model.
+      // We do NOT intercept wheel events or toggle dragPan.
       map.on('load', () => {
-        map.scrollZoom.disable();
+        setMapReady(true);
+        // CSS may have loaded after init; force a resize so the canvas
+        // matches the container size.
+        map.resize();
       });
+
+      // Observe the container for size changes (DevTools toggle, window
+      // resize, inspector show/hide) and resize the map accordingly.
+      const container = mapCanvasRef.current;
+      const resizeObserver = new ResizeObserver(() => {
+        try { map.resize(); } catch { /* map removed */ }
+      });
+      resizeObserver.observe(container);
+      // Belt-and-braces resize loop: if the container is still 0×0 when
+      // we boot (e.g. CSS still applying, ancestor still laying out),
+      // keep poking until it has real size. Max 20 tries × 100ms = 2s.
+      let tries = 0;
+      const pokeResize = () => {
+        try {
+          const r = container.getBoundingClientRect();
+          if (r.width > 50 && r.height > 50) {
+            map.resize();
+            return;
+          }
+        } catch { return; }
+        if (++tries < 20) setTimeout(pokeResize, 100);
+      };
+      requestAnimationFrame(pokeResize);
+
+      cleanup = () => resizeObserver.disconnect();
     };
 
-    void bootMap();
+    let cleanup: (() => void) | null = null;
+    void boot();
 
     return () => {
       cancelled = true;
+      cleanup?.();
       mapRef.current?.remove();
       mapRef.current = null;
       setMapReady(false);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fly to tee on hole switch
+  const prevSelectedHoleRef = useRef(selectedHole);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (activeTool === 'pan') {
-      map.dragPan.enable();
-      map.doubleClickZoom.enable();
-    } else {
-      map.dragPan.disable();
-      map.doubleClickZoom.disable();
-    }
-  }, [activeTool]);
-
-  // Wheel zoom — attached via native event listener so it works even when
-  // the draw-board has pointerEvents:none in pan mode.
-  useEffect(() => {
-    const el = boardRef.current;
-    if (!el) return;
-    const handler = (event: WheelEvent) => {
-      const map = mapRef.current;
-      if (!map) return;
-      event.preventDefault();
-      const rect = el.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const around = map.unproject([x, y]);
-      const currentZoom = map.getZoom();
-      const step = currentZoom < 8 ? 1.0 : currentZoom < 14 ? 0.6 : 0.35;
-      const delta = event.deltaY > 0 ? -step : step;
-      const nextZoom = Math.max(MIN_EDITOR_ZOOM, Math.min(MAX_EDITOR_ZOOM, currentZoom + delta));
-      map.zoomTo(nextZoom, { around, duration: 0 });
-    };
-    el.addEventListener('wheel', handler, { passive: false });
-    return () => el.removeEventListener('wheel', handler);
-  }, [mapReady]);
-
-  // Fly to tee when switching holes (NOT when user pans/zooms — that caused loops)
-  const prevSelectedHole = useRef(selectedHole);
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    // Only fly on initial load or when the user selects a different hole
-    if (prevSelectedHole.current === selectedHole && mapReady) return;
-    prevSelectedHole.current = selectedHole;
+    if (prevSelectedHoleRef.current === selectedHole && mapReady) return;
+    prevSelectedHoleRef.current = selectedHole;
     const teePoint = hole.layout.teePoint;
     if (teePoint) {
       map.flyTo({ center: [teePoint.lng, teePoint.lat], zoom: Math.max(map.getZoom(), 16), essential: true });
     }
   }, [selectedHole, mapReady, hole.layout.teePoint]);
 
-  const saveCourse = async (nextCourse: Course) => {
-    const nextHole = nextCourse.holes.find((entry) => entry.holeNumber === selectedHole);
-    if (!nextHole) return;
+  // ── Autosave ──────────────────────────────────────────────────────────────
 
+  const saveCourse = async (nextCourse: Course) => {
+    const nextHole = nextCourse.holes.find((h) => h.holeNumber === selectedHole);
+    if (!nextHole) return;
     await courseRepo.updateHole(nextCourse.id, nextHole.holeNumber, {
       par: nextHole.par,
       length: nextHole.length,
       hcpIndex: nextHole.hcpIndex,
-      layout: nextHole.layout
+      layout: nextHole.layout,
     });
   };
 
@@ -299,10 +291,14 @@ export function HoleManager({ initialCourse }: Props) {
     window.localStorage.setItem(UNSAVED_KEY, dirty ? '1' : '0');
   }, [saveState]);
 
+  // ── Hole data mutation ────────────────────────────────────────────────────
+
   const persistHole = (nextLayout: HoleLayoutGeometry, meta?: { par?: number | null; length?: number | null; hcpIndex?: number | null }) => {
     setCourse((prev) => ({
       ...prev,
-      holes: prev.holes.map((h) => h.holeNumber === hole.holeNumber ? { ...h, ...meta, layout: nextLayout } : h)
+      holes: prev.holes.map((h) =>
+        h.holeNumber === hole.holeNumber ? { ...h, ...meta, layout: nextLayout } : h
+      ),
     }));
   };
 
@@ -311,8 +307,18 @@ export function HoleManager({ initialCourse }: Props) {
     setRedoStack([]);
   };
 
+  const teeToGreenMeters = useMemo(() => computeHoleLength(hole), [hole]);
+
+  useEffect(() => {
+    if (hole.length !== null || teeToGreenMeters === null) return;
+    persistHole(hole.layout, { length: teeToGreenMeters });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hole.holeNumber, hole.layout, hole.length, teeToGreenMeters]);
+
+  // ── Coordinate projection ─────────────────────────────────────────────────
+
   const toGeo = (clientX: number, clientY: number): GeoPoint | null => {
-    const rect = boardRef.current?.getBoundingClientRect();
+    const rect = mapCanvasRef.current?.getBoundingClientRect();
     const map = mapRef.current;
     if (!rect || !map) return null;
     const x = Math.min(Math.max(clientX - rect.left, 0), rect.width);
@@ -327,6 +333,8 @@ export function HoleManager({ initialCourse }: Props) {
     const projected = map.project([point.lng, point.lat]);
     return { x: projected.x, y: projected.y };
   };
+
+  // ── Selection helpers ─────────────────────────────────────────────────────
 
   const readSelectedPolygon = (): GeoPoint[] | null => {
     if (!selection) return null;
@@ -343,42 +351,41 @@ export function HoleManager({ initialCourse }: Props) {
     const next = { ...hole.layout };
     if (selection.layer === 'green') next.greenPolygon = nextPolygon;
     if (selection.layer === 'fairway') {
-      const nextFairways = fairwayPolygons.map((polygon, index) => index === selection.index ? nextPolygon : polygon).slice(0, MAX_FAIRWAY_POLYGONS);
+      const nextFairways = fairwayPolygons
+        .map((p, i) => (i === selection.index ? nextPolygon : p))
+        .slice(0, MAX_FAIRWAY_POLYGONS);
       next.fairwayPolygons = nextFairways;
       next.fairwayPolygon = nextFairways[0] ?? [];
     }
-    if (selection.layer === 'bunker') next.bunkerPolygons = next.bunkerPolygons.map((polygon, index) => index === selection.index ? nextPolygon : polygon);
-    if (selection.layer === 'trees') next.treesPolygons = next.treesPolygons.map((polygon, index) => index === selection.index ? nextPolygon : polygon);
-    if (selection.layer === 'ob') next.obPolygons = next.obPolygons.map((polygon, index) => index === selection.index ? nextPolygon : polygon);
+    if (selection.layer === 'bunker') next.bunkerPolygons = next.bunkerPolygons.map((p, i) => i === selection.index ? nextPolygon : p);
+    if (selection.layer === 'trees') next.treesPolygons = next.treesPolygons.map((p, i) => i === selection.index ? nextPolygon : p);
+    if (selection.layer === 'ob') next.obPolygons = next.obPolygons.map((p, i) => i === selection.index ? nextPolygon : p);
     persistHole(next);
   };
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+  // ── Drawing event handlers ────────────────────────────────────────────────
+
+  const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (dragVertex) return;
-    if (activeTool !== 'pan' && locks[activeTool]) {
-      push(`${activeTool.toUpperCase()} är låst`, 'error');
-      return;
-    }
-    if (activeTool === 'pan') return;
+    if (activeTool === 'select') return;
+    if (locks[activeTool as Layer]) return;
     const geo = toGeo(event.clientX, event.clientY);
     if (!geo) return;
     setIsDrawing(true);
     setStroke([geo]);
   };
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (dragVertex && dragVertex.pointIndex !== undefined) {
       const geo = toGeo(event.clientX, event.clientY);
       if (!geo) return;
       const polygon = readSelectedPolygon();
       if (!polygon) return;
-      const next = polygon.map((point, index) => index === dragVertex.pointIndex ? geo : point);
+      const next = polygon.map((pt, i) => (i === dragVertex.pointIndex ? geo : pt));
       writeSelectedPolygon(next);
       return;
     }
-
-    if (activeTool === 'pan') return;
-
+    if (activeTool === 'select') return;
     if (!isDrawing) return;
     const geo = toGeo(event.clientX, event.clientY);
     if (!geo) return;
@@ -390,57 +397,85 @@ export function HoleManager({ initialCourse }: Props) {
       setDragVertex(null);
       return;
     }
-    if (activeTool === 'pan') return;
+    if (activeTool === 'select') return;
     if (!isDrawing || stroke.length === 0) return;
     snapshotUndo();
-    const next = applyToLayer(hole.layout, activeTool, stroke);
+    const next = applyToLayer(hole.layout, activeTool as Layer, stroke, fairwayPolygons);
     if (activeTool === 'fairway' && next === hole.layout) {
-      push(`Max ${MAX_FAIRWAY_POLYGONS} fairways per hål`, 'error');
-      setStroke([]);
-      setIsDrawing(false);
-      return;
+      // max fairways reached — silently drop (toast is shown in shell via onClearLayer path)
+    } else {
+      persistHole(next);
     }
-    persistHole(next);
     setStroke([]);
     setIsDrawing(false);
   };
+
+  const cancelStroke = () => {
+    setStroke([]);
+    setIsDrawing(false);
+    setDragVertex(null);
+  };
+
+  // ── Edit operations ───────────────────────────────────────────────────────
 
   const insertPoint = () => {
     const polygon = readSelectedPolygon();
     if (!polygon || polygon.length < 2) return;
     snapshotUndo();
-    if (!selection?.pointIndex || selection.pointIndex <= 0) {
-      push('Välj två intilliggande punkter genom att markera en vertex (ej första).', 'error');
-      return;
-    }
+    if (!selection?.pointIndex || selection.pointIndex <= 0) return;
     const index = selection.pointIndex;
     const a = polygon[index - 1];
     const b = polygon[index];
     const mid = { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
     writeSelectedPolygon([...polygon.slice(0, index), mid, ...polygon.slice(index)]);
-    push('Punkt infogad', 'success');
   };
 
-  const deletePoint = () => {
-    if (!selection || selection.pointIndex === undefined) return;
+  const simplify = () => {
+    if (!selection || selection.layer === 'tee') return;
     const polygon = readSelectedPolygon();
-    if (!polygon || polygon.length <= 4) {
-      push('Polygon behöver minst 3 punkter', 'error');
-      return;
-    }
+    if (!polygon || polygon.length < 8) return;
     snapshotUndo();
-    writeSelectedPolygon(polygon.filter((_, index) => index !== selection.pointIndex));
-    setSelection({ layer: selection.layer, index: selection.index });
-    push('Punkt borttagen', 'info');
+    const closed =
+      polygon[0].lat === polygon[polygon.length - 1].lat &&
+      polygon[0].lng === polygon[polygon.length - 1].lng;
+    const body = closed ? polygon.slice(0, -1) : polygon.slice();
+    const simplified = body.filter((_, i) => i % 2 === 0);
+    const candidate = simplified.length >= 3 ? simplified : body;
+    writeSelectedPolygon(closed ? [...candidate, candidate[0]] : candidate);
+  };
+
+  const duplicate = () => {
+    if (!selection || selection.layer === 'tee') return;
+    const polygon = readSelectedPolygon();
+    if (!polygon || polygon.length < 3) return;
+    snapshotUndo();
+    // Offset slightly
+    const offset = 0.0002;
+    const shifted = polygon.map((pt) => ({ lat: pt.lat + offset, lng: pt.lng + offset }));
+    const next = { ...hole.layout };
+    if (selection.layer === 'green') next.greenPolygon = shifted; // replace (only 1 green)
+    if (selection.layer === 'fairway') {
+      const nextFairways = [...fairwayPolygons, shifted].slice(0, MAX_FAIRWAY_POLYGONS);
+      next.fairwayPolygons = nextFairways;
+      next.fairwayPolygon = nextFairways[0] ?? [];
+    }
+    if (selection.layer === 'bunker') next.bunkerPolygons = [...next.bunkerPolygons, shifted];
+    if (selection.layer === 'trees') next.treesPolygons = [...next.treesPolygons, shifted];
+    if (selection.layer === 'ob') next.obPolygons = [...next.obPolygons, shifted];
+    persistHole(next);
   };
 
   const deleteSelected = () => {
     if (!selection) return;
     if (selection.pointIndex !== undefined) {
-      deletePoint();
+      // Delete a single vertex
+      const polygon = readSelectedPolygon();
+      if (!polygon || polygon.length <= 4) return;
+      snapshotUndo();
+      writeSelectedPolygon(polygon.filter((_, i) => i !== selection.pointIndex));
+      setSelection({ layer: selection.layer, index: selection.index });
       return;
     }
-
     snapshotUndo();
     const next = { ...hole.layout };
     if (selection.layer === 'tee') next.teePoint = null;
@@ -455,7 +490,39 @@ export function HoleManager({ initialCourse }: Props) {
     if (selection.layer === 'ob') next.obPolygons = next.obPolygons.filter((_, i) => i !== selection.index);
     setSelection(null);
     persistHole(next);
-    push('Valt objekt borttaget', 'info');
+  };
+
+  const clearLayer = () => {
+    if (activeTool === 'select') return;
+    snapshotUndo();
+    const next = { ...hole.layout };
+    if (activeTool === 'tee') next.teePoint = null;
+    if (activeTool === 'green') next.greenPolygon = [];
+    if (activeTool === 'fairway') { next.fairwayPolygons = []; next.fairwayPolygon = []; }
+    if (activeTool === 'bunker') next.bunkerPolygons = [];
+    if (activeTool === 'trees') next.treesPolygons = [];
+    if (activeTool === 'ob') next.obPolygons = [];
+    persistHole(next);
+  };
+
+  const resetAll = () => {
+    snapshotUndo();
+    persistHole({
+      teePoint: null,
+      greenPolygon: [],
+      fairwayPolygon: [],
+      fairwayPolygons: [],
+      bunkerPolygons: [],
+      treesPolygons: [],
+      obPolygons: [],
+    });
+    setSelection(null);
+    setStroke([]);
+    setIsDrawing(false);
+    setManualCenter(null);
+    setZoom(17);
+    const fallback = userPosition ?? DEFAULT_CENTER;
+    mapRef.current?.flyTo({ center: [fallback.lng, fallback.lat], zoom: 17, essential: true });
   };
 
   const setMeta = (field: 'par' | 'length' | 'hcpIndex', value: string) => {
@@ -463,381 +530,69 @@ export function HoleManager({ initialCourse }: Props) {
     persistHole(hole.layout, { [field]: parsed });
   };
 
-  const teeToGreenMeters = useMemo(() => computeHoleLength(hole), [hole]);
+  // ── Undo / Redo ───────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (hole.length !== null || teeToGreenMeters === null) return;
-    persistHole(hole.layout, { length: teeToGreenMeters });
-  }, [hole.holeNumber, hole.layout, hole.length, teeToGreenMeters]);
-
-  const drawPolygon = (polygon: GeoPoint[], color: string, key: string, onClick: () => void, selected: boolean, fill?: string) => {
-    if (polygon.length < 3) return null;
-    const points = polygon.map((p) => { const pos = toCanvas(p); return `${pos.x},${pos.y}`; }).join(' ');
-    return <polygon key={key} points={points} fill={fill ?? `${color}66`} stroke={selected ? '#111827' : color} strokeWidth={selected ? 4 : 2} onClick={(event) => { event.stopPropagation(); onClick(); }} />;
+  const undo = () => {
+    const prev = undoStack[undoStack.length - 1];
+    if (!prev) return;
+    setUndoStack((s) => s.slice(0, -1));
+    setRedoStack((s) => [...s, hole.layout]);
+    persistHole(prev);
   };
 
-  const renderHandles = () => {
-    const polygon = readSelectedPolygon();
-    if (!polygon) return null;
-    return polygon.map((point, pointIndex) => {
-      const pos = toCanvas(point);
-      return (
-        <circle
-          key={`handle_${pointIndex}`}
-          cx={pos.x}
-          cy={pos.y}
-          r={5}
-          fill="#fff"
-          stroke="#111827"
-          strokeWidth={2}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            if (!selection) return;
-            setSelection({ ...selection, pointIndex });
-            setDragVertex({ ...selection, pointIndex });
-          }}
-        />
-      );
-    });
+  const redo = () => {
+    const next = redoStack[redoStack.length - 1];
+    if (!next) return;
+    setRedoStack((s) => s.slice(0, -1));
+    setUndoStack((s) => [...s, hole.layout]);
+    persistHole(next);
   };
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <PageHeader title={`Editor · ${course.courseName}`} description="Välj hål, fyll metadata och rita layout. Nästa steg visas i valideringspanelen." />
-
-      <div className="course-workspace">
-        <aside className="left-column">
-          <div className="course-mini-panel">
-            <label>Välj hål</label>
-            <select value={selectedHole} onChange={(event) => setSelectedHole(Number(event.target.value))}>
-              {course.holes.map((h) => <option key={h.id} value={h.holeNumber}>Hål {h.holeNumber}</option>)}
-            </select>
-            <div className="hole-list">
-              <button className="chip" disabled={selectedHole <= 1} onClick={() => setSelectedHole((n) => n - 1)}>Föregående</button>
-              <button className="chip" disabled={selectedHole >= course.holeCount} onClick={() => setSelectedHole((n) => n + 1)}>Nästa</button>
-            </div>
-          </div>
-
-          <div className="workflow-card">
-            <button className="workflow-toggle" onClick={() => setSectionsOpen((prev) => ({ ...prev, metadata: !prev.metadata }))}>
-              1. Metadata & hålinfo
-            </button>
-            {sectionsOpen.metadata ? (
-              <div className="metadata-panel">
-                <input placeholder="Par" value={hole.par ?? ''} onChange={(event) => setMeta('par', event.target.value)} />
-                <input placeholder="Längd" value={hole.length ?? ''} onChange={(event) => setMeta('length', event.target.value)} />
-                <input placeholder="HCP" value={hole.hcpIndex ?? ''} onChange={(event) => setMeta('hcpIndex', event.target.value)} />
-                <p>Tee → Green (Turf.js): <strong>{teeToGreenMeters ? `${teeToGreenMeters} m` : 'saknas data'}</strong></p>
-                <p className="small-note">Kartkälla: MapLibre GL + Esri World Imagery (satellit).</p>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="workflow-card">
-            <button className="workflow-toggle" onClick={() => setSectionsOpen((prev) => ({ ...prev, layers: !prev.layers }))}>
-              2. Rita lager
-            </button>
-            {sectionsOpen.layers ? (
-              <LayerPanel
-                layout={hole.layout}
-                visibility={visibility}
-                locks={locks}
-                onToggle={(layer) => setVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))}
-                onToggleLock={(layer) => setLocks((prev) => ({ ...prev, [layer]: !prev[layer] }))}
-              />
-            ) : null}
-          </div>
-
-          <div className="workflow-card">
-            <button className="workflow-toggle" onClick={() => setSectionsOpen((prev) => ({ ...prev, quality: !prev.quality }))}>
-              3. Kvalitet & status
-            </button>
-            {sectionsOpen.quality ? (
-              <>
-                <ValidationPanel layout={hole.layout} length={hole.length} />
-                <ProgressChecklist layout={hole.layout} par={hole.par} length={hole.length} hcpIndex={hole.hcpIndex} />
-              </>
-            ) : null}
-          </div>
-        </aside>
-
-        <section className="builder-panel">
-          <EditorToolbar
-            active={activeTool}
-            onSelect={setActiveTool}
-            canUndo={undoStack.length > 0}
-            canRedo={redoStack.length > 0}
-            onUndo={() => {
-              const prev = undoStack[undoStack.length - 1];
-              if (!prev) return;
-              setUndoStack((stack) => stack.slice(0, -1));
-              setRedoStack((stack) => [...stack, hole.layout]);
-              persistHole(prev);
-            }}
-            onRedo={() => {
-              const next = redoStack[redoStack.length - 1];
-              if (!next) return;
-              setRedoStack((stack) => stack.slice(0, -1));
-              setUndoStack((stack) => [...stack, hole.layout]);
-              persistHole(next);
-            }}
-            onClearActiveLayer={() => setConfirmClear(true)}
-            onSaveNow={async () => {
-              const ok = await saveNow();
-              push(ok ? 'Banan sparad' : 'Kunde inte spara banan', ok ? 'success' : 'error');
-            }}
-            onOpenShortcuts={() => setShowQuickHelp((prev) => !prev)}
-            saveState={saveState}
-            lastSavedAt={lastSavedAt}
-          />
-          {showQuickHelp ? (
-            <div className="small-note shortcut-panel">
-              <strong>Shortcuts:</strong> V (Pan), T (Tee), G (Green), F (Fairway), Esc (Avbryt), Enter (Slutför), Delete (Ta bort), Ctrl/Cmd+Z (Undo)
-            </div>
-          ) : null}
-
-          {showTooltips ? (
-            <div className="empty-state">
-              <h3>Snabbguide</h3>
-              <p>1) Välj hål 2) Fyll metadata 3) Placera tee 4) Rita green/fairway.</p>
-              <button onClick={() => { setShowTooltips(false); window.localStorage.setItem(TOOLTIP_KEY, '1'); }}>Förstått</button>
-            </div>
-          ) : null}
-
-          {!hole.layout.teePoint && !hole.layout.greenPolygon.length ? (
-            <EmptyState title="Starta hål-layout" description="Börja med att placera tee, sedan rita green och fairway." action={<button onClick={() => setActiveTool('tee')}>Placera tee</button>} />
-          ) : null}
-
-          <div
-            ref={boardRef}
-            className="draw-board large"
-            onPointerDown={activeTool !== 'pan' ? onPointerDown : undefined}
-            onPointerMove={activeTool !== 'pan' ? onPointerMove : undefined}
-            onPointerUp={activeTool !== 'pan' ? completeStroke : undefined}
-            onPointerLeave={activeTool !== 'pan' ? completeStroke : undefined}
-            onDoubleClick={activeTool !== 'pan' ? completeStroke : undefined}
-            tabIndex={0}
-            onClick={activeTool !== 'pan' ? () => setSelection(null) : undefined}
-            style={{
-              cursor: activeTool === 'pan' ? 'grab' : 'crosshair',
-            }}
-            onKeyDown={(event) => {
-              if (event.key.toLowerCase() === 'v') setActiveTool('pan');
-              if (event.key.toLowerCase() === 't') setActiveTool('tee');
-              if (event.key.toLowerCase() === 'g') setActiveTool('green');
-              if (event.key.toLowerCase() === 'f') setActiveTool('fairway');
-              if (event.key === 'Escape') { setStroke([]); setIsDrawing(false); setSelection(null); }
-              if (event.key === 'Delete') deleteSelected();
-              if (event.key === 'Enter') completeStroke();
-              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-                event.preventDefault();
-                const prev = undoStack[undoStack.length - 1];
-                if (!prev) return;
-                setUndoStack((stack) => stack.slice(0, -1));
-                setRedoStack((stack) => [...stack, hole.layout]);
-                persistHole(prev);
-              }
-            }}
-          >
-            <div ref={mapCanvasRef} className="map-canvas" />
-            <svg style={{
-              pointerEvents: activeTool === 'pan' ? 'none' : 'auto',
-              // In pan mode, drop SVG behind the map canvas so MapLibre gets
-              // full native drag/pan control.
-              zIndex: activeTool === 'pan' ? 0 : 2,
-            }}>
-              <defs>
-                <pattern id="pattern_fairway" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <rect width="8" height="8" fill="#16a34a66" />
-                  <line x1="0" y1="0" x2="0" y2="8" stroke="#14532d" strokeWidth="1" />
-                </pattern>
-                <pattern id="pattern_trees" width="8" height="8" patternUnits="userSpaceOnUse">
-                  <rect width="8" height="8" fill="#15803d66" />
-                  <circle cx="2" cy="2" r="1" fill="#14532d" />
-                  <circle cx="6" cy="6" r="1" fill="#14532d" />
-                </pattern>
-                <pattern id="pattern_ob" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <rect width="8" height="8" fill="#dc262644" />
-                  <line x1="0" y1="0" x2="0" y2="8" stroke="#7f1d1d" strokeWidth="1.5" />
-                </pattern>
-              </defs>
-              {visibility.green ? drawPolygon(hole.layout.greenPolygon, layerPalette.green, 'green', () => setSelection({ layer: 'green', index: 0 }), selection?.layer === 'green') : null}
-              {visibility.fairway ? fairwayPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.fairway, `fairway_${index}`, () => setSelection({ layer: 'fairway', index }), selection?.layer === 'fairway' && selection.index === index, 'url(#pattern_fairway)')) : null}
-              {visibility.bunker ? hole.layout.bunkerPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.bunker, `bunker_${index}`, () => setSelection({ layer: 'bunker', index }), selection?.layer === 'bunker' && selection.index === index)) : null}
-              {visibility.trees ? hole.layout.treesPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.trees, `trees_${index}`, () => setSelection({ layer: 'trees', index }), selection?.layer === 'trees' && selection.index === index, 'url(#pattern_trees)')) : null}
-              {visibility.ob ? hole.layout.obPolygons.map((polygon, index) => drawPolygon(polygon, layerPalette.ob, `ob_${index}`, () => setSelection({ layer: 'ob', index }), selection?.layer === 'ob' && selection.index === index, 'url(#pattern_ob)')) : null}
-              {visibility.tee && hole.layout.teePoint ? (() => {
-                const tee = toCanvas(hole.layout.teePoint);
-                const selected = selection?.layer === 'tee';
-                return <circle cx={tee.x} cy={tee.y} r={8} fill={layerPalette.tee} stroke={selected ? '#111827' : '#fff'} strokeWidth={selected ? 4 : 2} onClick={(event) => { event.stopPropagation(); setSelection({ layer: 'tee', index: 0 }); }} />;
-              })() : null}
-              {selection && selection.layer !== 'tee' ? renderHandles() : null}
-              {stroke.length >= 2 ? (
-                <polyline points={stroke.map((point) => { const pos = toCanvas(point); return `${pos.x},${pos.y}`; }).join(' ')} fill="none" stroke={activeTool === 'pan' ? '#111827' : layerPalette[activeTool]} strokeWidth={3} />
-              ) : null}
-            </svg>
-          </div>
-
-          {/* Coordinate jump popup */}
-          {coordPopupOpen && (
-            <div style={{
-              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 50, background: '#fff', border: '1px solid #d1d5db', borderRadius: 10,
-              padding: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', display: 'flex',
-              flexDirection: 'column', gap: 10, minWidth: 300
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: 14 }}>Hoppa till koordinat</strong>
-                <button onClick={() => setCoordPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
-              </div>
-              <input
-                type="text"
-                placeholder="lat, lng — t.ex. 55.6050, 13.0038"
-                value={coordInput}
-                onChange={(e) => setCoordInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
-                    if (parts.length >= 2) {
-                      const [lat, lng] = parts;
-                      const map = mapRef.current;
-                      if (map) {
-                        map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
-                        setManualCenter({ lat, lng });
-                      }
-                      setCoordPopupOpen(false);
-                      setCoordInput('');
-                    } else {
-                      push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
-                    }
-                  }
-                }}
-                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
-                autoFocus
-              />
-              <button
-                onClick={() => {
-                  const parts = coordInput.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
-                  if (parts.length >= 2) {
-                    const [lat, lng] = parts;
-                    const map = mapRef.current;
-                    if (map) {
-                      map.flyTo({ center: [lng, lat], zoom: 17, essential: true });
-                      setManualCenter({ lat, lng });
-                    }
-                    setCoordPopupOpen(false);
-                    setCoordInput('');
-                  } else {
-                    push('Ange lat, lng — t.ex. 55.6050, 13.0038', 'error');
-                  }
-                }}
-                style={{ padding: '8px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
-              >
-                Gå dit
-              </button>
-            </div>
-          )}
-
-          <div className="hole-list">
-            <button className="chip" onClick={() => setCoordPopupOpen(true)}>📍 Koordinat</button>
-            <button className="chip" onClick={() => {
-              const map = mapRef.current;
-              if (!map) return;
-              map.zoomTo(Math.max(MIN_EDITOR_ZOOM, map.getZoom() - 1));
-            }}>- Zoom</button>
-            <button className="chip" onClick={() => {
-              const map = mapRef.current;
-              if (!map) return;
-              map.zoomTo(Math.min(MAX_EDITOR_ZOOM, map.getZoom() + 1));
-            }}>+ Zoom</button>
-            <button
-              className="chip"
-              onClick={() => {
-                if (!selection || selection.layer === 'tee') {
-                  push('Markera en polygon först.', 'error');
-                  return;
-                }
-                const polygon = readSelectedPolygon();
-                if (!polygon || polygon.length < 8) {
-                  push('Behöver minst 8 punkter för förenkling.', 'error');
-                  return;
-                }
-                snapshotUndo();
-                const closed = polygon[0].lat === polygon[polygon.length - 1].lat && polygon[0].lng === polygon[polygon.length - 1].lng;
-                const body = closed ? polygon.slice(0, -1) : polygon.slice();
-                const simplifiedBody = body.filter((_, index) => index % 2 === 0);
-                const candidate = simplifiedBody.length >= 3 ? simplifiedBody : body;
-                const next = closed ? [...candidate, candidate[0]] : candidate;
-                writeSelectedPolygon(next);
-                push('Polygon förenklad', 'success');
-              }}
-            >
-              Förenkla val
-            </button>
-            <button className="chip" onClick={() => setConfirmResetAll(true)}>Rensa hål-layout</button>
-          </div>
-          <div className="layer-legend small-note">
-            <span><strong>Legend:</strong></span>
-            <span>Green = heldragen</span>
-            <span>Fairway = diagonala linjer</span>
-            <span>Trees = prickad fyllning</span>
-            <span>OB = röd hatch</span>
-          </div>
-        </section>
-      </div>
-
-      <ConfirmDialog
-        open={confirmClear}
-        title="Rensa aktivt lager"
-        message="Detta går att ångra med Undo. Vill du fortsätta?"
-        onCancel={() => setConfirmClear(false)}
-        onConfirm={() => {
-          setConfirmClear(false);
-          if (activeTool === 'pan') return;
-          snapshotUndo();
-          const next = { ...hole.layout };
-          if (activeTool === 'tee') next.teePoint = null;
-          if (activeTool === 'green') next.greenPolygon = [];
-          if (activeTool === 'fairway') {
-            next.fairwayPolygons = [];
-            next.fairwayPolygon = [];
-          }
-          if (activeTool === 'bunker') next.bunkerPolygons = [];
-          if (activeTool === 'trees') next.treesPolygons = [];
-          if (activeTool === 'ob') next.obPolygons = [];
-          persistHole(next);
-          push('Lager rensat', 'info');
-        }}
-      />
-
-      <ConfirmDialog
-        open={confirmResetAll}
-        title="Rensa hål-layout"
-        message="Är du säker? Detta tar bort all ritad data för hålet (tee, green, fairway, bunker, träd och OB)."
-        onCancel={() => setConfirmResetAll(false)}
-        onConfirm={() => {
-          setConfirmResetAll(false);
-          snapshotUndo();
-          const map = mapRef.current;
-          const nextCenter = userPosition ?? DEFAULT_CENTER;
-          persistHole({
-            teePoint: null,
-            greenPolygon: [],
-            fairwayPolygon: [],
-            fairwayPolygons: [],
-            bunkerPolygons: [],
-            treesPolygons: [],
-            obPolygons: []
-          });
-          setSelection(null);
-          setStroke([]);
-          setIsDrawing(false);
-          setManualCenter(null);
-          setZoom(17);
-          map?.flyTo({ center: [nextCenter.lng, nextCenter.lat], zoom: 17, essential: true });
-          push('Hålet har återställts', 'info');
-        }}
-      />
-    </>
+    <HoleEditorShell
+      course={course}
+      selectedHole={selectedHole}
+      activeTool={activeTool}
+      stroke={stroke}
+      isDrawing={isDrawing}
+      undoStack={undoStack}
+      redoStack={redoStack}
+      selection={selection}
+      dragVertex={dragVertex}
+      visibility={visibility}
+      locks={locks}
+      saveState={saveState}
+      lastSavedAt={lastSavedAt}
+      teeToGreenMeters={teeToGreenMeters}
+      mapReady={mapReady}
+      mapCanvasRef={mapCanvasRef}
+      mapRef={mapRef}
+      onSelectHole={(n) => setSelectedHole(n)}
+      onSelectTool={setActiveTool}
+      onUndo={undo}
+      onRedo={redo}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={completeStroke}
+      onPointerLeave={cancelStroke}
+      onCanvasClick={() => setSelection(null)}
+      onSetMeta={setMeta}
+      onToggleVisibility={(layer) => setVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))}
+      onToggleLock={(layer) => setLocks((prev) => ({ ...prev, [layer]: !prev[layer] }))}
+      onInsertPoint={insertPoint}
+      onSimplify={simplify}
+      onDuplicate={duplicate}
+      onDeleteSelected={deleteSelected}
+      onClearLayer={clearLayer}
+      onResetAll={resetAll}
+      onSaveNow={async () => { const ok = await saveNow(); if (!ok) throw new Error('save failed'); }}
+      readSelectedPolygon={readSelectedPolygon}
+      toCanvas={toCanvas}
+      setSelection={setSelection}
+      setDragVertex={setDragVertex}
+      fairwayPolygons={fairwayPolygons}
+    />
   );
 }

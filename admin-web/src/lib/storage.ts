@@ -1,4 +1,4 @@
-import { api } from './api';
+import { request } from './api';
 import { Course, HoleLayoutGeometry } from './types';
 
 type ApiCourse = {
@@ -75,13 +75,13 @@ const toCourse = (course: ApiCourse): Course => ({
 export const courseRepo = {
   async list(search = ''): Promise<Course[]> {
     const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
-    const rows = await api.request<ApiCourse[]>(`/courses${query}`);
+    const rows = await request<ApiCourse[]>(`/courses${query}`);
     return rows.map(toCourse);
   },
 
   async find(courseId: string): Promise<Course | null> {
     try {
-      const row = await api.request<ApiCourse>(`/courses/${courseId}`);
+      const row = await request<ApiCourse>(`/courses/${courseId}`);
       return toCourse(row);
     } catch {
       return null;
@@ -89,12 +89,12 @@ export const courseRepo = {
   },
 
   async create(input: { clubName: string; courseName: string; teeName: string; holeCount: 9 | 18 }) {
-    const created = await api.request<ApiCourse>('/courses', {
+    const created = await request<ApiCourse>('/courses', {
       method: 'POST',
       body: JSON.stringify(input)
     });
 
-    await api.request(`/courses/${created.id}/holes`, {
+    await request(`/courses/${created.id}/holes`, {
       method: 'POST',
       body: JSON.stringify({ holeCount: input.holeCount })
     });
@@ -111,7 +111,7 @@ export const courseRepo = {
     };
 
     if (Object.keys(payload).length > 0) {
-      await api.request(`/courses/${courseId}`, {
+      await request(`/courses/${courseId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
@@ -121,7 +121,7 @@ export const courseRepo = {
   },
 
   async remove(courseId: string) {
-    await api.request(`/courses/${courseId}`, { method: 'DELETE' });
+    await request(`/courses/${courseId}`, { method: 'DELETE' });
     return this.list();
   },
 
@@ -133,14 +133,14 @@ export const courseRepo = {
     };
 
     if (Object.keys(holeMetaPayload).length > 0) {
-      await api.request(`/courses/${courseId}/holes/${holeNumber}`, {
+      await request(`/courses/${courseId}/holes/${holeNumber}`, {
         method: 'PATCH',
         body: JSON.stringify(holeMetaPayload)
       });
     }
 
     if (patch.layout) {
-      await api.request(`/courses/${courseId}/holes/${holeNumber}/layout`, {
+      await request(`/courses/${courseId}/holes/${holeNumber}/layout`, {
         method: 'PATCH',
         body: JSON.stringify({ geometry: patch.layout })
       });
