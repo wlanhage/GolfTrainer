@@ -750,6 +750,22 @@ export function HoleEditorShell(props: HoleEditorShellProps) {
             <path d="M12 22s-7-7-7-12a7 7 0 1 1 14 0c0 5-7 12-7 12z" /><circle cx="12" cy="10" r="2.5" />
           </svg>
         </ToolBtn>
+
+        <div className="he-tool-sep" />
+
+        {/* Rensa aktivt lager */}
+        <div className="he-tool-wrap" data-tooltip={`Rensa ${activeTool !== 'select' ? activeTool : 'lager'}`}>
+          <button
+            className="he-tool"
+            aria-label="Rensa aktivt lager"
+            onClick={() => setConfirmClear(true)}
+            style={{ color: 'var(--he-danger)' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* ── CONTEXTUAL BAR ── */}
@@ -802,6 +818,7 @@ export function HoleEditorShell(props: HoleEditorShellProps) {
         onToggleVisibility={onToggleVisibility}
         onToggleLock={onToggleLock}
         onSetMeta={onSetMeta}
+        onRequestResetAll={() => setConfirmReset(true)}
       />
 
       {/* ── HOLE STRIP ── */}

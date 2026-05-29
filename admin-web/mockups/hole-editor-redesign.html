@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hole Editor · Redesign Mockup</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: rgba(17, 24, 39, 0.78);
+    --panel-solid: #111827;
+    --panel-border: rgba(255,255,255,0.08);
+    --panel-border-strong: rgba(255,255,255,0.14);
+    --text: #f3f4f6;
+    --text-dim: #9ca3af;
+    --text-mute: #6b7280;
+    --accent: #22c55e;
+    --accent-2: #16a34a;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --tee: #ef4444;
+    --green: #22c55e;
+    --fairway: #16a34a;
+    --bunker: #f59e0b;
+    --trees: #15803d;
+    --ob: #dc2626;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 8px 28px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.25);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Pro Text", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background: var(--bg);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+
+  /* ============ APP SHELL ============ */
+  .app {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* ============ MAP / SATELLITE BACKDROP (mock) ============ */
+  .map {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(1200px 700px at 35% 45%, #2d4a2a 0%, #1f3220 30%, #0f1f12 65%, #0a1408 100%);
+    overflow: hidden;
+  }
+  .map::before {
+    /* fake terrain texture */
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(0,0,0,0.35) 0 60px, transparent 61px),
+      radial-gradient(circle at 70% 20%, rgba(255,255,255,0.04) 0 80px, transparent 81px),
+      radial-gradient(circle at 80% 75%, rgba(0,0,0,0.25) 0 120px, transparent 121px),
+      radial-gradient(circle at 40% 80%, rgba(255,255,255,0.05) 0 100px, transparent 101px);
+    opacity: 0.7;
+    filter: blur(1px);
+  }
+  .map svg.layout-overlay {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* ============ TOP BAR ============ */
+  .topbar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 20;
+  }
+  .crumbs {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text-dim);
+    font-size: 13px;
+    min-width: 0;
+  }
+  .crumbs .back {
+    width: 30px; height: 30px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .crumbs .back:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .crumbs .sep { opacity: 0.5; }
+  .crumbs .course-name { color: var(--text); font-weight: 600; }
+
+  .hole-jumper {
+    display: flex; align-items: center;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 10px;
+    padding: 3px;
+    margin-left: 8px;
+  }
+  .hole-jumper button {
+    width: 28px; height: 28px;
+    border: 0; border-radius: 7px;
+    background: transparent; color: var(--text-dim);
+    cursor: pointer; font-size: 14px;
+  }
+  .hole-jumper button:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .hole-jumper .hole-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px; height: 28px;
+    color: var(--text);
+    font-weight: 600; font-size: 13px;
+    letter-spacing: 0.2px;
+  }
+  .hole-jumper .hole-pill .par-tag {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.06);
+    padding: 2px 6px; border-radius: 5px;
+  }
+
+  .spacer { flex: 1; }
+
+  .save-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: rgba(34,197,94,0.10);
+    border: 1px solid rgba(34,197,94,0.28);
+    color: #86efac;
+    font-size: 12.5px; font-weight: 500;
+  }
+  .save-status .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .icon-btn {
+    width: 34px; height: 34px;
+    border: 1px solid var(--panel-border-strong);
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    border-radius: 8px;
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: background 120ms;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.10); }
+  .icon-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  .btn-primary {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 0;
+    background: var(--accent-2);
+    color: white; font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 0 4px 12px rgba(22,163,74,0.35);
+  }
+  .btn-primary:hover { background: #15803d; }
+
+  /* ============ LEFT TOOL DOCK ============ */
+  .tool-dock {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    z-index: 18;
+  }
+  .tool {
+    position: relative;
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: all 120ms ease;
+  }
+  .tool:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+  .tool.active {
+    background: rgba(34,197,94,0.16);
+    color: #bbf7d0;
+    border-color: rgba(34,197,94,0.5);
+    box-shadow: inset 0 0 0 1px rgba(34,197,94,0.25);
+  }
+  .tool svg { width: 18px; height: 18px; }
+  .tool .kbd {
+    position: absolute;
+    bottom: 3px; right: 4px;
+    font-size: 9px;
+    color: var(--text-mute);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.5px;
+  }
+  .tool .swatch {
+    position: absolute;
+    top: 4px; left: 4px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.4);
+  }
+  .tool[title]::after {
+    content: attr(title);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--panel-solid);
+    color: var(--text);
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    border: 1px solid var(--panel-border-strong);
+    pointer-events: none;
+    opacity: 0; transition: opacity 140ms 250ms;
+  }
+  .tool:hover::after { opacity: 1; }
+  .tool-sep {
+    height: 1px;
+    background: var(--panel-border);
+    margin: 4px 6px;
+  }
+
+  /* ============ RIGHT INSPECTOR ============ */
+  .inspector {
+    position: absolute;
+    top: 74px;
+    right: 12px;
+    width: 320px;
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 18;
+  }
+  .inspector::-webkit-scrollbar { width: 8px; }
+  .inspector::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+  .insp-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 8px 8px 0;
+    gap: 2px;
+    position: sticky; top: 0;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    z-index: 2;
+  }
+  .insp-tab {
+    flex: 1;
+    padding: 9px 8px;
+    background: transparent;
+    border: 0;
+    color: var(--text-dim);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    position: relative;
+  }
+  .insp-tab .count {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-dim);
+  }
+  .insp-tab.active { color: var(--text); }
+  .insp-tab.active::after {
+    content: ""; position: absolute;
+    left: 12px; right: 12px; bottom: -1px; height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+  }
+
+  .insp-body { padding: 14px 14px 18px; }
+  .insp-section + .insp-section { margin-top: 18px; }
+  .insp-section h4 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-mute);
+  }
+
+  /* Metadata fields */
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .field {
+    background: rgba(0,0,0,0.32);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 8px;
+    padding: 6px 8px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .field label {
+    font-size: 10px;
+    color: var(--text-mute);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .field input {
+    width: 100%;
+    background: transparent;
+    border: 0; outline: 0;
+    color: var(--text);
+    font-size: 15px; font-weight: 600;
+    padding: 0;
+  }
+  .meta-row {
+    margin-top: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 10px;
+    background: rgba(34,197,94,0.07);
+    border: 1px dashed rgba(34,197,94,0.35);
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .meta-row strong { color: var(--text); }
+
+  /* Layer rows */
+  .layer {
+    display: grid;
+    grid-template-columns: 20px 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 120ms;
+  }
+  .layer:hover { background: rgba(255,255,255,0.04); }
+  .layer.selected {
+    background: rgba(34,197,94,0.10);
+    border-color: rgba(34,197,94,0.35);
+  }
+  .layer .swatch-lg {
+    width: 14px; height: 14px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.4);
+  }
+  .layer .name {
+    display: flex; flex-direction: column;
+    min-width: 0;
+  }
+  .layer .name .label { font-size: 13px; font-weight: 500; color: var(--text); }
+  .layer .name .meta { font-size: 11px; color: var(--text-mute); }
+  .layer .ico {
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+    color: var(--text-mute);
+    border: 0; background: transparent; cursor: pointer;
+  }
+  .layer .ico:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .layer .ico.off { opacity: 0.35; }
+  .layer .ico svg { width: 14px; height: 14px; }
+
+  /* Quality / checklist */
+  .checklist { display: flex; flex-direction: column; gap: 6px; }
+  .check {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 7px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .check .mark {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .check.done .mark { background: rgba(34,197,94,0.2); color: #86efac; }
+  .check.done { color: var(--text); }
+  .check.todo .mark { background: rgba(255,255,255,0.06); color: var(--text-mute); border: 1px dashed rgba(255,255,255,0.15); }
+  .check.warn .mark { background: rgba(245,158,11,0.2); color: #fcd34d; }
+
+  .quality-summary {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+  }
+  .ring {
+    --pct: 75;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background:
+      conic-gradient(var(--accent) calc(var(--pct) * 1%), rgba(255,255,255,0.08) 0);
+    display: grid; place-items: center;
+    position: relative;
+  }
+  .ring::after {
+    content: ""; position: absolute; inset: 4px;
+    background: var(--panel-solid); border-radius: 50%;
+  }
+  .ring span {
+    position: relative; z-index: 1;
+    font-size: 12px; font-weight: 700;
+  }
+  .quality-summary .qmeta {
+    display: flex; flex-direction: column;
+  }
+  .quality-summary .qmeta strong { font-size: 13px; }
+  .quality-summary .qmeta small { font-size: 11.5px; color: var(--text-dim); }
+
+  /* ============ HOLE STRIP (BOTTOM) ============ */
+  .hole-strip {
+    position: absolute;
+    bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    z-index: 18;
+    max-width: calc(100vw - 380px);
+  }
+  .hole-chip {
+    width: 38px; height: 46px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: rgba(0,0,0,0.25);
+    color: var(--text-dim);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    font-size: 12px; font-weight: 600;
+    position: relative;
+    transition: all 120ms;
+  }
+  .hole-chip .par { font-size: 9px; color: var(--text-mute); font-weight: 500; }
+  .hole-chip .status {
+    position: absolute;
+    bottom: 4px;
+    width: 18px; height: 2px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.1);
+  }
+  .hole-chip.done .status { background: var(--accent); }
+  .hole-chip.partial .status { background: var(--warn); }
+  .hole-chip:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .hole-chip.current {
+    background: rgba(34,197,94,0.18);
+    border-color: rgba(34,197,94,0.6);
+    color: white;
+    box-shadow: 0 0 0 1px rgba(34,197,94,0.4), 0 0 16px rgba(34,197,94,0.25);
+  }
+  .hole-chip.current .par { color: #bbf7d0; }
+
+  /* ============ MAP CHROME (ZOOM, COORDS) ============ */
+  .map-chrome {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 18;
+  }
+  .map-chrome .group {
+    display: flex; flex-direction: column;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .map-chrome .group button {
+    width: 38px; height: 38px;
+    border: 0; background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .map-chrome .group button + button {
+    border-top: 1px solid var(--panel-border);
+  }
+  .map-chrome .group button:hover { background: rgba(255,255,255,0.07); }
+  .map-chrome .group button svg { width: 16px; height: 16px; }
+
+  /* ============ CONTEXTUAL FLOATING TOOLBAR (when selection) ============ */
+  .ctx-bar {
+    position: absolute;
+    top: 74px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: var(--panel-solid);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    z-index: 17;
+    font-size: 12.5px;
+  }
+  .ctx-bar .ctx-label {
+    padding: 4px 10px 4px 8px;
+    display: flex; align-items: center; gap: 6px;
+    color: var(--text-dim);
+    border-right: 1px solid var(--panel-border);
+    margin-right: 2px;
+  }
+  .ctx-bar .ctx-label .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+  }
+  .ctx-bar button {
+    height: 28px; padding: 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12.5px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .ctx-bar button:hover { background: rgba(255,255,255,0.08); }
+  .ctx-bar button.danger:hover { background: rgba(239,68,68,0.18); color: #fca5a5; }
+  .ctx-bar svg { width: 13px; height: 13px; }
+
+  /* ============ TOAST ============ */
+  .toast {
+    position: absolute;
+    bottom: 78px; left: 50%; transform: translateX(-50%);
+    background: rgba(17,24,39,0.95);
+    border: 1px solid rgba(34,197,94,0.4);
+    color: var(--text);
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    box-shadow: var(--shadow);
+    z-index: 25;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
+  /* hint */
+  .hint {
+    position: absolute;
+    bottom: 76px; left: 12px;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    padding: 7px 11px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    z-index: 17;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* mode indicator — shows when space is held */
+  .mode-indicator {
+    position: absolute;
+    top: 74px; left: 12px;
+    background: rgba(17, 24, 39, 0.92);
+    border: 1px solid var(--panel-border-strong);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 19;
+    display: flex; align-items: center; gap: 8px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 100ms, transform 100ms;
+    pointer-events: none;
+    box-shadow: var(--shadow-sm);
+  }
+  .mode-indicator.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .mode-indicator .kbd-pill {
+    background: rgba(34,197,94,0.18);
+    border-color: rgba(34,197,94,0.5);
+    color: #bbf7d0;
+  }
+  .mode-indicator svg { width: 13px; height: 13px; }
+
+  /* When panning, ctx-bar should hide */
+  .app.panning .ctx-bar { opacity: 0; pointer-events: none; transition: opacity 80ms; }
+  .app.panning .map { cursor: grab; }
+  .app.panning .map:active { cursor: grabbing; }
+  .kbd-pill {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--text);
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ MAP + MOCK LAYOUT ============ -->
+  <div class="map">
+    <svg class="layout-overlay" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <pattern id="p-fair" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="10" height="10" fill="#16a34a55"/>
+          <line x1="0" y1="0" x2="0" y2="10" stroke="#14532d" stroke-width="1.2"/>
+        </pattern>
+        <pattern id="p-trees" width="9" height="9" patternUnits="userSpaceOnUse">
+          <rect width="9" height="9" fill="#15803d66"/>
+          <circle cx="2" cy="2" r="1.2" fill="#14532d"/>
+          <circle cx="6" cy="6" r="1.2" fill="#14532d"/>
+        </pattern>
+        <pattern id="p-ob" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="10" height="10" fill="#dc262640"/>
+          <line x1="0" y1="0" x2="0" y2="10" stroke="#7f1d1d" stroke-width="1.5"/>
+        </pattern>
+      </defs>
+
+      <!-- OB band along the right -->
+      <polygon points="1320,40 1560,60 1560,860 1280,820 1290,500" fill="url(#p-ob)" stroke="#dc2626" stroke-width="2" />
+
+      <!-- Trees clusters -->
+      <polygon points="100,140 280,90 360,210 240,330 90,260" fill="url(#p-trees)" stroke="#15803d" stroke-width="2" />
+      <polygon points="1100,640 1240,610 1300,760 1170,820 1060,760" fill="url(#p-trees)" stroke="#15803d" stroke-width="2" />
+
+      <!-- Fairway -->
+      <polygon points="420,720 520,640 660,560 800,500 940,440 1060,380 1140,310 1180,240
+                       1240,260 1190,360 1100,440 980,520 840,600 720,680 580,760 480,790"
+               fill="url(#p-fair)" stroke="#16a34a" stroke-width="2.2" />
+
+      <!-- Green -->
+      <polygon points="1170,210 1240,200 1280,235 1275,290 1230,320 1170,300 1140,255"
+               fill="#22c55e88" stroke="#22c55e" stroke-width="2.5" />
+
+      <!-- Bunkers -->
+      <ellipse cx="1130" cy="320" rx="42" ry="22" fill="#f59e0bcc" stroke="#b45309" stroke-width="2" />
+      <ellipse cx="1255" cy="340" rx="30" ry="18" fill="#f59e0bcc" stroke="#b45309" stroke-width="2" />
+      <ellipse cx="780" cy="540" rx="38" ry="18" fill="#f59e0bcc" stroke="#b45309" stroke-width="2" />
+
+      <!-- Tee -->
+      <circle cx="460" cy="760" r="11" fill="#ef4444" stroke="#fff" stroke-width="3" />
+      <text x="478" y="765" fill="#fff" font-size="13" font-weight="600" font-family="-apple-system,sans-serif" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7))">TEE</text>
+
+      <!-- Distance line tee → green center, with subtle dash -->
+      <line x1="460" y1="760" x2="1215" y2="255" stroke="#fff" stroke-opacity="0.35" stroke-width="2" stroke-dasharray="4 6" />
+
+      <!-- Selected polygon handles (mock — green is selected) -->
+      <g>
+        <circle cx="1170" cy="210" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+        <circle cx="1240" cy="200" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+        <circle cx="1280" cy="235" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+        <circle cx="1275" cy="290" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+        <circle cx="1230" cy="320" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+        <circle cx="1170" cy="300" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+        <circle cx="1140" cy="255" r="5" fill="#fff" stroke="#111" stroke-width="2"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="topbar">
+    <div class="crumbs">
+      <button class="back" title="Tillbaka till banor">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span>Banor</span>
+      <span class="sep">/</span>
+      <span class="course-name">Bokskogens GK · Gamla banan</span>
+    </div>
+
+    <div class="hole-jumper">
+      <button title="Föregående hål (←)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="hole-pill">
+        <span>Hål 7</span>
+        <span class="par-tag">PAR 4</span>
+      </div>
+      <button title="Nästa hål (→)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="save-status" title="Senast sparad 11:42">
+      <span class="dot"></span> Sparad · auto
+    </div>
+
+    <button class="icon-btn" title="Ångra (⌘Z)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7"/></svg>
+    </button>
+    <button class="icon-btn disabled" title="Gör om (⌘⇧Z)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7"/></svg>
+    </button>
+    <button class="icon-btn" title="Kortkommandon (?)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2.5-3 4.5"/><circle cx="12" cy="18" r="0.6" fill="currentColor"/></svg>
+    </button>
+    <button class="btn-primary" title="Spara nu (⌘S)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      Spara
+    </button>
+  </div>
+
+  <!-- ============ LEFT TOOL DOCK ============ -->
+  <div class="tool-dock" role="toolbar" aria-label="Ritverktyg">
+    <button class="tool active" title="Markera / Redigera (V)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 18 2-8 8-2-17-8z"/></svg>
+      <span class="kbd">V</span>
+    </button>
+    <div class="tool-sep"></div>
+    <button class="tool" title="Placera Tee (T)">
+      <span class="swatch" style="background: var(--tee)"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 13v8M9 21h6"/></svg>
+      <span class="kbd">T</span>
+    </button>
+    <button class="tool" title="Rita Green (G)">
+      <span class="swatch" style="background: var(--green)"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14c4-7 12-7 16 0"/><ellipse cx="12" cy="15" rx="8" ry="4"/></svg>
+      <span class="kbd">G</span>
+    </button>
+    <button class="tool" title="Rita Fairway (F)">
+      <span class="swatch" style="background: var(--fairway)"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c5-2 5-10 9-12s5-6 9-6"/><path d="M5 21c4-2 4-9 8-11s4-5 8-5" opacity="0.55"/></svg>
+      <span class="kbd">F</span>
+    </button>
+    <button class="tool" title="Rita Bunker (B)">
+      <span class="swatch" style="background: var(--bunker)"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="14" rx="9" ry="5"/><path d="M5 10c2-2 4 0 6-1s4 1 7-1"/></svg>
+      <span class="kbd">B</span>
+    </button>
+    <button class="tool" title="Rita Träd (R)">
+      <span class="swatch" style="background: var(--trees)"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l5 7h-3l4 6h-4l3 5H7l3-5H6l4-6H7l5-7z"/></svg>
+      <span class="kbd">R</span>
+    </button>
+    <button class="tool" title="Rita OB (O)">
+      <span class="swatch" style="background: var(--ob)"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M3 21L21 3"/></svg>
+      <span class="kbd">O</span>
+    </button>
+    <div class="tool-sep"></div>
+    <button class="tool" title="Hoppa till koordinat (J)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-7-7-7-12a7 7 0 1 1 14 0c0 5-7 12-7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      <span class="kbd">J</span>
+    </button>
+  </div>
+
+  <!-- ============ CONTEXTUAL BAR (shows above selection) ============ -->
+  <div class="ctx-bar" role="toolbar" aria-label="Markering">
+    <div class="ctx-label"><span class="dot"></span> Green markerad · 7 punkter</div>
+    <button title="Infoga punkt mellan markerade vertices">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Infoga punkt
+    </button>
+    <button title="Förenkla polygon (halverar antalet punkter)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/></svg>
+      Förenkla
+    </button>
+    <button title="Duplicera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>
+      Duplicera
+    </button>
+    <button class="danger" title="Ta bort markering (Delete)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg>
+      Ta bort
+    </button>
+  </div>
+
+  <!-- ============ RIGHT INSPECTOR ============ -->
+  <aside class="inspector">
+    <div class="insp-tabs">
+      <button class="insp-tab active">Hål</button>
+      <button class="insp-tab">Lager <span class="count">6</span></button>
+      <button class="insp-tab">Kvalitet <span class="count" style="background: rgba(245,158,11,0.18); color:#fcd34d">2</span></button>
+    </div>
+
+    <div class="insp-body">
+
+      <!-- Metadata -->
+      <section class="insp-section">
+        <h4>Metadata</h4>
+        <div class="meta-grid">
+          <div class="field">
+            <label>Par</label>
+            <input value="4" />
+          </div>
+          <div class="field">
+            <label>Längd (m)</label>
+            <input value="378" />
+          </div>
+          <div class="field">
+            <label>HCP</label>
+            <input value="5" />
+          </div>
+        </div>
+        <div class="meta-row">
+          <span>Tee → Green (beräknad)</span>
+          <strong>372 m</strong>
+        </div>
+      </section>
+
+      <!-- Layers (preview of the second tab inline) -->
+      <section class="insp-section">
+        <h4>Lager</h4>
+
+        <div class="layer">
+          <span class="swatch-lg" style="background: var(--tee)"></span>
+          <div class="name">
+            <span class="label">Tee</span>
+            <span class="meta">1 punkt placerad</span>
+          </div>
+          <button class="ico" title="Lås">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+          </button>
+          <button class="ico" title="Synlig">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+
+        <div class="layer selected">
+          <span class="swatch-lg" style="background: var(--green)"></span>
+          <div class="name">
+            <span class="label">Green</span>
+            <span class="meta">7 punkter · 412 m²</span>
+          </div>
+          <button class="ico" title="Lås">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+          </button>
+          <button class="ico" title="Synlig">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+
+        <div class="layer">
+          <span class="swatch-lg" style="background: var(--fairway)"></span>
+          <div class="name">
+            <span class="label">Fairway</span>
+            <span class="meta">1 av 3 · 16 punkter</span>
+          </div>
+          <button class="ico" title="Lås">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+          </button>
+          <button class="ico" title="Synlig">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+
+        <div class="layer">
+          <span class="swatch-lg" style="background: var(--bunker)"></span>
+          <div class="name">
+            <span class="label">Bunker</span>
+            <span class="meta">3 polygoner</span>
+          </div>
+          <button class="ico" title="Lås">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+          </button>
+          <button class="ico" title="Synlig">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+
+        <div class="layer">
+          <span class="swatch-lg" style="background: var(--trees)"></span>
+          <div class="name">
+            <span class="label">Träd</span>
+            <span class="meta">2 polygoner</span>
+          </div>
+          <button class="ico off" title="Lås">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+          </button>
+          <button class="ico" title="Synlig">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+
+        <div class="layer">
+          <span class="swatch-lg" style="background: var(--ob)"></span>
+          <div class="name">
+            <span class="label">Out of bounds</span>
+            <span class="meta">1 polygon</span>
+          </div>
+          <button class="ico" title="Lås">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+          </button>
+          <button class="ico off" title="Dold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Quality -->
+      <section class="insp-section">
+        <h4>Kvalitet</h4>
+        <div class="quality-summary">
+          <div class="ring" style="--pct:75"><span>75%</span></div>
+          <div class="qmeta">
+            <strong>6 av 8 klart</strong>
+            <small>2 varningar att åtgärda</small>
+          </div>
+        </div>
+        <div class="checklist">
+          <div class="check done"><span class="mark">✓</span> Par satt</div>
+          <div class="check done"><span class="mark">✓</span> HCP satt</div>
+          <div class="check done"><span class="mark">✓</span> Tee placerad</div>
+          <div class="check done"><span class="mark">✓</span> Green ritad</div>
+          <div class="check done"><span class="mark">✓</span> Fairway ritad</div>
+          <div class="check warn"><span class="mark">!</span> Tee → Green &lt; 50 m</div>
+          <div class="check todo"><span class="mark">·</span> Bunker täcker hela green-sidan</div>
+          <div class="check todo"><span class="mark">·</span> Lägg till OB om relevant</div>
+        </div>
+      </section>
+
+    </div>
+  </aside>
+
+  <!-- ============ HOLE STRIP ============ -->
+  <div class="hole-strip">
+    <div class="hole-chip done"><span>1</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip done"><span>2</span><span class="par">P3</span><span class="status"></span></div>
+    <div class="hole-chip done"><span>3</span><span class="par">P5</span><span class="status"></span></div>
+    <div class="hole-chip done"><span>4</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip done"><span>5</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip done"><span>6</span><span class="par">P3</span><span class="status"></span></div>
+    <div class="hole-chip current"><span>7</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip partial"><span>8</span><span class="par">P5</span><span class="status"></span></div>
+    <div class="hole-chip partial"><span>9</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip"><span>10</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip"><span>11</span><span class="par">P3</span><span class="status"></span></div>
+    <div class="hole-chip"><span>12</span><span class="par">P5</span><span class="status"></span></div>
+    <div class="hole-chip"><span>13</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip"><span>14</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip"><span>15</span><span class="par">P3</span><span class="status"></span></div>
+    <div class="hole-chip"><span>16</span><span class="par">P4</span><span class="status"></span></div>
+    <div class="hole-chip"><span>17</span><span class="par">P5</span><span class="status"></span></div>
+    <div class="hole-chip"><span>18</span><span class="par">P4</span><span class="status"></span></div>
+  </div>
+
+  <!-- ============ MAP CHROME ============ -->
+  <div class="map-chrome">
+    <div class="group">
+      <button title="Zooma in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button title="Zooma ut">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="group">
+      <button title="Centrera på min position">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+      <button title="Centrera på tee">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 13v8M9 21h6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ HINT & TOAST ============ -->
+  <div class="hint">
+    <span class="kbd-pill">Space</span> håll = panorera ·
+    pinch / 2-finger drag på trackpad ·
+    <span class="kbd-pill">G</span> green ·
+    <span class="kbd-pill">⌘Z</span> ångra
+  </div>
+
+  <!-- Mode indicator — appears when space held -->
+  <div class="mode-indicator" id="modeIndicator">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-4 4 4 4M5 15h14M15 5l4 4-4 4"/></svg>
+    Panorerar · håll <span class="kbd-pill">Space</span>
+  </div>
+
+  <div class="toast"><span class="dot"></span> Punkt infogad</div>
+
+</div>
+
+<script>
+  // Figma-style: space-hold temporarily activates pan mode.
+  // In the real component you would also call map.dragPan.enable() here and
+  // toggle the SVG overlay's pointer-events to "none" while panning.
+  (function() {
+    const app = document.getElementById('app');
+    const indicator = document.getElementById('modeIndicator');
+    let spaceDown = false;
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !spaceDown && !e.repeat) {
+        // ignore if focus is in an input
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        e.preventDefault();
+        spaceDown = true;
+        app.classList.add('panning');
+        indicator.classList.add('show');
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' && spaceDown) {
+        spaceDown = false;
+        app.classList.remove('panning');
+        indicator.classList.remove('show');
+      }
+    });
+    // Lose focus = release
+    window.addEventListener('blur', () => {
+      if (spaceDown) {
+        spaceDown = false;
+        app.classList.remove('panning');
+        indicator.classList.remove('show');
+      }
+    });
+  })();
+</script>
+</body>
+</html>

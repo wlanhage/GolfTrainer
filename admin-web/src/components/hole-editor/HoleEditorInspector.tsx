@@ -58,6 +58,7 @@ type InspectorProps = {
   onToggleVisibility: (layer: Layer) => void;
   onToggleLock: (layer: Layer) => void;
   onSetMeta: (field: 'par' | 'length' | 'hcpIndex', value: string) => void;
+  onRequestResetAll: () => void;
 };
 
 export function HoleEditorInspector({
@@ -70,6 +71,7 @@ export function HoleEditorInspector({
   onToggleVisibility,
   onToggleLock,
   onSetMeta,
+  onRequestResetAll,
 }: InspectorProps) {
   const [activeTab, setActiveTab] = useState<'hole' | 'layers' | 'quality'>('hole');
 
@@ -201,6 +203,26 @@ export function HoleEditorInspector({
                   onToggleLock={() => onToggleLock(layer)}
                 />
               ))}
+            </section>
+
+            {/* Destructive actions */}
+            <section className="he-insp-section">
+              <button
+                onClick={onRequestResetAll}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 8,
+                  color: '#fca5a5',
+                  cursor: 'pointer',
+                  fontSize: 12.5,
+                  fontFamily: 'inherit',
+                }}
+              >
+                Återställ hål-layout
+              </button>
             </section>
           </>
         )}
