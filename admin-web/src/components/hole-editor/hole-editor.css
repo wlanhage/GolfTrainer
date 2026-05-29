@@ -31,13 +31,19 @@
 
   position: fixed;
   top: 0;
+  right: 0;
+  bottom: 0;
   left: 0;
-  /* Use viewport units AND inset:0 as belt-and-braces. If an ancestor
+  /* Use viewport units AND inset as belt-and-braces. If an ancestor
    * has transform/filter/perspective set, position:fixed becomes
    * relative to that ancestor — but 100vw/100vh always means viewport. */
   width: 100vw;
+  min-width: 100vw;
   height: 100vh;
-  height: 100dvh; /* better on mobile w/ dynamic browser chrome */
+  min-height: 100vh;
+  /* dvh wins on supporting browsers — better on mobile w/ dynamic chrome */
+  height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
   font-family: var(--he-font);
   color: var(--he-text);
@@ -74,10 +80,20 @@
 /* ====== MAP CANVAS ====== */
 .he-map-container {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: #0a0e16;
 }
-.he-map-container canvas {
+.he-map-container canvas,
+.he-map-container .maplibregl-canvas,
+.he-map-container .maplibregl-canvas-container,
+.he-map-container .maplibregl-map {
+  width: 100% !important;
+  height: 100% !important;
   outline: none;
 }
 

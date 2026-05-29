@@ -225,9 +225,21 @@ export function HoleManager({ initialCourse }: Props) {
         try { map.resize(); } catch { /* map removed */ }
       });
       resizeObserver.observe(container);
-      // Also resize on next frames as a belt-and-braces for late CSS.
-      requestAnimationFrame(() => map.resize());
-      setTimeout(() => map.resize(), 250);
+      // Belt-and-braces resize loop: if the container is still 0×0 when
+      // we boot (e.g. CSS still applying, ancestor still laying out),
+      // keep poking until it has real size. Max 20 tries × 100ms = 2s.
+      let tries = 0;
+      const pokeResize = () => {
+        try {
+          const r = container.getBoundingClientRect();
+          if (r.width > 50 && r.height > 50) {
+            map.resize();
+            return;
+          }
+        } catch { return; }
+        if (++tries < 20) setTimeout(pokeResize, 100);
+      };
+      requestAnimationFrame(pokeResize);
 
       cleanup = () => resizeObserver.disconnect();
     };
