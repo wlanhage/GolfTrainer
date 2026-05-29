@@ -1,4 +1,4 @@
-import { AdminRound, ClubDistance, Mission, User } from './types';
+import { AdminRound, ClubDistance, Mission, RoundDetail, User } from './types';
 import { tokenStorage, type AuthTokens } from './tokenStorage';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
@@ -193,6 +193,11 @@ export const api = {
       users: { total: number; active: number; admins: number };
       rounds: { inProgress: number; completed: number; abandoned: number; total: number };
     }>('/rounds/admin/stats');
+  },
+
+  async getRound(roundId: string) {
+    // /:roundId/public — any authenticated user (including admins) may view any round.
+    return request<RoundDetail>(`/rounds/${roundId}/public`);
   },
 
   async adminListRounds(opts: { status?: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'; limit?: number; offset?: number } = {}) {

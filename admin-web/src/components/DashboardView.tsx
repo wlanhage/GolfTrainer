@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { AdminRound, RoundStatus } from '../lib/types';
@@ -167,7 +168,12 @@ function RoundList({ rounds, showDuration, showScore }: { rounds: AdminRound[]; 
       {rounds.map((r) => {
         const playerName = r.user.profile?.displayName ?? r.user.email;
         return (
-          <div key={r.id} className="list-row static-row" style={{ alignItems: 'center' }}>
+          <Link
+            key={r.id}
+            href={`/rounds/${r.id}`}
+            className="list-row"
+            style={{ alignItems: 'center', textDecoration: 'none', color: 'inherit' }}
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {playerName}
@@ -187,7 +193,7 @@ function RoundList({ rounds, showDuration, showScore }: { rounds: AdminRound[]; 
               )}
             </span>
             <EntityStatusBadge label={STATUS_LABEL[r.status]} tone={STATUS_TONE[r.status]} />
-          </div>
+          </Link>
         );
       })}
     </div>
