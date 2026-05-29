@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { HoleManager } from '../../../components/HoleManager';
-import { NavShell } from '../../../components/NavShell';
 import { courseRepo } from '../../../lib/storage';
 import { Course } from '../../../lib/types';
 
+// The HoleEditor is a full-screen fixed overlay — NavShell is intentionally
+// omitted here. The editor has its own back-navigation breadcrumb.
 export default function CourseDetailPage() {
   const params = useParams<{ courseId: string }>();
   const [course, setCourse] = useState<Course | null>(null);
@@ -21,11 +22,22 @@ export default function CourseDetailPage() {
     })();
   }, [params.courseId]);
 
-  return (
-    <NavShell>
-      {loading ? <div className="card"><h2>Laddar bana...</h2></div> : null}
-      {!loading && course ? <HoleManager initialCourse={course} /> : null}
-      {!loading && !course ? <div className="card"><h2>Banan hittades inte</h2></div> : null}
-    </NavShell>
-  );
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', height: '100vh', background: '#0b1220', color: '#f3f4f6', fontFamily: 'system-ui' }}>
+        Laddar bana...
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', height: '100vh', background: '#0b1220', color: '#f3f4f6', fontFamily: 'system-ui' }}>
+        Banan hittades inte.{' '}
+        <a href="/courses" style={{ color: '#22c55e', marginLeft: 8 }}>Tillbaka</a>
+      </div>
+    );
+  }
+
+  return <HoleManager initialCourse={course} />;
 }
