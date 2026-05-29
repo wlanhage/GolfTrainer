@@ -1,7 +1,7 @@
 import { ForbiddenError } from '../../common/errors/AppError.js';
 import { followsRepository } from '../follows/follows.repository.js';
 import { usersRepository } from '../users/users.repository.js';
-import { pushService } from '../push/push.service.js';
+import { notificationsService } from '../notifications/notifications.service.js';
 import { chatRepository } from './chat.repository.js';
 
 export const chatService = {
@@ -11,21 +11,14 @@ export const chatService = {
       throw new ForbiddenError('Only mutual followers can chat');
     }
 
-    const isFirstMessage = !(await chatRepository.hasExistingConversation(senderId, recipientId));
-
     const message = await chatRepository.createMessage(senderId, recipientId, content);
 
-    if (isFirstMessage) {
-      const sender = await usersRepository.getMe(senderId);
-      const senderName = sender?.profile?.displayName ?? sender?.email ?? 'Någon';
-      pushService
-        .sendPushToUser(recipientId, {
-          title: 'Nytt meddelande',
-          body: `${senderName} skickade dig ett meddelande`,
-          url: '/community'
-        })
-        .catch(() => undefined);
-    }
+    // Push on EVERY message. Recipients who have the chat tab open will see
+    // a banner; backgrounded / locked-screen users get an OS notification.
+    // The chat UI itself dismisses the notification when they open the tab.
+    const sender = await usersRepository.getMe(senderId);
+    const senderName = sender?.profile?.displayName ?? sender?.email ?? 'Någon';
+    notificationsService.notifyChatMessage(recipientId, senderName, senderId, content);
 
     return message;
   },

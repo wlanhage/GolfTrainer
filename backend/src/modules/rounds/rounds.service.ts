@@ -1,7 +1,6 @@
 import { prisma } from '../../infrastructure/prisma/client.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/AppError.js';
 import { roundsRepository } from './rounds.repository.js';
-import { pushService } from '../push/push.service.js';
 import { notificationsService } from '../notifications/notifications.service.js';
 import type {
   CreateRoundInput,
@@ -262,14 +261,7 @@ export const roundsService = {
     const isPersonalBest = previousBest === null || currentScore < previousBest.totalScore!;
 
     if (isPersonalBest) {
-      const sign = relativeToPar > 0 ? `+${relativeToPar}` : String(relativeToPar);
-      pushService
-        .sendPushToUser(userId, {
-          title: 'Personligt rekord!',
-          body: `Du slog ditt rekord på ${courseNameSnapshot}: ${sign}`,
-          url: '/play'
-        })
-        .catch(() => undefined);
+      // notifyPersonalBest now fires both in-app + push internally.
       notificationsService
         .notifyPersonalBest(userId, courseNameSnapshot, relativeToPar, currentRoundId)
         .catch(() => undefined);
