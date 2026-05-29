@@ -39,9 +39,9 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         </nav>
         <button
           className="logout-btn"
-          onClick={() => {
+          onClick={async () => {
             if (!confirmIfUnsaved()) return;
-            api.tokenStorage.clear();
+            await api.logout();
             router.replace('/login');
           }}
         >
