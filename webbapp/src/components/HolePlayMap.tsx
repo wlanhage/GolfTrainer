@@ -45,33 +45,39 @@ const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] as GeoJSON.F
 
 // ─── Feature builders ───────────────────────────────────────────────────────
 
-const toPolygon = (id: string, points: GeoPoint[], color: string) =>
+const toPolygon = (id: string, points: GeoPoint[], color: string, kind: string) =>
   points.length >= 3
     ? {
         type: 'Feature' as const,
         id,
-        properties: { color },
+        properties: { color, kind },
         geometry: { type: 'Polygon' as const, coordinates: [points.map((p) => [p.lng, p.lat])] }
       }
     : null;
 
-/** Statisk layout (polygoner + tee). Ändras bara när banan/hålet byter. */
+/** Statisk layout (polygoner + tee). Ändras bara när banan/hålet byter.
+ *
+ * Vi inkluderar fortfarande alla polygoner i feature-collectionen så att
+ * geometriska beräkningar (avstånd-till-green, tap-target etc.) kan
+ * använda dem — men i play-mode renderar vi bara green-polygonen, och då
+ * med låg opacitet. Övriga lager är osynliga; spelaren ska se kartan, inte
+ * ritningar. */
 const buildLayoutFC = (geometry: HoleLayoutGeometry) => {
   const features: GeoJSON.Feature[] = [];
-  const green = toPolygon('green', geometry.greenPolygon, HOLE_COLORS.green);
+  const green = toPolygon('green', geometry.greenPolygon, HOLE_COLORS.green, 'green');
   if (green) features.push(green);
-  const fairway = toPolygon('fairway', geometry.fairwayPolygon, HOLE_COLORS.fairway);
+  const fairway = toPolygon('fairway', geometry.fairwayPolygon, HOLE_COLORS.fairway, 'fairway');
   if (fairway) features.push(fairway);
   geometry.bunkerPolygons.forEach((p, i) => {
-    const f = toPolygon(`bunker_${i}`, p, HOLE_COLORS.bunker);
+    const f = toPolygon(`bunker_${i}`, p, HOLE_COLORS.bunker, 'bunker');
     if (f) features.push(f);
   });
   geometry.treesPolygons.forEach((p, i) => {
-    const f = toPolygon(`trees_${i}`, p, HOLE_COLORS.trees);
+    const f = toPolygon(`trees_${i}`, p, HOLE_COLORS.trees, 'trees');
     if (f) features.push(f);
   });
   geometry.obPolygons.forEach((p, i) => {
-    const f = toPolygon(`ob_${i}`, p, HOLE_COLORS.ob);
+    const f = toPolygon(`ob_${i}`, p, HOLE_COLORS.ob, 'ob');
     if (f) features.push(f);
   });
   if (geometry.teePoint) {
@@ -252,13 +258,21 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
         }
       });
 
-      // Layout polygoner (green/fairway/bunker/trees/ob) ovanpå heatmap
+      // Play-mode: vi visar BARA en svag highlight av green-polygonen så
+      // spelaren ser ungefär vart han siktar. Fairway, bunker, trees, OB
+      // är osynliga — kartan ska tala för sig själv. Polygonerna finns
+      // kvar i source-datat så avstånds- och tap-target-logiken kan
+      // använda dem, de bara renderas inte.
       map.addLayer({
-        id: 'layout-polys',
+        id: 'layout-green-highlight',
         type: 'fill',
         source: 'layout',
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': ['get', 'color'] }
+        filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['==', ['get', 'kind'], 'green']],
+        paint: {
+          'fill-color': HOLE_COLORS.green,
+          'fill-opacity': 0.18,
+          'fill-outline-color': HOLE_COLORS.green
+        }
       });
 
       // Tee-markering
