@@ -114,27 +114,48 @@ export const roundsRepository = {
     });
   },
 
-  /** Admin-statistik: counts grupperade efter status + totalsumma. */
+  /**
+   * Admin-statistik: counts grupperade efter status + totalsumma.
+   *
+   * Sekventiella queries (inte Promise.all) för att minimera samtidiga
+   * connections — PgBouncer i session mode har bara 15 klienter. Slår
+   * också ihop alla user-counts i en enda groupBy (efter role) plus en
+   * count för aktiva. Tre user.count() → en groupBy + en count.
+   */
   async adminStats() {
-    const [byStatus, totalUsers, activeUsers, admins] = await Promise.all([
-      prisma.round.groupBy({ by: ['status'], _count: { _all: true } }),
-      prisma.user.count(),
-      prisma.user.count({ where: { isActive: true } }),
-      prisma.user.count({ where: { role: 'ADMIN' } })
-    ]);
-    const counts: Record<'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED', number> = {
+    const byStatus = await prisma.round.groupBy({
+      by: ['status'],
+      _count: { _all: true }
+    });
+
+    const usersByRole = await prisma.user.groupBy({
+      by: ['role'],
+      _count: { _all: true }
+    });
+
+    const activeUsers = await prisma.user.count({ where: { isActive: true } });
+
+    const roundCounts: Record<'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED', number> = {
       IN_PROGRESS: 0,
       COMPLETED: 0,
       ABANDONED: 0
     };
-    for (const row of byStatus) counts[row.status] = row._count._all;
+    for (const row of byStatus) roundCounts[row.status] = row._count._all;
+
+    let totalUsers = 0;
+    let admins = 0;
+    for (const row of usersByRole) {
+      totalUsers += row._count._all;
+      if (row.role === 'ADMIN') admins = row._count._all;
+    }
+
     return {
       users: { total: totalUsers, active: activeUsers, admins },
       rounds: {
-        inProgress: counts.IN_PROGRESS,
-        completed: counts.COMPLETED,
-        abandoned: counts.ABANDONED,
-        total: counts.IN_PROGRESS + counts.COMPLETED + counts.ABANDONED
+        inProgress: roundCounts.IN_PROGRESS,
+        completed: roundCounts.COMPLETED,
+        abandoned: roundCounts.ABANDONED,
+        total: roundCounts.IN_PROGRESS + roundCounts.COMPLETED + roundCounts.ABANDONED
       }
     };
   },
