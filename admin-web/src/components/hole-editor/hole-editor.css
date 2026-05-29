@@ -1287,7 +1287,8 @@
   gap: 12px;
   text-align: center;
   max-width: 320px;
-  pointer-events: none;
+  /* allow button clicks through */
+  pointer-events: auto;
 }
 
 .he-empty-overlay h3 {
