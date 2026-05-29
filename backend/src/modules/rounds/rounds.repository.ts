@@ -87,6 +87,59 @@ export const roundsRepository = {
   },
 
   /**
+   * Admin-vyn: listar ALLA rundor i systemet, oavsett host/players.
+   * Stödjer status-filter och paginering. Inkluderar host-user för att
+   * dashboard ska kunna visa "vem"-kolumn utan extra joins.
+   */
+  adminListAll(opts: {
+    status?: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
+    limit: number;
+    offset: number;
+  }) {
+    return prisma.round.findMany({
+      where: opts.status ? { status: opts.status } : {},
+      orderBy: { startedAt: 'desc' },
+      take: opts.limit,
+      skip: opts.offset,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { displayName: true } }
+          }
+        },
+        _count: { select: { players: true } }
+      }
+    });
+  },
+
+  /** Admin-statistik: counts grupperade efter status + totalsumma. */
+  async adminStats() {
+    const [byStatus, totalUsers, activeUsers, admins] = await Promise.all([
+      prisma.round.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.user.count(),
+      prisma.user.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { role: 'ADMIN' } })
+    ]);
+    const counts: Record<'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED', number> = {
+      IN_PROGRESS: 0,
+      COMPLETED: 0,
+      ABANDONED: 0
+    };
+    for (const row of byStatus) counts[row.status] = row._count._all;
+    return {
+      users: { total: totalUsers, active: activeUsers, admins },
+      rounds: {
+        inProgress: counts.IN_PROGRESS,
+        completed: counts.COMPLETED,
+        abandoned: counts.ABANDONED,
+        total: counts.IN_PROGRESS + counts.COMPLETED + counts.ABANDONED
+      }
+    };
+  },
+
+  /**
    * Hämtar full runda om användaren är host eller listad i players[].
    * Returnerar null om användaren inte har access.
    */

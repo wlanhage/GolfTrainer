@@ -15,6 +15,28 @@ export type User = {
   profile: Profile | null;
 };
 
+export type RoundStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
+
+export type AdminRound = {
+  id: string;
+  userId: string;
+  courseId: string;
+  startedAt: string;
+  finishedAt: string | null;
+  currentHoleNumber: number;
+  status: RoundStatus;
+  totalScore: number | null;
+  courseNameSnapshot: string;
+  clubNameSnapshot: string;
+  teeNameSnapshot: string | null;
+  user: {
+    id: string;
+    email: string;
+    profile: { displayName: string } | null;
+  };
+  _count: { players: number };
+};
+
 export type Mission = {
   id: string;
   slug: string;

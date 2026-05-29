@@ -1,4 +1,4 @@
-import { ClubDistance, Mission, User } from './types';
+import { AdminRound, ClubDistance, Mission, User } from './types';
 import { tokenStorage, type AuthTokens } from './tokenStorage';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
@@ -175,14 +175,32 @@ export const api = {
   },
 
   async listUsers() {
-    return request<{ users: User[] }>('/users/admin/list').then((res) => res.users);
+    // Backend route: GET /users/  (admin-only, declared in users.routes.ts).
+    // Returns the array directly, not wrapped.
+    return request<User[]>('/users');
   },
 
   async updateUser(userId: string, payload: Partial<User>) {
-    return request<{ user: User }>(`/users/admin/${userId}`, {
+    // Backend route: PATCH /users/:userId  (admin-only).
+    return request<User>(`/users/${userId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload)
-    }).then((res) => res.user);
+    });
+  },
+
+  async adminRoundStats() {
+    return request<{
+      users: { total: number; active: number; admins: number };
+      rounds: { inProgress: number; completed: number; abandoned: number; total: number };
+    }>('/rounds/admin/stats');
+  },
+
+  async adminListRounds(opts: { status?: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'; limit?: number; offset?: number } = {}) {
+    const params = new URLSearchParams();
+    if (opts.status) params.set('status', opts.status);
+    params.set('limit', String(opts.limit ?? 20));
+    params.set('offset', String(opts.offset ?? 0));
+    return request<{ rounds: AdminRound[] }>(`/rounds/admin?${params.toString()}`).then((r) => r.rounds);
   },
 
   async listMissions() {

@@ -1,9 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth } from '../../common/middleware/auth.middleware.js';
+import { requireAdmin } from '../../common/middleware/admin.middleware.js';
 import { roundsController } from './rounds.controller.js';
 
 export async function roundsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
+
+  // Admin endpoints — must be declared before generic /:roundId routes
+  // so Fastify routes "/admin/stats" and "/admin" don't get captured by
+  // the param route. Both require admin role.
+  app.get('/admin/stats', { preHandler: [requireAdmin] }, roundsController.adminStats);
+  app.get('/admin', { preHandler: [requireAdmin] }, roundsController.adminList);
 
   app.get('/', roundsController.list);
   app.post('/', roundsController.create);

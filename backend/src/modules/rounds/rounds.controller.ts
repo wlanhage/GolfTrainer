@@ -27,6 +27,17 @@ export const roundsController = {
     return reply.send(rounds);
   },
 
+  async adminList(request: FastifyRequest, reply: FastifyReply) {
+    const query = listRoundsQuerySchema.parse(request.query ?? {});
+    const rounds = await roundsService.adminListAll(query);
+    return reply.send({ rounds });
+  },
+
+  async adminStats(_request: FastifyRequest, reply: FastifyReply) {
+    const stats = await roundsService.adminStats();
+    return reply.send(stats);
+  },
+
   async getById(request: FastifyRequest, reply: FastifyReply) {
     const { roundId } = roundIdParamSchema.parse(request.params);
     const round = await roundsService.getById(roundId, request.auth!.userId);
