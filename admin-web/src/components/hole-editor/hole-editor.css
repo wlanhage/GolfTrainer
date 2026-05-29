@@ -30,7 +30,14 @@
     system-ui, sans-serif;
 
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  /* Use viewport units AND inset:0 as belt-and-braces. If an ancestor
+   * has transform/filter/perspective set, position:fixed becomes
+   * relative to that ancestor — but 100vw/100vh always means viewport. */
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh; /* better on mobile w/ dynamic browser chrome */
   overflow: hidden;
   font-family: var(--he-font);
   color: var(--he-text);
