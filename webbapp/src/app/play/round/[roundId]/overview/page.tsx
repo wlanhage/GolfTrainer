@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Camera, ChevronDown } from 'lucide-react';
+import { BarChart3, Camera, ChevronDown, Flag, Pencil, Target } from 'lucide-react';
 import { useRoundsApi, type ServerRoundDetail, type ServerRoundHole, type ServerRoundPlayer } from '@/lib/api';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { Loader } from '@/components/Loader';
@@ -123,11 +123,11 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     <tbody>
       {/* Hole numbers row */}
       <tr className={headerBg}>
-        <td className="px-2 py-1 text-sm font-bold text-slate-500 whitespace-nowrap">
-          {t('roundOverview.hole')}
+        <td className="px-1 py-1 text-slate-500" aria-label={t('roundOverview.hole')}>
+          <Flag size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => (
-          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
+          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm font-bold">
             {hole.holeNumber}
           </td>
         ))}
@@ -139,8 +139,8 @@ function ScorecardTable({ player, holes, showHcp, t }: {
       {/* HCP index row */}
       {showHcp && (
         <tr>
-          <td className="px-2 py-1 text-sm text-slate-500 whitespace-nowrap">
-            {t('roundOverview.handicap')}
+          <td className="px-1 py-1 text-slate-400" aria-label={t('roundOverview.handicap')}>
+            <BarChart3 size={14} className="mx-auto" strokeWidth={2.25} />
           </td>
           {hs.map((hole) => (
             <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm text-slate-500">
@@ -153,8 +153,8 @@ function ScorecardTable({ player, holes, showHcp, t }: {
 
       {/* Par row */}
       <tr>
-        <td className="px-2 py-1 text-sm font-semibold text-slate-600 whitespace-nowrap">
-          {t('roundOverview.par')}
+        <td className="px-1 py-1 text-slate-600" aria-label={t('roundOverview.par')}>
+          <Target size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => (
           <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
@@ -168,8 +168,8 @@ function ScorecardTable({ player, holes, showHcp, t }: {
 
       {/* Result row */}
       <tr className="border-t border-border">
-        <td className="px-2 py-1 text-sm font-semibold text-slate-600 whitespace-nowrap">
-          {t('roundOverview.result')}
+        <td className="px-1 py-1 text-slate-700" aria-label={t('roundOverview.result')}>
+          <Pencil size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => {
           const score = hole.scores?.find((s) => s.playerId === player.id);
@@ -202,9 +202,9 @@ function ScorecardTable({ player, holes, showHcp, t }: {
   ) => (
     <table className="w-full border-collapse text-ink">
       <colgroup>
-        <col className="w-16" />
+        <col className="w-8" />
         {hs.map((_, i) => <col key={i} />)}
-        <col className="w-12" />
+        <col className="w-10" />
       </colgroup>
       {renderSection(hs, section, sectionPar, sectionStrokes)}
     </table>
