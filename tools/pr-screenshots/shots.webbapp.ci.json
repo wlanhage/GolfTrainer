@@ -1,0 +1,20 @@
+{
+  "app": "webbapp",
+  "title": "Webbapp",
+  "baseUrl": "http://localhost:3002",
+  "apiBaseUrl": "http://localhost:3000/api/v1",
+  "tokenKey": "golftrainer.auth.tokens",
+  "account": { "email": "anna@golf.test", "password": "Anna123!" },
+  "viewports": {
+    "mobile": { "width": 390, "height": 844, "deviceScaleFactor": 2 },
+    "desktop": { "width": 1440, "height": 900 }
+  },
+  "shots": [
+    { "name": "home", "path": "/", "viewport": "mobile", "waitFor": 1500 },
+    { "name": "play", "path": "/play", "viewport": "mobile", "waitFor": 1500 },
+    { "name": "activity", "path": "/activity", "viewport": "mobile", "waitFor": 1500 },
+    { "name": "training", "path": "/training", "viewport": "mobile", "waitFor": 1500 },
+    { "name": "community", "path": "/community", "viewport": "mobile", "waitFor": 1500 },
+    { "name": "profile", "path": "/profile", "viewport": "mobile", "waitFor": 1500 }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "pr-screenshots",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Capture frontend screenshots and post them to a PR as an inline comment.",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "post": "node post.mjs",
+    "shots": "node capture.mjs && node post.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

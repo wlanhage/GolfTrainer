@@ -1,0 +1,16 @@
+{
+  "app": "admin-web",
+  "title": "Admin web",
+  "baseUrl": "http://localhost:3005",
+  "apiBaseUrl": "http://localhost:3000/api/v1",
+  "tokenKey": "gt_admin_auth_tokens",
+  "account": { "email": "admin@golf.test", "password": "Admin123!" },
+  "viewports": {
+    "desktop": { "width": 1440, "height": 900 }
+  },
+  "shots": [
+    { "name": "dashboard", "path": "/dashboard", "viewport": "desktop", "waitFor": 1500 },
+    { "name": "courses", "path": "/courses", "viewport": "desktop", "waitFor": 1500 },
+    { "name": "missions", "path": "/missions", "viewport": "desktop", "waitFor": 1500 }
+  ]
+}

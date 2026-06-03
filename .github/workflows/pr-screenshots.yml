@@ -1,0 +1,162 @@
+name: PR Screenshots
+
+# Spins up the full stack in the cloud (Postgres + backend + frontend) and
+# captures Playwright screenshots of the changed app, then posts them as an
+# inline PR comment. No local environment needed — open a PR (even from a
+# phone) and the screenshots appear automatically.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'webbapp/**'
+      - 'admin-web/**'
+      - 'tools/pr-screenshots/**'
+      - '.github/workflows/pr-screenshots.yml'
+
+# Needed to push the pr-assets branch and comment on the PR.
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: pr-screenshots-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: golftrainer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Backend config (dummy secrets — seed accounts come from seed.ts).
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/golftrainer?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/golftrainer?schema=public
+      JWT_ACCESS_SECRET: ci_access_secret_at_least_32_chars_long_xx
+      JWT_REFRESH_SECRET: ci_refresh_secret_at_least_32_chars_long_x
+      NODE_ENV: development
+      PORT: '3000'
+      # Frontends both default to localhost:3000 but be explicit (note the two
+      # different var names the apps use).
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3000/api/v1
+      GH_TOKEN: ${{ github.token }}
+      # Real reviewed commit (GITHUB_SHA is the merge commit on pull_request).
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Which apps changed in this PR?
+      - name: Detect changed apps
+        id: changed
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}" --depth=1 || true
+          DIFF=$(git diff --name-only "$BASE"...HEAD || git diff --name-only HEAD~1...HEAD)
+          echo "$DIFF"
+          # Force-run both if the tooling itself changed.
+          if echo "$DIFF" | grep -qE '^tools/pr-screenshots/|^.github/workflows/pr-screenshots.yml'; then
+            echo "webbapp=true"   >> "$GITHUB_OUTPUT"
+            echo "admin=true"     >> "$GITHUB_OUTPUT"
+          else
+            echo "webbapp=$(echo "$DIFF" | grep -q '^webbapp/' && echo true || echo false)"   >> "$GITHUB_OUTPUT"
+            echo "admin=$(echo "$DIFF" | grep -q '^admin-web/' && echo true || echo false)"   >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---- Backend (always needed for auth + data) ----
+      - name: Install backend
+        run: npm --prefix backend ci
+
+      - name: Prisma generate + migrate + seed
+        working-directory: backend
+        run: |
+          npx prisma generate --schema ../prisma/schema.prisma
+          npx prisma migrate deploy --schema ../prisma/schema.prisma
+          npm run seed
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          (npx tsx src/server.ts > ../backend.log 2>&1 &)
+          echo "Waiting for backend on :3000 …"
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/health > /dev/null; then echo "backend up"; break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:3000/health || (echo "backend failed:"; cat ../backend.log; exit 1)
+
+      # ---- Screenshot tooling ----
+      - name: Install screenshot tooling
+        working-directory: tools/pr-screenshots
+        run: |
+          npm ci || npm install
+          npx playwright install --with-deps chromium
+
+      # ---- webbapp ----
+      - name: Webbapp — build, start, capture, post
+        if: steps.changed.outputs.webbapp == 'true'
+        run: |
+          npm --prefix webbapp ci
+          npm --prefix webbapp run build
+          (cd webbapp && npx next start -p 3002 > ../webbapp.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3002 > /dev/null; then echo "webbapp up"; break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:3002 > /dev/null || (echo "webbapp failed:"; cat webbapp.log; exit 1)
+          node tools/pr-screenshots/resolve-routes.mjs \
+            --app webbapp --appdir webbapp \
+            --default tools/pr-screenshots/shots.webbapp.ci.json \
+            --base origin/${{ github.base_ref }} \
+            --out tools/pr-screenshots/shots.webbapp.generated.json
+          node tools/pr-screenshots/capture.mjs --manifest tools/pr-screenshots/shots.webbapp.generated.json --out tools/pr-screenshots/out-webbapp
+          node tools/pr-screenshots/post.mjs --out tools/pr-screenshots/out-webbapp --pr ${{ github.event.pull_request.number }}
+
+      # ---- admin-web ----
+      - name: Admin-web — build, start, capture, post
+        if: steps.changed.outputs.admin == 'true'
+        run: |
+          npm --prefix admin-web ci
+          npm --prefix admin-web run build
+          (cd admin-web && npx next start -p 3005 > ../admin.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3005 > /dev/null; then echo "admin up"; break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:3005 > /dev/null || (echo "admin failed:"; cat admin.log; exit 1)
+          node tools/pr-screenshots/resolve-routes.mjs \
+            --app admin-web --appdir admin-web \
+            --default tools/pr-screenshots/shots.admin.ci.json \
+            --base origin/${{ github.base_ref }} \
+            --out tools/pr-screenshots/shots.admin.generated.json
+          node tools/pr-screenshots/capture.mjs --manifest tools/pr-screenshots/shots.admin.generated.json --out tools/pr-screenshots/out-admin
+          node tools/pr-screenshots/post.mjs --out tools/pr-screenshots/out-admin --pr ${{ github.event.pull_request.number }}
+
+      - name: Upload screenshots as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-screenshots
+          path: tools/pr-screenshots/out-*/**/*.png
+          if-no-files-found: ignore

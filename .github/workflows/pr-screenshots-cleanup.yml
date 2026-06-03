@@ -1,0 +1,43 @@
+name: PR Screenshots Cleanup
+
+# When a PR is merged or closed, delete that PR's screenshots from the
+# pr-assets branch so they don't accumulate forever. The inline comment stays
+# (its images become broken links), but the storage is reclaimed.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr-screenshots-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove screenshots for this branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -e
+          if ! git fetch origin pr-assets; then
+            echo "No pr-assets branch — nothing to clean."
+            exit 0
+          fi
+          git checkout pr-assets
+          if [ -d "$HEAD_REF" ]; then
+            git rm -r --quiet "$HEAD_REF"
+            git config user.name  "pr-screenshots"
+            git config user.email "pr-screenshots@local"
+            git commit -m "cleanup screenshots: $HEAD_REF"
+            git push origin pr-assets
+            echo "Removed screenshots for '$HEAD_REF'."
+          else
+            echo "No screenshots stored for '$HEAD_REF' — nothing to clean."
+          fi
