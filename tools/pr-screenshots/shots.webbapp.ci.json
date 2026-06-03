@@ -15,6 +15,7 @@
     { "name": "activity", "path": "/activity", "viewport": "mobile", "waitFor": 1500 },
     { "name": "training", "path": "/training", "viewport": "mobile", "waitFor": 1500 },
     { "name": "community", "path": "/community", "viewport": "mobile", "waitFor": 1500 },
-    { "name": "profile", "path": "/profile", "viewport": "mobile", "waitFor": 1500 }
+    { "name": "profile", "path": "/profile", "viewport": "mobile", "waitFor": 1500 },
+    { "name": "chat-conversation", "path": "/community/chat/seedusermarkus0000000000001", "viewport": "mobile", "waitFor": 1500 }
   ]
 }

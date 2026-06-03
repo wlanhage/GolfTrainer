@@ -62,14 +62,14 @@ export default function ConversationPage() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-80px)]">
+    <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-white">
         <button onClick={() => router.push('/community')} className="text-primary font-semibold text-sm">
           ← Tillbaka
         </button>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-2">
         {loading ? (
           <p className="text-slate-500 text-sm text-center mt-6">Laddar...</p>
         ) : sorted.length === 0 ? (
