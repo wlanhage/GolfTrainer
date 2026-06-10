@@ -1,0 +1,36 @@
+# XcodeGen spec — generates GolfWatch.xcodeproj from this file + the sources.
+#
+#   brew install xcodegen      # once
+#   cd watch && xcodegen generate
+#   open GolfWatch.xcodeproj
+#
+# (Or skip XcodeGen entirely — see README.md for the manual Xcode steps.)
+
+name: GolfWatch
+
+options:
+  bundleIdPrefix: com.golftrainer
+  createIntermediateGroups: true
+  deploymentTarget:
+    watchOS: "10.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    GENERATE_INFOPLIST_FILE: NO
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  GolfWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: GolfWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.golftrainer.watch
+        INFOPLIST_FILE: GolfWatch/Info.plist
+        TARGETED_DEVICE_FAMILY: "4"          # Apple Watch
+        WATCHOS_DEPLOYMENT_TARGET: "10.0"
+        ENABLE_PREVIEWS: YES

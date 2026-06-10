@@ -1,0 +1,110 @@
+# GolfWatch — Apple Watch companion (watchOS, SwiftUI)
+
+A standalone watchOS app that shows a fast, minimal play view for an **already
+started** round. The round is started in the phone/web app; the watch reads the
+active round from the backend and lets you bump strokes (Digital Crown) and
+advance to the next hole.
+
+> This is a **native Swift project**, separate from the JS/TS monorepo. It does
+> not affect the existing CI (which only lints `backend` + `mobile`).
+
+## Architecture (MVVM)
+
+```
+GolfWatch/
+  App/         GolfWatchApp.swift          @main entry
+  Models/      Coordinate, Hole, ActiveRound   Codable DTOs
+  Services/    AppConfig                    base URL + endpoint paths
+               TokenStore                   bearer token (UserDefaults; see notes)
+               APIClient                    generic async/await JSON client
+               RoundService                 typed round endpoints
+               LocationManager              CoreLocation → published CLLocation
+  ViewModels/  RoundViewModel               state, crown→strokes, distances
+  Views/       RootView                     state router + composition root
+               RoundView                    the play view + Digital Crown
+               EmptyRoundView               "Ingen aktiv runda"
+               StateViews                   Loading / Error
+```
+
+Flow: `View` → observes → `ViewModel` → calls → `Service` → uses → `APIClient` → returns → `Model`.
+
+## Run it
+
+### Option A — XcodeGen (deterministic project)
+
+```bash
+brew install xcodegen          # once
+cd watch
+xcodegen generate
+open GolfWatch.xcodeproj
+```
+
+Pick an **Apple Watch simulator** and Run.
+
+### Option B — manual (no extra tools)
+
+1. Xcode → File → New → Project → **watchOS → App**.
+   - Product name `GolfWatch`, Interface **SwiftUI**, Language **Swift**.
+   - Uncheck tests; it can be a watch-only app.
+2. Delete the template `ContentView.swift` / `*App.swift`.
+3. Drag the folders under `watch/GolfWatch/` (App, Models, Services, ViewModels,
+   Views) into the target ("Copy items if needed", add to the GolfWatch target).
+4. In the target's **Info** tab add the key
+   `NSLocationWhenInUseUsageDescription` = "Används för att visa avstånd till
+   green under rundan." (or use the provided `Info.plist`).
+
+## Configure
+
+- **Backend URL** — edit `Services/AppConfig.swift` (`baseURL`) or set a
+  `baseURL` value in `UserDefaults`. ⚠️ The web app uses `<host>/api/v1`; this
+  spec uses `/api/rounds/...`. Align `baseURL` **and** the paths in `AppConfig`
+  with your real API.
+- **Auth token** — the app reads a bearer token from `TokenStore`
+  (UserDefaults key `golftrainer.accessToken`). For a quick test, set it once in
+  the simulator, e.g. temporarily in `RootView.init`:
+  ```swift
+  #if DEBUG
+  TokenStore().save("PASTE_A_VALID_JWT")
+  #endif
+  ```
+  In production, send the token from the iOS app via **WatchConnectivity** and
+  store it in the **Keychain** instead of UserDefaults.
+
+## API contract (as implemented)
+
+| Call | Method | Path | Body |
+|------|--------|------|------|
+| Active round | GET | `/api/rounds/active` | — (404 → "no active round") |
+| Update strokes | PATCH | `/api/rounds/{roundId}/holes/{holeId}/strokes` | `{ "strokes": 4 }` |
+| Next hole | POST | `/api/rounds/{roundId}/next-hole` | — |
+
+Expected `GET /active` shape (adjust the `CodingKeys` in the models if yours
+differs):
+
+```json
+{
+  "roundId": "abc",
+  "currentHole": {
+    "id": "hole_1",
+    "holeNumber": 7,
+    "par": 4,
+    "strokes": 3,
+    "greenFront": { "lat": 57.123, "lng": 12.123 },
+    "greenBack":  { "lat": 57.124, "lng": 12.124 }
+  }
+}
+```
+
+## Behaviour notes
+
+- **Digital Crown** updates `strokes` instantly; the backend PATCH is debounced
+  ~0.6 s so a spin doesn't fire a request per tick.
+- **Distances** are recomputed on every GPS fix via `CLLocation.distance(from:)`
+  (meters). They show `–` until the first fix / if the green isn't geo-tagged.
+- In the **simulator**, set a location under *Features → Location* (e.g. Custom
+  Location) — otherwise distances stay `–`.
+
+## Out of scope (intentionally)
+
+Maps, scorecard, statistics, and complications are deferred — this is a focused
+MVP per the brief.

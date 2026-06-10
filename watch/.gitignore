@@ -1,0 +1,9 @@
+# XcodeGen output (regenerate with `xcodegen generate`)
+GolfWatch.xcodeproj/
+
+# Xcode / build
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
