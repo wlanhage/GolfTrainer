@@ -27,4 +27,8 @@ enum AppConfig {
     static func nextHole(roundId: String) -> String {
         "/rounds/\(roundId)/next-hole"
     }
+
+    /// DEBUG-only convenience: paste a valid JWT here to test on the simulator
+    /// without a paired phone. Leave empty in commits. Applied at launch.
+    static let devBearerToken = ""
 }

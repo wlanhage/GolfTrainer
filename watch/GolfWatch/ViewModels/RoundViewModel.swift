@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CoreLocation
+import WatchKit
 
 /// Drives the play view. Owns the active round, the (optimistic) stroke count,
 /// and the computed green distances. All UI mutations happen on the main actor.
@@ -74,6 +75,23 @@ final class RoundViewModel: ObservableObject {
         }
     }
 
+    /// Silent reload — keeps the current view on screen (no loading spinner).
+    /// Used on wrist raise / when the scene becomes active, and after a token
+    /// arrives from the phone. Transient failures keep existing data visible.
+    func refresh() async {
+        do {
+            if let round = try await service.activeRound() {
+                apply(round)
+                state = .playing
+            } else {
+                self.round = nil
+                state = .empty
+            }
+        } catch {
+            if round == nil { state = .error(Self.message(for: error)) }
+        }
+    }
+
     private func apply(_ round: ActiveRound) {
         self.round = round
         strokes = round.currentHole.strokes
@@ -128,7 +146,9 @@ final class RoundViewModel: ObservableObject {
         do {
             try await service.goToNextHole(roundId: round.id)
             await load() // reload active round → shows the next hole
+            WKInterfaceDevice.current().play(.success)
         } catch {
+            WKInterfaceDevice.current().play(.failure)
             state = .error(Self.message(for: error))
         }
     }

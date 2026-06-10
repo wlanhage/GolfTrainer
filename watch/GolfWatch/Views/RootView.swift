@@ -4,6 +4,8 @@ import SwiftUI
 /// right screen for the current `ViewState`.
 struct RootView: View {
     @StateObject private var viewModel: RoundViewModel
+    @ObservedObject private var session = WatchSessionManager.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let token = TokenStore()
@@ -29,5 +31,13 @@ struct RootView: View {
             }
         }
         .task { await viewModel.onAppear() }
+        // Wrist raise / app reactivation → silent refresh (no loading flash).
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await viewModel.refresh() } }
+        }
+        // Token arrived from the phone after launch → try loading again.
+        .onChange(of: session.hasToken) { _, hasToken in
+            if hasToken { Task { await viewModel.refresh() } }
+        }
     }
 }

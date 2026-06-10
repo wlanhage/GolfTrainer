@@ -60,15 +60,21 @@ Pick an **Apple Watch simulator** and Run.
   trailing slash (e.g. `https://api.example.com/api/v1`). The endpoint paths
   already match the real Fastify routes added for the watch.
 - **Auth token** — the app reads a bearer token from `TokenStore`
-  (UserDefaults key `golftrainer.accessToken`). For a quick test, set it once in
-  the simulator, e.g. temporarily in `RootView.init`:
-  ```swift
-  #if DEBUG
-  TokenStore().save("PASTE_A_VALID_JWT")
-  #endif
+  (UserDefaults key `golftrainer.accessToken`). Two ways to populate it:
+  - **Simulator / quick test:** paste a JWT into `AppConfig.devBearerToken`
+    (DEBUG-only; applied at launch). Leave it empty in commits.
+  - **Real device:** the iPhone app pushes it via **WatchConnectivity** —
+    `WatchSessionManager` listens for `["accessToken": "<jwt>"]` from
+    `updateApplicationContext`/`transferUserInfo` and saves it. When a token
+    arrives after launch the UI refreshes automatically.
+
+  iOS sender side (the phone app is Expo/React Native, so use a native module
+  such as [`react-native-watch-connectivity`](https://github.com/mtford90/react-native-watch-connectivity)):
+  ```ts
+  import { updateApplicationContext } from 'react-native-watch-connectivity';
+  updateApplicationContext({ accessToken: tokens.accessToken });
   ```
-  In production, send the token from the iOS app via **WatchConnectivity** and
-  store it in the **Keychain** instead of UserDefaults.
+  In production prefer the **Keychain** over UserDefaults for the stored token.
 
 ## API contract (as implemented)
 
@@ -109,9 +115,17 @@ layout):
 - **Distances** are recomputed on every GPS fix via `CLLocation.distance(from:)`
   (meters). They show `–` until the first fix / if the green isn't geo-tagged.
 - In the **simulator**, set a location under *Features → Location* (e.g. Custom
-  Location) — otherwise distances stay `–`.
+  Location) near the seeded green (`57.700, 11.970`) — otherwise distances
+  stay `–`.
+- **Auto-refresh:** raising the wrist / reopening the app silently reloads the
+  active round (no loading flash); same when a token arrives from the phone.
+- **Haptics:** advancing to the next hole plays a success/failure tap.
 
-## Out of scope (intentionally)
+## Out of scope (deferred)
 
-Maps, scorecard, statistics, and complications are deferred — this is a focused
-MVP per the brief.
+- Complications, maps, scorecard, statistics.
+- Offline cache (show the last round instantly while the network call runs).
+- Retry/queueing of stroke updates when the network is flaky (currently the
+  optimistic value stays and resyncs on the next change/refresh).
+
+These are intentional next steps after the MVP.
