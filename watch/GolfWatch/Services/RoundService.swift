@@ -10,15 +10,15 @@ struct RoundService {
         try await api.getOptional(AppConfig.activeRound())
     }
 
-    /// `PATCH /api/rounds/{roundId}/holes/{holeId}/strokes`  body: `{ "strokes": n }`
-    func updateStrokes(roundId: String, holeId: String, strokes: Int) async throws {
+    /// `PATCH /rounds/{roundId}/holes/{holeNumber}/strokes`  body: `{ "strokes": n }`
+    func updateStrokes(roundId: String, holeNumber: Int, strokes: Int) async throws {
         try await api.patch(
-            AppConfig.strokes(roundId: roundId, holeId: holeId),
+            AppConfig.strokes(roundId: roundId, holeNumber: holeNumber),
             body: StrokesPayload(strokes: strokes)
         )
     }
 
-    /// `POST /api/rounds/{roundId}/next-hole`
+    /// `POST /rounds/{roundId}/next-hole`
     func goToNextHole(roundId: String) async throws {
         try await api.post(AppConfig.nextHole(roundId: roundId))
     }

@@ -45,6 +45,12 @@ export const updatePlayerScoreSchema = z
     message: 'At least one field must be provided'
   });
 
+// Watch companion: set the calling player's strokes on a hole (by holeNumber).
+export const updateStrokesSchema = z.object({
+  strokes: z.number().int().min(0).max(30)
+});
+export type UpdateStrokesInput = z.infer<typeof updateStrokesSchema>;
+
 export const updateRoundSchema = z
   .object({
     currentHoleNumber: z.number().int().min(1).max(36).optional(),

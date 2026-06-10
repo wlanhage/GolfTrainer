@@ -56,9 +56,9 @@ Pick an **Apple Watch simulator** and Run.
 ## Configure
 
 - **Backend URL** — edit `Services/AppConfig.swift` (`baseURL`) or set a
-  `baseURL` value in `UserDefaults`. ⚠️ The web app uses `<host>/api/v1`; this
-  spec uses `/api/rounds/...`. Align `baseURL` **and** the paths in `AppConfig`
-  with your real API.
+  `baseURL` value in `UserDefaults`. Include the `/api/v1` prefix and no
+  trailing slash (e.g. `https://api.example.com/api/v1`). The endpoint paths
+  already match the real Fastify routes added for the watch.
 - **Auth token** — the app reads a bearer token from `TokenStore`
   (UserDefaults key `golftrainer.accessToken`). For a quick test, set it once in
   the simulator, e.g. temporarily in `RootView.init`:
@@ -72,20 +72,23 @@ Pick an **Apple Watch simulator** and Run.
 
 ## API contract (as implemented)
 
+All paths are relative to `<host>/api/v1` and require a Bearer token.
+
 | Call | Method | Path | Body |
 |------|--------|------|------|
-| Active round | GET | `/api/rounds/active` | — (404 → "no active round") |
-| Update strokes | PATCH | `/api/rounds/{roundId}/holes/{holeId}/strokes` | `{ "strokes": 4 }` |
-| Next hole | POST | `/api/rounds/{roundId}/next-hole` | — |
+| Active round | GET | `/rounds/active` | — (404 → "no active round") |
+| Update strokes | PATCH | `/rounds/{roundId}/holes/{holeNumber}/strokes` | `{ "strokes": 4 }` |
+| Next hole | POST | `/rounds/{roundId}/next-hole` | — |
 
-Expected `GET /active` shape (adjust the `CodingKeys` in the models if yours
-differs):
+`GET /rounds/active` response (assembled by the backend; the watch user's
+strokes for the current hole, plus front/back green derived from the hole
+layout):
 
 ```json
 {
   "roundId": "abc",
   "currentHole": {
-    "id": "hole_1",
+    "id": "roundhole_1",
     "holeNumber": 7,
     "par": 4,
     "strokes": 3,
@@ -94,6 +97,10 @@ differs):
   }
 }
 ```
+
+> The backend derives `greenFront` / `greenBack` from `HoleLayout.greenPolygon`
+> + bearing (nearest/farthest point along the play direction). If a hole has no
+> layout, both are `null` and the watch shows `–`.
 
 ## Behaviour notes
 

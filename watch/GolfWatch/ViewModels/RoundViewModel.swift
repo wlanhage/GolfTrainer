@@ -109,7 +109,7 @@ final class RoundViewModel: ObservableObject {
         do {
             try await service.updateStrokes(
                 roundId: round.id,
-                holeId: round.currentHole.id,
+                holeNumber: round.currentHole.number,
                 strokes: value
             )
         } catch {

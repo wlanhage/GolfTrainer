@@ -289,6 +289,94 @@ async function seedRound(opts: {
   return round;
 }
 
+// ─── Active round (for the Apple Watch companion) ────────────────────────────
+
+// One IN_PROGRESS round so `GET /rounds/active` returns real data, plus a green
+// layout on the current hole so front/back distances compute. Idempotent.
+async function seedActiveRound(
+  user: { id: string; profile: { displayName: string } | null },
+  course: CourseWithHoles
+) {
+  await prisma.round.deleteMany({
+    where: { userId: user.id, courseId: course.id, status: 'IN_PROGRESS' }
+  });
+
+  const currentHoleNumber = 3;
+  const round = await prisma.round.create({
+    data: {
+      userId: user.id,
+      courseId: course.id,
+      courseNameSnapshot: course.courseName,
+      clubNameSnapshot: course.clubName,
+      teeNameSnapshot: course.teeName ?? null,
+      status: 'IN_PROGRESS',
+      currentHoleNumber,
+      format: 'STROKE_PLAY',
+      roundHoles: {
+        create: course.holes.map((h) => ({
+          holeId: h.id,
+          holeNumber: h.holeNumber,
+          parSnapshot: h.par,
+          lengthSnapshot: h.length,
+          hcpIndexSnapshot: h.hcpIndex
+        }))
+      },
+      players: {
+        create: [
+          {
+            userId: user.id,
+            displayNameSnapshot: user.profile?.displayName ?? 'Spelare',
+            order: 0,
+            isHost: true
+          }
+        ]
+      }
+    },
+    include: { players: true, roundHoles: true }
+  });
+
+  const player = round.players[0];
+  for (const rh of round.roundHoles.filter((r) => r.holeNumber <= currentHoleNumber)) {
+    // Finished holes get par; the current hole is mid-play (3 strokes so far).
+    const strokes = rh.holeNumber < currentHoleNumber ? rh.parSnapshot ?? 4 : 3;
+    await prisma.roundHoleScore.create({
+      data: { roundHoleId: rh.id, playerId: player.id, strokes }
+    });
+  }
+
+  // Fabricated-but-plausible green geometry for the current hole so the watch's
+  // GPS distances render (set a nearby simulator location to see them).
+  const currentHole = round.roundHoles.find((r) => r.holeNumber === currentHoleNumber);
+  if (currentHole) {
+    const lat = 57.7;
+    const lng = 11.97;
+    await prisma.holeLayout.upsert({
+      where: { holeId: currentHole.holeId },
+      update: {},
+      create: {
+        holeId: currentHole.holeId,
+        teePoint: { type: 'Point', coordinates: [lng - 0.0015, lat - 0.002] },
+        greenPolygon: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [lng, lat],
+              [lng + 0.0002, lat + 0.0001],
+              [lng + 0.00025, lat + 0.0003],
+              [lng + 0.00005, lat + 0.00035],
+              [lng, lat]
+            ]
+          ]
+        },
+        holeBearing: 20,
+        layoutStatus: 'FULL'
+      }
+    });
+  }
+
+  return round;
+}
+
 // ─── Follows ────────────────────────────────────────────────────────────────
 
 async function follow(followerId: string, followingId: string) {
@@ -585,6 +673,9 @@ async function main() {
   await seedRound({ user: anna, course: parkbanan, startedDaysAgo: 28, strokes: [5, 4, 7, 5, 5, 4, 7, 5, 6], status: 'COMPLETED' });
   await seedRound({ user: anna, course: parkbanan, startedDaysAgo: 14, strokes: [5, 3, 6, 5, 4, 4, 6, 5, 5], status: 'COMPLETED' });
   await seedRound({ user: anna, course: parkbanan, startedDaysAgo: 3, strokes: [4, 4, 6, 4, 4, 3, 6, 4, 5], status: 'COMPLETED' });
+
+  log('Aktiv runda (Apple Watch)...');
+  await seedActiveRound(anna, parkbanan);
   await seedRound({ user: erik, course: skogsbanan, startedDaysAgo: 21, strokes: [4, 5, 5, 4, 3, 5, 4, 4, 6, 4, 4, 5, 4, 4, 3, 5, 5, 4], status: 'COMPLETED' });
   await seedRound({ user: erik, course: parkbanan, startedDaysAgo: 5, strokes: [4, 3, 5, 4, 4, 3, 5, 4, 4], status: 'COMPLETED' });
   await seedRound({ user: lisa, course: parkbanan, startedDaysAgo: 18, strokes: [7, 5, 8, 6, 6, 5, 8, 7, 7], status: 'COMPLETED' });

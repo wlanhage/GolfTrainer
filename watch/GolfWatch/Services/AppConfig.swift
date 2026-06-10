@@ -2,28 +2,29 @@ import Foundation
 
 /// Central place for the backend base URL and endpoint paths.
 ///
-/// NOTE: the web app talks to `<host>/api/v1`, while this spec uses
-/// `/api/rounds/...`. Adjust `baseURL` and the paths below to match your real
-/// API once you wire it up.
+/// Backend base URL + endpoint paths. Paths match the real Fastify routes added
+/// for the watch (`GET /rounds/active`, `PATCH /rounds/:id/holes/:n/strokes`,
+/// `POST /rounds/:id/next-hole`), served under the `/api/v1` prefix.
 enum AppConfig {
-    /// Override at launch with `-AppConfig.baseURL <url>` or by editing here.
+    /// Override at runtime by setting `baseURL` in UserDefaults. Must include the
+    /// `/api/v1` prefix and no trailing slash.
     static var baseURL: URL {
         if let raw = UserDefaults.standard.string(forKey: "baseURL"),
            let url = URL(string: raw) {
             return url
         }
-        return URL(string: "https://your-backend.example.com")!
+        return URL(string: "https://your-backend.example.com/api/v1")!
     }
 
     static func activeRound() -> String {
-        "/api/rounds/active"
+        "/rounds/active"
     }
 
-    static func strokes(roundId: String, holeId: String) -> String {
-        "/api/rounds/\(roundId)/holes/\(holeId)/strokes"
+    static func strokes(roundId: String, holeNumber: Int) -> String {
+        "/rounds/\(roundId)/holes/\(holeNumber)/strokes"
     }
 
     static func nextHole(roundId: String) -> String {
-        "/api/rounds/\(roundId)/next-hole"
+        "/rounds/\(roundId)/next-hole"
     }
 }

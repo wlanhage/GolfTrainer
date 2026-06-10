@@ -13,6 +13,10 @@ export async function roundsRoutes(app: FastifyInstance) {
   app.get('/admin', { preHandler: [requireAdmin] }, roundsController.adminList);
   app.post('/admin/:roundId/recompute-total', { preHandler: [requireAdmin] }, roundsController.adminRecomputeTotalScore);
 
+  // Watch companion: literal `/active` must be declared before `/:roundId`
+  // so it isn't captured as a round id.
+  app.get('/active', roundsController.getActive);
+
   app.get('/', roundsController.list);
   app.post('/', roundsController.create);
   app.get('/:roundId', roundsController.getById);
@@ -20,8 +24,10 @@ export async function roundsRoutes(app: FastifyInstance) {
   app.patch('/:roundId', roundsController.update);
   app.patch('/:roundId/image', roundsController.setImage);
   app.post('/:roundId/leave', roundsController.leave);
+  app.post('/:roundId/next-hole', roundsController.nextHole);
   app.delete('/:roundId', roundsController.remove);
   app.patch('/:roundId/holes/:holeNumber', roundsController.updateHole);
+  app.patch('/:roundId/holes/:holeNumber/strokes', roundsController.updateStrokes);
   app.patch('/:roundId/holes/:holeNumber/scores/:playerId', roundsController.updatePlayerScore);
 
   // Round shots

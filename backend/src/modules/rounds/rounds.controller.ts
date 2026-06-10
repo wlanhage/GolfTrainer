@@ -10,7 +10,8 @@ import {
   setRoundImageSchema,
   updatePlayerScoreSchema,
   updateRoundHoleSchema,
-  updateRoundSchema
+  updateRoundSchema,
+  updateStrokesSchema
 } from './rounds.schema.js';
 import { roundsService } from './rounds.service.js';
 
@@ -42,6 +43,26 @@ export const roundsController = {
     const { roundId } = roundIdParamSchema.parse(request.params);
     const result = await roundsService.adminRecomputeTotalScore(roundId);
     return reply.send(result);
+  },
+
+  // ─── Watch companion ───────────────────────────────────────────────────────
+
+  async getActive(request: FastifyRequest, reply: FastifyReply) {
+    const active = await roundsService.getActiveRound(request.auth!.userId);
+    return reply.send(active);
+  },
+
+  async nextHole(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const result = await roundsService.advanceToNextHole(roundId, request.auth!.userId);
+    return reply.send(result);
+  },
+
+  async updateStrokes(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId, holeNumber } = roundHoleParamSchema.parse(request.params);
+    const { strokes } = updateStrokesSchema.parse(request.body);
+    const score = await roundsService.updateMyStrokes(roundId, request.auth!.userId, holeNumber, strokes);
+    return reply.send(score);
   },
 
   async getById(request: FastifyRequest, reply: FastifyReply) {

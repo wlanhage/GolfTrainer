@@ -10,6 +10,7 @@ import type {
   UpdateRoundHoleInput,
   UpdateRoundInput
 } from './rounds.schema.js';
+import type { HoleLayout } from '@prisma/client';
 import type { RoundFormat } from '@prisma/client';
 
 const EARTH_RADIUS_M = 6371000;
@@ -19,6 +20,116 @@ const getGeoDistanceMeters = (fromLat: number, fromLng: number, toLat: number, t
   const dLng = toRadians(toLng - fromLng);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(dLng / 2) ** 2;
   return EARTH_RADIUS_M * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+};
+
+// ─── Green geometry (for the watch's front/back distances) ───────────────────
+//
+// The data model stores a `greenPolygon` (GeoJSON-ish) + an optional
+// `holeBearing`, not explicit front/back points. We derive them by projecting
+// the green's outline onto the play direction: the nearest vertex (along the
+// tee→green bearing) is the FRONT of the green, the farthest is the BACK.
+
+type LatLng = { lat: number; lng: number };
+
+/** Outer ring of a GeoJSON polygon as [lng, lat] pairs, or null. */
+const extractRing = (polygon: unknown): Array<[number, number]> | null => {
+  if (!polygon || typeof polygon !== 'object') return null;
+  const geom = ('geometry' in polygon ? (polygon as { geometry?: unknown }).geometry : polygon) as
+    | { coordinates?: unknown }
+    | undefined;
+  const coords = geom?.coordinates;
+  if (!Array.isArray(coords) || !Array.isArray(coords[0])) return null;
+  const ring = coords[0] as unknown[];
+  const points = ring
+    .filter((p): p is [number, number] => Array.isArray(p) && p.length >= 2)
+    .map((p) => [Number(p[0]), Number(p[1])] as [number, number])
+    .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
+  return points.length ? points : null;
+};
+
+/** A GeoJSON Point ([lng,lat]) or a {lat,lng} object → LatLng, or null. */
+const extractPoint = (point: unknown): LatLng | null => {
+  if (!point || typeof point !== 'object') return null;
+  const geom = ('geometry' in point ? (point as { geometry?: unknown }).geometry : point) as
+    | { coordinates?: unknown }
+    | undefined;
+  const c = geom?.coordinates;
+  if (Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1]))) {
+    return { lng: Number(c[0]), lat: Number(c[1]) };
+  }
+  const obj = point as { lat?: unknown; lng?: unknown };
+  if (typeof obj.lat === 'number' && typeof obj.lng === 'number') return { lat: obj.lat, lng: obj.lng };
+  return null;
+};
+
+const bearingDeg = (from: LatLng, to: LatLng): number => {
+  const φ1 = toRadians(from.lat);
+  const φ2 = toRadians(to.lat);
+  const Δλ = toRadians(to.lng - from.lng);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+};
+
+/** Front (nearest) and back (farthest) green points along the play direction. */
+const deriveGreenEnds = (
+  layout: HoleLayout | null | undefined
+): { greenFront: LatLng | null; greenBack: LatLng | null } => {
+  if (!layout) return { greenFront: null, greenBack: null };
+  const ring = extractRing(layout.greenPolygon);
+  if (!ring || ring.length < 2) return { greenFront: null, greenBack: null };
+
+  const lat0 = ring.reduce((s, [, lat]) => s + lat, 0) / ring.length;
+  const lng0 = ring.reduce((s, [lng]) => s + lng, 0) / ring.length;
+
+  let bearing: number | null =
+    layout.holeBearing != null && Number.isFinite(Number(layout.holeBearing))
+      ? Number(layout.holeBearing)
+      : null;
+  if (bearing == null) {
+    const tee = extractPoint(layout.teePoint);
+    if (tee) bearing = bearingDeg(tee, { lat: lat0, lng: lng0 });
+  }
+
+  // No orientation available → fall back to the two farthest-apart vertices.
+  if (bearing == null) {
+    let best = -1;
+    let a: LatLng | null = null;
+    let b: LatLng | null = null;
+    for (let i = 0; i < ring.length; i++) {
+      for (let j = i + 1; j < ring.length; j++) {
+        const d = getGeoDistanceMeters(ring[i][1], ring[i][0], ring[j][1], ring[j][0]);
+        if (d > best) {
+          best = d;
+          a = { lat: ring[i][1], lng: ring[i][0] };
+          b = { lat: ring[j][1], lng: ring[j][0] };
+        }
+      }
+    }
+    return { greenFront: a, greenBack: b };
+  }
+
+  const θ = toRadians(bearing);
+  const ux = Math.sin(θ); // east component of play direction
+  const uy = Math.cos(θ); // north component
+  let minP = Infinity;
+  let maxP = -Infinity;
+  let front: LatLng | null = null;
+  let back: LatLng | null = null;
+  for (const [lng, lat] of ring) {
+    const north = (lat - lat0) * 111320;
+    const east = (lng - lng0) * 111320 * Math.cos(toRadians(lat0));
+    const proj = east * ux + north * uy;
+    if (proj < minP) {
+      minP = proj;
+      front = { lat, lng };
+    }
+    if (proj > maxP) {
+      maxP = proj;
+      back = { lat, lng };
+    }
+  }
+  return { greenFront: front, greenBack: back };
 };
 
 const assertParticipant = async (roundId: string, userId: string) => {
@@ -188,6 +299,85 @@ export const roundsService = {
     const round = await roundsRepository.getByIdForParticipant(roundId, userId);
     if (!round) throw new NotFoundError('Round not found');
     return round;
+  },
+
+  /**
+   * Watch companion: the caller's currently in-progress round, reduced to just
+   * what the play view needs. Throws NotFound (→ 404) when there's none.
+   */
+  async getActiveRound(userId: string) {
+    const round = await prisma.round.findFirst({
+      where: {
+        status: 'IN_PROGRESS',
+        OR: [{ userId }, { players: { some: { userId, leftAt: null } } }]
+      },
+      orderBy: { startedAt: 'desc' },
+      select: {
+        id: true,
+        currentHoleNumber: true,
+        players: { where: { userId }, select: { id: true } }
+      }
+    });
+    if (!round) throw new NotFoundError('No active round');
+
+    const myPlayerId = round.players[0]?.id ?? '__none__';
+    const roundHole = await prisma.roundHole.findFirst({
+      where: { roundId: round.id, holeNumber: round.currentHoleNumber },
+      include: {
+        hole: { include: { holeLayout: true } },
+        scores: { where: { playerId: myPlayerId }, select: { strokes: true } }
+      }
+    });
+    if (!roundHole) throw new NotFoundError('Current hole not found');
+
+    const { greenFront, greenBack } = deriveGreenEnds(roundHole.hole.holeLayout);
+
+    return {
+      roundId: round.id,
+      currentHole: {
+        id: roundHole.id,
+        holeNumber: roundHole.holeNumber,
+        par: roundHole.parSnapshot ?? roundHole.hole.par ?? 0,
+        strokes: roundHole.scores[0]?.strokes ?? 0,
+        greenFront,
+        greenBack
+      }
+    };
+  },
+
+  /** Watch companion: advance the round to the next hole (clamped to hole count). */
+  async advanceToNextHole(roundId: string, userId: string) {
+    await assertParticipant(roundId, userId);
+    const round = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: { currentHoleNumber: true }
+    });
+    if (!round) throw new NotFoundError('Round not found');
+
+    const holeCount = await prisma.roundHole.count({ where: { roundId } });
+    const nextHoleNumber = Math.min(round.currentHoleNumber + 1, Math.max(holeCount, 1));
+
+    const updated = await prisma.round.update({
+      where: { id: roundId },
+      data: { currentHoleNumber: nextHoleNumber },
+      select: { id: true, currentHoleNumber: true }
+    });
+    return { roundId: updated.id, currentHoleNumber: updated.currentHoleNumber };
+  },
+
+  /** Watch companion: set the calling player's strokes on a hole (by holeNumber). */
+  async updateMyStrokes(roundId: string, userId: string, holeNumber: number, strokes: number) {
+    const player = await prisma.roundPlayer.findUnique({
+      where: { roundId_userId: { roundId, userId } },
+      select: { id: true }
+    });
+    if (!player) throw new ForbiddenError('You are not a participant in this round');
+
+    const updated = await roundsRepository.upsertPlayerScore(roundId, userId, holeNumber, player.id, {
+      strokes
+    });
+    if (!updated) throw new NotFoundError('Round or hole not found');
+    return updated;
   },
 
   /** Public read-only — any authenticated user can view any completed round. */
