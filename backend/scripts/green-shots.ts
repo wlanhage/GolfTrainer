@@ -148,8 +148,19 @@ async function main() {
     }
 
     const res = await fetch(url);
+    if (res.status === 401 || res.status === 403) {
+      // Key problem — no point hammering the rest.
+      throw new Error(
+        `${KEY_NAME} rejected (HTTP ${res.status}). Verify the key is correct and has no ` +
+          `allowed-origins/URL restriction (server-side requests need an unrestricted key).`
+      );
+    }
     if (!res.ok) {
-      console.warn(`  fail ${file}: HTTP ${res.status} ${await res.text().catch(() => '')}`.trim());
+      // Only read the body as text when it's JSON — error "tiles" are binary
+      // PNGs and would spew garbage to the terminal.
+      const ct = res.headers.get('content-type') ?? '';
+      const detail = ct.includes('json') ? ` — ${(await res.text().catch(() => '')).slice(0, 200)}` : '';
+      console.warn(`  fail hole ${layout.hole.holeNumber}: HTTP ${res.status}${detail}`);
       continue;
     }
     writeFileSync(resolve(OUT_DIR, file), Buffer.from(await res.arrayBuffer()));
