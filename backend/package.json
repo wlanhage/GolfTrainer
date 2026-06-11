@@ -9,6 +9,8 @@
   },
   "scripts": {
     "dev": "cross-env ENV_FILE=.env.supabase tsx watch src/server.ts",
+    "green:shots:supabase": "cross-env ENV_FILE=.env.supabase tsx scripts/green-shots.ts",
+    "green:shots:local": "cross-env ENV_FILE=.env.local tsx scripts/green-shots.ts",
     "build": "prisma generate --schema ../prisma/schema.prisma && tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "tsx --test \"src/**/*.test.ts\"",
