@@ -1,13 +1,15 @@
-// Generate a clean satellite PNG for each mapped green (green + ~20 m around)
-// using a Static Maps API. Reads green polygons straight from the DB.
+// Generate a clean satellite PNG for each mapped green (green + ~20 m around).
+// Reads green polygons straight from the DB.
 //
-// Default provider is MapTiler (free, no credit card). Set TILE_PROVIDER=mapbox
-// to use Mapbox instead.
+// Default provider is Esri World Imagery — NO key, NO credit card. (MapTiler's
+// and Mapbox's static-image APIs need a paid/keyed plan.) Attribution required
+// where the images are shown: "Esri, Maxar, Earthstar Geographics, and the GIS
+// User Community".
 //
-// Run (key inline so it isn't committed):
-//   MAPTILER_KEY=xxx npm --prefix backend run green:shots:supabase
-//   MAPTILER_KEY=xxx npm --prefix backend run green:shots:local
-//   TILE_PROVIDER=mapbox MAPBOX_TOKEN=pk.xxx npm --prefix backend run green:shots:supabase
+// Run:
+//   npm --prefix backend run green:shots:supabase                       # Esri, no key
+//   TILE_PROVIDER=maptiler MAPTILER_KEY=xxx  npm --prefix backend run green:shots:supabase
+//   TILE_PROVIDER=mapbox   MAPBOX_TOKEN=pk.x npm --prefix backend run green:shots:supabase
 //
 // Output: backend/green-shots/<club>__<course>__hole<N>.png + manifest.json
 
@@ -20,16 +22,26 @@ import { resolve } from 'node:path';
 
 const prisma = new PrismaClient();
 
-type Provider = 'maptiler' | 'mapbox';
-const PROVIDER: Provider = process.env.TILE_PROVIDER === 'mapbox' ? 'mapbox' : 'maptiler';
+type Provider = 'esri' | 'maptiler' | 'mapbox';
+const PROVIDER: Provider =
+  process.env.TILE_PROVIDER === 'maptiler' ? 'maptiler'
+  : process.env.TILE_PROVIDER === 'mapbox' ? 'mapbox'
+  : 'esri';
 const KEY = PROVIDER === 'mapbox' ? process.env.MAPBOX_TOKEN : process.env.MAPTILER_KEY;
 const KEY_NAME = PROVIDER === 'mapbox' ? 'MAPBOX_TOKEN' : 'MAPTILER_KEY';
+const NEEDS_KEY = PROVIDER !== 'esri';
 
 const OUT_DIR = resolve(process.cwd(), 'green-shots');
-const IMG_PX = 600; // requested at @2x → 1200×1200 actual
+const IMG_PX = 800; // output pixels (square)
 const MARGIN_M = 22; // metres of surroundings to include on each side
+const ESRI_MIN_SPAN_M = 280; // Esri's export 500s ("Error: bytes") below ~250m
 const ZOOM_MIN = 16;
 const ZOOM_MAX = 20; // satellite imagery thins out past this in rural areas
+
+// Web-Mercator (EPSG:3857) helpers.
+const MERC = 20037508.34 / 180;
+const toMercX = (lng: number) => lng * MERC;
+const toMercY = (lat: number) => Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) * MERC;
 
 type Ring = Array<[number, number]>; // [lng, lat]
 
@@ -76,12 +88,24 @@ function frame(ring: Ring) {
   const lng0 = (Math.min(...lngs) + Math.max(...lngs)) / 2;
   const latSpanM = (Math.max(...lats) - Math.min(...lats)) * 111320;
   const lngSpanM = (Math.max(...lngs) - Math.min(...lngs)) * 111320 * Math.cos((lat0 * Math.PI) / 180);
-  const spanM = Math.max(latSpanM, lngSpanM, 10) + 2 * MARGIN_M;
-  // Zoom so the image width covers spanM: mpp = 156543.03·cos(lat)/2^z, span = px·mpp
+  const greenSpanM = Math.max(latSpanM, lngSpanM, 10) + 2 * MARGIN_M;
+  // Esri export rejects tiny extents → clamp to a working minimum.
+  const spanM = Math.max(greenSpanM, ESRI_MIN_SPAN_M);
+
+  // Zoom (for MapTiler/Mapbox) so the image width covers spanM.
   const z = Math.log2((156543.03 * Math.cos((lat0 * Math.PI) / 180) * IMG_PX) / spanM);
   const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z)));
-  return { lat0, lng0, zoom };
+
+  // Square Web-Mercator bbox (conformal → undistorted square image). Mercator
+  // units stretch by 1/cos(lat), so scale the half-extent accordingly.
+  const halfMerc = spanM / 2 / Math.cos((lat0 * Math.PI) / 180);
+  const cx = toMercX(lng0);
+  const cy = toMercY(lat0);
+  const bbox3857: [number, number, number, number] = [cx - halfMerc, cy - halfMerc, cx + halfMerc, cy + halfMerc];
+  return { lat0, lng0, zoom, spanM, bbox3857 };
 }
+
+type Frame = ReturnType<typeof frame>;
 
 const slug = (s: string) =>
   s
@@ -90,24 +114,30 @@ const slug = (s: string) =>
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
-function buildUrl(lng: number, lat: number, zoom: number): string {
+function buildUrl(f: Frame): string {
+  if (PROVIDER === 'esri') {
+    const [a, b, c, d] = f.bbox3857;
+    return (
+      `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export` +
+      `?bbox=${a},${b},${c},${d}&bboxSR=3857&imageSR=3857&size=${IMG_PX},${IMG_PX}&format=png&f=image`
+    );
+  }
   if (PROVIDER === 'mapbox') {
     return (
       `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/` +
-      `${lng},${lat},${zoom},0/${IMG_PX}x${IMG_PX}@2x?access_token=${KEY}`
+      `${f.lng0},${f.lat0},${f.zoom},0/${IMG_PX}x${IMG_PX}@2x?access_token=${KEY}`
     );
   }
-  // MapTiler (default)
   return (
     `https://api.maptiler.com/maps/satellite/static/` +
-    `${lng},${lat},${zoom}/${IMG_PX}x${IMG_PX}@2x.png?key=${KEY}`
+    `${f.lng0},${f.lat0},${f.zoom}/${IMG_PX}x${IMG_PX}@2x.png?key=${KEY}`
   );
 }
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
 async function main() {
-  if (!DRY_RUN && !KEY) throw new Error(`Missing ${KEY_NAME} env var (or pass --dry-run).`);
+  if (!DRY_RUN && NEEDS_KEY && !KEY) throw new Error(`Missing ${KEY_NAME} env var (or pass --dry-run).`);
   console.log(`[green-shots] provider: ${PROVIDER}`);
   mkdirSync(OUT_DIR, { recursive: true });
 
@@ -126,11 +156,12 @@ async function main() {
       console.warn(`  skip hole ${layout.hole.holeNumber}: green polygon unparseable`);
       continue;
     }
-    const { lat0, lng0, zoom } = frame(ring);
+    const f = frame(ring);
+    const { lat0, lng0, zoom, spanM } = f;
     const course = layout.hole.course;
     const file = `${slug(course.clubName)}__${slug(course.courseName)}__hole${layout.hole.holeNumber}.png`;
 
-    const url = buildUrl(lng0, lat0, zoom);
+    const url = buildUrl(f);
 
     if (DRY_RUN) {
       manifest.push({
@@ -143,7 +174,7 @@ async function main() {
         zoom
       });
       ok++;
-      console.log(`  • ${file} → center ${lat0.toFixed(5)},${lng0.toFixed(5)} zoom ${zoom}`);
+      console.log(`  • ${file} → center ${lat0.toFixed(5)},${lng0.toFixed(5)} ~${Math.round(spanM)}m`);
       continue;
     }
 
