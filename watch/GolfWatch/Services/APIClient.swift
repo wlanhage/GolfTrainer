@@ -24,14 +24,14 @@ struct Empty: Codable {}
 
 /// A small generic JSON client: async/await, Codable, bearer auth, typed errors.
 final class APIClient {
-    private let baseURL: URL
+    private let baseURL: String
     private let token: TokenProviding
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
     init(
-        baseURL: URL = AppConfig.baseURL,
+        baseURL: String = AppConfig.baseURL,
         token: TokenProviding,
         session: URLSession = .shared
     ) {
@@ -73,7 +73,7 @@ final class APIClient {
         method: String,
         body: B?
     ) async throws -> T {
-        guard let url = URL(string: baseURL.absoluteString + path) else {
+        guard let url = URL(string: baseURL + path) else {
             throw APIError.invalidResponse
         }
 
