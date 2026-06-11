@@ -142,7 +142,10 @@ final class RoundViewModel: ObservableObject {
         isAdvancing = true
         defer { isAdvancing = false }
 
-        strokeSaveTask?.cancel() // flush any pending debounce intent
+        // Flush the latest stroke count for THIS hole before advancing, so a
+        // quick "scroll then Next Hole" (within the debounce window) isn't lost.
+        strokeSaveTask?.cancel()
+        await saveStrokes(strokes)
         do {
             try await service.goToNextHole(roundId: round.id)
             await load() // reload active round → shows the next hole
