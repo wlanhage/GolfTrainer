@@ -676,6 +676,7 @@ async function main() {
 
   log('Aktiv runda (Apple Watch)...');
   await seedActiveRound(anna, parkbanan);
+  await seedActiveRound(erik, skogsbanan);
   await seedRound({ user: erik, course: skogsbanan, startedDaysAgo: 21, strokes: [4, 5, 5, 4, 3, 5, 4, 4, 6, 4, 4, 5, 4, 4, 3, 5, 5, 4], status: 'COMPLETED' });
   await seedRound({ user: erik, course: parkbanan, startedDaysAgo: 5, strokes: [4, 3, 5, 4, 4, 3, 5, 4, 4], status: 'COMPLETED' });
   await seedRound({ user: lisa, course: parkbanan, startedDaysAgo: 18, strokes: [7, 5, 8, 6, 6, 5, 8, 7, 7], status: 'COMPLETED' });
