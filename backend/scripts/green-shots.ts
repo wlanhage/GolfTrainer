@@ -33,18 +33,40 @@ const ZOOM_MAX = 20; // satellite imagery thins out past this in rural areas
 
 type Ring = Array<[number, number]>; // [lng, lat]
 
-function extractRing(polygon: unknown): Ring | null {
-  if (!polygon || typeof polygon !== 'object') return null;
-  const geom = ('geometry' in polygon ? (polygon as { geometry?: unknown }).geometry : polygon) as
-    | { coordinates?: unknown }
-    | undefined;
-  const coords = geom?.coordinates;
-  if (!Array.isArray(coords) || !Array.isArray(coords[0])) return null;
-  const ring = (coords[0] as unknown[])
+const fromCoordPairs = (arr: unknown[]): Ring | null => {
+  const ring = arr
     .filter((p): p is [number, number] => Array.isArray(p) && p.length >= 2)
     .map((p) => [Number(p[0]), Number(p[1])] as [number, number])
     .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
   return ring.length ? ring : null;
+};
+
+// Handles the real DB format (GeoPoint[] = [{lat,lng}, ...]) plus GeoJSON
+// fallbacks ([[lng,lat], ...] and { coordinates: [[[lng,lat], ...]] }).
+function extractRing(polygon: unknown): Ring | null {
+  if (!polygon) return null;
+
+  if (Array.isArray(polygon)) {
+    const first = polygon[0];
+    if (first && typeof first === 'object' && !Array.isArray(first) && 'lat' in first && 'lng' in first) {
+      const ring = polygon
+        .filter((p): p is { lat: number; lng: number } =>
+          !!p && typeof (p as { lat?: unknown }).lat === 'number' && typeof (p as { lng?: unknown }).lng === 'number')
+        .map((p) => [p.lng, p.lat] as [number, number]);
+      return ring.length ? ring : null;
+    }
+    if (Array.isArray(first)) return fromCoordPairs(polygon);
+    return null;
+  }
+
+  if (typeof polygon === 'object') {
+    const geom = ('geometry' in polygon ? (polygon as { geometry?: unknown }).geometry : polygon) as
+      | { coordinates?: unknown }
+      | undefined;
+    const coords = geom?.coordinates;
+    if (Array.isArray(coords) && Array.isArray(coords[0])) return fromCoordPairs(coords[0] as unknown[]);
+  }
+  return null;
 }
 
 function frame(ring: Ring) {

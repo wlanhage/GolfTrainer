@@ -356,19 +356,14 @@ async function seedActiveRound(
       update: {},
       create: {
         holeId: rh.holeId,
-        teePoint: { type: 'Point', coordinates: [lng - 0.0015, lat - 0.002] },
-        greenPolygon: {
-          type: 'Polygon',
-          coordinates: [
-            [
-              [lng, lat],
-              [lng + 0.0002, lat + 0.0001],
-              [lng + 0.00025, lat + 0.0003],
-              [lng + 0.00005, lat + 0.00035],
-              [lng, lat]
-            ]
-          ]
-        },
+        // Real format: teePoint = GeoPoint, greenPolygon = GeoPoint[].
+        teePoint: { lat: lat - 0.002, lng: lng - 0.0015 },
+        greenPolygon: [
+          { lat: lat, lng: lng },
+          { lat: lat + 0.0001, lng: lng + 0.0002 },
+          { lat: lat + 0.0003, lng: lng + 0.00025 },
+          { lat: lat + 0.00035, lng: lng + 0.00005 }
+        ],
         holeBearing: 20,
         layoutStatus: 'FULL'
       }

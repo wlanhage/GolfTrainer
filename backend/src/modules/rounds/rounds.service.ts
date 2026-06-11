@@ -31,20 +31,42 @@ const getGeoDistanceMeters = (fromLat: number, fromLng: number, toLat: number, t
 
 type LatLng = { lat: number; lng: number };
 
-/** Outer ring of a GeoJSON polygon as [lng, lat] pairs, or null. */
-const extractRing = (polygon: unknown): Array<[number, number]> | null => {
-  if (!polygon || typeof polygon !== 'object') return null;
-  const geom = ('geometry' in polygon ? (polygon as { geometry?: unknown }).geometry : polygon) as
-    | { coordinates?: unknown }
-    | undefined;
-  const coords = geom?.coordinates;
-  if (!Array.isArray(coords) || !Array.isArray(coords[0])) return null;
-  const ring = coords[0] as unknown[];
-  const points = ring
+const fromCoordPairs = (arr: unknown[]): Array<[number, number]> | null => {
+  const points = arr
     .filter((p): p is [number, number] => Array.isArray(p) && p.length >= 2)
     .map((p) => [Number(p[0]), Number(p[1])] as [number, number])
     .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
   return points.length ? points : null;
+};
+
+/**
+ * Outer ring as [lng, lat] pairs. Handles the real DB format
+ * (GeoPoint[] = [{lat,lng}, ...]) plus GeoJSON fallbacks.
+ */
+const extractRing = (polygon: unknown): Array<[number, number]> | null => {
+  if (!polygon) return null;
+
+  if (Array.isArray(polygon)) {
+    const first = polygon[0];
+    if (first && typeof first === 'object' && !Array.isArray(first) && 'lat' in first && 'lng' in first) {
+      const ring = polygon
+        .filter((p): p is { lat: number; lng: number } =>
+          !!p && typeof (p as { lat?: unknown }).lat === 'number' && typeof (p as { lng?: unknown }).lng === 'number')
+        .map((p) => [p.lng, p.lat] as [number, number]);
+      return ring.length ? ring : null;
+    }
+    if (Array.isArray(first)) return fromCoordPairs(polygon);
+    return null;
+  }
+
+  if (typeof polygon === 'object') {
+    const geom = ('geometry' in polygon ? (polygon as { geometry?: unknown }).geometry : polygon) as
+      | { coordinates?: unknown }
+      | undefined;
+    const coords = geom?.coordinates;
+    if (Array.isArray(coords) && Array.isArray(coords[0])) return fromCoordPairs(coords[0] as unknown[]);
+  }
+  return null;
 };
 
 /** A GeoJSON Point ([lng,lat]) or a {lat,lng} object → LatLng, or null. */
