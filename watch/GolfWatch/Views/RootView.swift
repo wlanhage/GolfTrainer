@@ -31,9 +31,14 @@ struct RootView: View {
             }
         }
         .task { await viewModel.onAppear() }
-        // Wrist raise / app reactivation → silent refresh (no loading flash).
+        // Wrist raise / app reactivation → silent refresh. Wrist down / leaving
+        // → flush any unsaved stroke change before the app suspends.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await viewModel.refresh() } }
+            if phase == .active {
+                Task { await viewModel.refresh() }
+            } else {
+                Task { await viewModel.flushPendingStrokes() }
+            }
         }
         // Token arrived from the phone after launch → try loading again.
         .onChange(of: session.hasToken) { _, hasToken in

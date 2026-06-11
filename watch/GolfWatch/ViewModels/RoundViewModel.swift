@@ -36,6 +36,8 @@ final class RoundViewModel: ObservableObject {
     private let location: LocationManager
     private var cancellables = Set<AnyCancellable>()
     private var strokeSaveTask: Task<Void, Never>?
+    /// Last stroke count we know the backend has, so we only flush real changes.
+    private var savedStrokes: Int = 0
 
     init(service: RoundService, location: LocationManager) {
         self.service = service
@@ -95,6 +97,7 @@ final class RoundViewModel: ObservableObject {
     private func apply(_ round: ActiveRound) {
         self.round = round
         strokes = round.currentHole.strokes
+        savedStrokes = round.currentHole.strokes
         crownValue = Double(round.currentHole.strokes)
         if let loc = location.location {
             recomputeDistances(from: loc)
@@ -130,9 +133,18 @@ final class RoundViewModel: ObservableObject {
                 holeNumber: round.currentHole.number,
                 strokes: value
             )
+            savedStrokes = value
         } catch {
             // Keep the optimistic value; a later change or reload will resync.
         }
+    }
+
+    /// Flush an unsaved stroke change immediately — call when the app is about
+    /// to background / the wrist drops, so a pending debounced save isn't lost.
+    func flushPendingStrokes() async {
+        guard round != nil, strokes != savedStrokes else { return }
+        strokeSaveTask?.cancel()
+        await saveStrokes(strokes)
     }
 
     // MARK: - Next hole
