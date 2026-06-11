@@ -344,17 +344,18 @@ async function seedActiveRound(
     });
   }
 
-  // Fabricated-but-plausible green geometry for the current hole so the watch's
-  // GPS distances render (set a nearby simulator location to see them).
-  const currentHole = round.roundHoles.find((r) => r.holeNumber === currentHoleNumber);
-  if (currentHole) {
-    const lat = 57.7;
-    const lng = 11.97;
+  // Fabricated-but-plausible green geometry for EVERY hole in the round, so the
+  // watch's GPS distances render no matter which hole is current (incl. after
+  // "Next Hole"). Each green is offset slightly by hole number. Set a simulator
+  // location near 57.70, 11.97 to see meters.
+  for (const rh of round.roundHoles) {
+    const lat = 57.7 + rh.holeNumber * 0.001;
+    const lng = 11.97 + rh.holeNumber * 0.001;
     await prisma.holeLayout.upsert({
-      where: { holeId: currentHole.holeId },
+      where: { holeId: rh.holeId },
       update: {},
       create: {
-        holeId: currentHole.holeId,
+        holeId: rh.holeId,
         teePoint: { type: 'Point', coordinates: [lng - 0.0015, lat - 0.002] },
         greenPolygon: {
           type: 'Polygon',
