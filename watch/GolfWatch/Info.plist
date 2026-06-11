@@ -10,5 +10,12 @@
     <true/>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Används för att visa avstånd till green under rundan.</string>
+    <!-- Allow plain-HTTP to localhost/.local during dev (production uses HTTPS,
+         which is unaffected by this exception). -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
 </dict>
 </plist>
