@@ -1,9 +1,13 @@
 // Generate a clean satellite PNG for each mapped green (green + ~20 m around)
-// using the Mapbox Static Images API. Reads green polygons straight from the DB.
+// using a Static Maps API. Reads green polygons straight from the DB.
 //
-// Run (token inline so it isn't committed):
-//   MAPBOX_TOKEN=pk.xxx npm --prefix backend run green:shots:supabase
-//   MAPBOX_TOKEN=pk.xxx npm --prefix backend run green:shots:local
+// Default provider is MapTiler (free, no credit card). Set TILE_PROVIDER=mapbox
+// to use Mapbox instead.
+//
+// Run (key inline so it isn't committed):
+//   MAPTILER_KEY=xxx npm --prefix backend run green:shots:supabase
+//   MAPTILER_KEY=xxx npm --prefix backend run green:shots:local
+//   TILE_PROVIDER=mapbox MAPBOX_TOKEN=pk.xxx npm --prefix backend run green:shots:supabase
 //
 // Output: backend/green-shots/<club>__<course>__hole<N>.png + manifest.json
 
@@ -16,7 +20,11 @@ import { resolve } from 'node:path';
 
 const prisma = new PrismaClient();
 
-const TOKEN = process.env.MAPBOX_TOKEN;
+type Provider = 'maptiler' | 'mapbox';
+const PROVIDER: Provider = process.env.TILE_PROVIDER === 'mapbox' ? 'mapbox' : 'maptiler';
+const KEY = PROVIDER === 'mapbox' ? process.env.MAPBOX_TOKEN : process.env.MAPTILER_KEY;
+const KEY_NAME = PROVIDER === 'mapbox' ? 'MAPBOX_TOKEN' : 'MAPTILER_KEY';
+
 const OUT_DIR = resolve(process.cwd(), 'green-shots');
 const IMG_PX = 600; // requested at @2x → 1200×1200 actual
 const MARGIN_M = 22; // metres of surroundings to include on each side
@@ -60,10 +68,25 @@ const slug = (s: string) =>
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
+function buildUrl(lng: number, lat: number, zoom: number): string {
+  if (PROVIDER === 'mapbox') {
+    return (
+      `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/` +
+      `${lng},${lat},${zoom},0/${IMG_PX}x${IMG_PX}@2x?access_token=${KEY}`
+    );
+  }
+  // MapTiler (default)
+  return (
+    `https://api.maptiler.com/maps/satellite/static/` +
+    `${lng},${lat},${zoom}/${IMG_PX}x${IMG_PX}@2x.png?key=${KEY}`
+  );
+}
+
 const DRY_RUN = process.argv.includes('--dry-run');
 
 async function main() {
-  if (!DRY_RUN && !TOKEN) throw new Error('Missing MAPBOX_TOKEN env var (or pass --dry-run).');
+  if (!DRY_RUN && !KEY) throw new Error(`Missing ${KEY_NAME} env var (or pass --dry-run).`);
+  console.log(`[green-shots] provider: ${PROVIDER}`);
   mkdirSync(OUT_DIR, { recursive: true });
 
   const layouts = await prisma.holeLayout.findMany({
@@ -85,9 +108,7 @@ async function main() {
     const course = layout.hole.course;
     const file = `${slug(course.clubName)}__${slug(course.courseName)}__hole${layout.hole.holeNumber}.png`;
 
-    const url =
-      `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/` +
-      `${lng0},${lat0},${zoom},0/${IMG_PX}x${IMG_PX}@2x?access_token=${TOKEN}`;
+    const url = buildUrl(lng0, lat0, zoom);
 
     if (DRY_RUN) {
       manifest.push({
