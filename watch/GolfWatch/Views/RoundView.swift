@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Palette tuned to the high-contrast "golf watch" look: black screen, a vivid
+/// green front distance, white secondary numbers, muted grey labels.
+private enum Theme {
+    static let front = Color(red: 0.592, green: 0.769, blue: 0.349)      // #97C459
+    static let action = Color(red: 0.204, green: 0.780, blue: 0.349)     // #34C759
+    static let actionText = Color(red: 0.024, green: 0.165, blue: 0.071) // #062A12
+    static let muted = Color(red: 0.557, green: 0.557, blue: 0.576)      // #8E8E93
+}
+
 /// The play view. Minimal, high-contrast, big numbers — front distance first.
 ///
 /// Layout priority (top → bottom): hole/par · FRONT · BACK · strokes · Next Hole.
@@ -10,13 +19,14 @@ struct RoundView: View {
         ScrollView {
             VStack(spacing: 8) {
                 header
-                Divider().opacity(0.3)
+                Divider().overlay(Color.white.opacity(0.12))
                 DistanceView(label: "FRONT", meters: viewModel.frontMeters, emphasized: true)
                 DistanceView(label: "BACK", meters: viewModel.backMeters, emphasized: false)
                 strokes
                 nextHoleButton
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 8)
+            .padding(.top, 2)
         }
         // Digital Crown adjusts the stroke count. The view must be focusable.
         .focusable(true)
@@ -37,12 +47,13 @@ struct RoundView: View {
     // MARK: - Sections
 
     private var header: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 1) {
             Text("Hole \(viewModel.holeNumber)")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
             Text("Par \(viewModel.par)")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
         }
         .frame(maxWidth: .infinity)
     }
@@ -51,10 +62,11 @@ struct RoundView: View {
         HStack(alignment: .firstTextBaseline) {
             Text("STROKES")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
             Spacer()
             Text("\(viewModel.strokes)")
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
                 .contentTransition(.numericText())
         }
         .padding(.top, 2)
@@ -66,23 +78,24 @@ struct RoundView: View {
         } label: {
             Group {
                 if viewModel.isAdvancing {
-                    ProgressView()
+                    ProgressView().tint(Theme.actionText)
                 } else {
-                    Text("Next Hole")
-                        .font(.system(size: 16, weight: .bold))
+                    Text("Next Hole").font(.system(size: 15, weight: .semibold))
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 30)
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background(Theme.action)
+            .foregroundStyle(Theme.actionText)
+            .clipShape(Capsule())
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.green)
+        .buttonStyle(.plain)
         .disabled(viewModel.isAdvancing)
-        .padding(.top, 2)
+        .padding(.top, 4)
     }
 }
 
 /// One distance row: small label + big meters value. `emphasized` makes the
-/// front distance (the most-used number) the largest element on screen.
+/// front distance (the most-used number) the largest, green element on screen.
 private struct DistanceView: View {
     let label: String
     let meters: Int?
@@ -92,18 +105,18 @@ private struct DistanceView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(label)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .leading)
+                .foregroundStyle(Theme.muted)
+                .frame(width: 48, alignment: .leading)
             Spacer(minLength: 0)
             Text(valueText)
                 .font(.system(size: emphasized ? 46 : 32,
                                weight: .heavy,
                                design: .rounded))
-                .foregroundStyle(emphasized ? Color.green : Color.primary)
+                .foregroundStyle(emphasized ? Theme.front : .white)
                 .contentTransition(.numericText())
             Text("m")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.muted)
         }
     }
 
