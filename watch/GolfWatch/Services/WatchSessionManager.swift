@@ -33,7 +33,7 @@ final class WatchSessionManager: NSObject, ObservableObject {
 
     private func handle(_ payload: [String: Any]) {
         guard let token = payload["accessToken"] as? String, !token.isEmpty else { return }
-        tokenStore.save(token)
+        tokenStore.saveAccess(token)
         Task { @MainActor in self.hasToken = true }
     }
 }

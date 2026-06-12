@@ -1,33 +1,45 @@
 import Foundation
 
-/// Supplies the bearer token for API calls. The spec assumes the user is
-/// already authenticated and the token is stored locally.
+/// Read access to the bearer token for API calls.
 protocol TokenProviding {
     var accessToken: String? { get }
 }
 
-/// UserDefaults-backed token store.
+/// Stores the access + refresh token pair (from pairing or refresh).
 ///
-/// For an MVP this is fine. In production prefer the Keychain, and populate the
-/// token by sending it from the iOS app over `WatchConnectivity`
-/// (`WCSession.transferUserInfo` / `updateApplicationContext`).
+/// UserDefaults is fine for an MVP; in production prefer the Keychain.
 struct TokenStore: TokenProviding {
-    private let key = "golftrainer.accessToken"
+    private let accessKey = "golftrainer.accessToken"
+    private let refreshKey = "golftrainer.refreshToken"
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
 
-    var accessToken: String? {
-        defaults.string(forKey: key)
+    var accessToken: String? { nonEmpty(accessKey) }
+    var refreshToken: String? { nonEmpty(refreshKey) }
+
+    /// True once the watch has been paired (has at least a refresh token).
+    var hasTokens: Bool { accessToken != nil || refreshToken != nil }
+
+    func save(access: String, refresh: String) {
+        defaults.set(access, forKey: accessKey)
+        defaults.set(refresh, forKey: refreshKey)
     }
 
-    func save(_ token: String) {
-        defaults.set(token, forKey: key)
+    /// Update just the access token (after a refresh).
+    func saveAccess(_ access: String) {
+        defaults.set(access, forKey: accessKey)
     }
 
     func clear() {
-        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: accessKey)
+        defaults.removeObject(forKey: refreshKey)
+    }
+
+    private func nonEmpty(_ key: String) -> String? {
+        let value = defaults.string(forKey: key)
+        return (value?.isEmpty == false) ? value : nil
     }
 }

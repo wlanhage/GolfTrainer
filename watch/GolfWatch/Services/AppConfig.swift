@@ -34,6 +34,11 @@ enum AppConfig {
         "/rounds/\(roundId)"
     }
 
+    // Auth / pairing
+    static func pairStart() -> String { "/auth/watch/pair/start" }
+    static func pairPoll() -> String { "/auth/watch/pair/poll" }
+    static func refresh() -> String { "/auth/refresh" }
+
     /// DEBUG-only convenience: paste a valid access-token JWT here to test on the
     /// simulator without a paired phone. Just the accessToken — NOT the whole
     /// login JSON. Leave empty in commits. Applied at launch.

@@ -7,12 +7,12 @@ import SwiftUI
 struct GolfWatchApp: App {
     init() {
         #if DEBUG
-        // Simulator convenience: seed a pasted token if one is provided.
+        // Simulator convenience: a pasted access token skips pairing. (Empty in
+        // commits → the pairing screen runs instead.)
         if !AppConfig.devBearerToken.isEmpty {
-            TokenStore().save(AppConfig.devBearerToken)
+            TokenStore().saveAccess(AppConfig.devBearerToken)
         }
         #endif
-        // Start listening for a token pushed from the paired iPhone.
         WatchSessionManager.shared.activate()
     }
 

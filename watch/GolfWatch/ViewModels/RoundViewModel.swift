@@ -33,6 +33,8 @@ final class RoundViewModel: ObservableObject {
     /// End-of-round scorecard, shown after finishing.
     @Published var showScorecard = false
     @Published private(set) var scorecard: [ScorecardRow] = []
+    /// Set when auth can't be refreshed → the app should return to pairing.
+    @Published private(set) var needsPairing = false
 
     // MARK: - Dependencies
 
@@ -86,6 +88,7 @@ final class RoundViewModel: ObservableObject {
                 state = .empty
             }
         } catch {
+            if case APIError.unauthorized = error { needsPairing = true }
             state = .error(Self.message(for: error))
         }
     }
