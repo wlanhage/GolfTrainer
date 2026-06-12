@@ -159,6 +159,7 @@ model User {
   notifications           Notification[]
   chatMessagesSent        ChatMessage[]      @relation("ChatMessagesSent")
   chatMessagesReceived    ChatMessage[]      @relation("ChatMessagesReceived")
+  watchPairings           WatchPairing[]
 }
 
 model UserProfile {
@@ -723,4 +724,29 @@ model ChatMessage {
   @@index([senderId, recipientId, createdAt])
   @@index([recipientId, readAt])
   @@map("chat_messages")
+}
+
+enum WatchPairingStatus {
+  PENDING
+  APPROVED
+  CONSUMED
+}
+
+// Device-pairing flow for the standalone Apple Watch app. The watch shows
+// `code`, the user enters it in the web app (authenticated → sets userId), and
+// the watch retrieves tokens by polling with its `deviceHash` secret.
+model WatchPairing {
+  id         String             @id @default(cuid())
+  code       String             @unique
+  deviceHash String             @unique // sha256 of the watch's device secret
+  userId     String?
+  status     WatchPairingStatus @default(PENDING)
+  expiresAt  DateTime
+  claimedAt  DateTime?
+  createdAt  DateTime           @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("watch_pairings")
 }
