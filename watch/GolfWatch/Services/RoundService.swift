@@ -22,11 +22,6 @@ struct RoundService {
     func goToNextHole(roundId: String) async throws {
         try await api.post(AppConfig.nextHole(roundId: roundId))
     }
-
-    /// Fetch a green satellite image by its API-relative path.
-    func fetchImage(path: String) async throws -> Data {
-        try await api.fetchData(path)
-    }
 }
 
 private struct StrokesPayload: Encodable {

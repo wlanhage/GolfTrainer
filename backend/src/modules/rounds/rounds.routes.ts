@@ -16,7 +16,6 @@ export async function roundsRoutes(app: FastifyInstance) {
   // Watch companion: literal `/active` must be declared before `/:roundId`
   // so it isn't captured as a round id.
   app.get('/active', roundsController.getActive);
-  app.get('/green-image/:holeId', roundsController.greenImage);
 
   app.get('/', roundsController.list);
   app.post('/', roundsController.create);

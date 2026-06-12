@@ -9,8 +9,6 @@ struct Hole: Codable, Identifiable, Equatable {
     let strokes: Int
     let greenFront: Coordinate?
     let greenBack: Coordinate?
-    /// Path (relative to the API base) of the green's satellite image, if any.
-    let greenImageUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -20,6 +18,5 @@ struct Hole: Codable, Identifiable, Equatable {
         case strokes
         case greenFront
         case greenBack
-        case greenImageUrl
     }
 }

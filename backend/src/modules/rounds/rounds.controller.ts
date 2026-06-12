@@ -1,9 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { readFileSync } from 'node:fs';
 import {
   createRoundSchema,
   createRoundShotSchema,
-  holeIdParamSchema,
   listRoundsQuerySchema,
   playerScoreParamSchema,
   roundHoleParamSchema,
@@ -16,7 +14,6 @@ import {
   updateStrokesSchema
 } from './rounds.schema.js';
 import { roundsService } from './rounds.service.js';
-import { greenImages } from './greenImages.js';
 
 export const roundsController = {
   async create(request: FastifyRequest, reply: FastifyReply) {
@@ -53,13 +50,6 @@ export const roundsController = {
   async getActive(request: FastifyRequest, reply: FastifyReply) {
     const active = await roundsService.getActiveRound(request.auth!.userId);
     return reply.send(active);
-  },
-
-  async greenImage(request: FastifyRequest, reply: FastifyReply) {
-    const { holeId } = holeIdParamSchema.parse(request.params);
-    const path = greenImages.filePath(holeId);
-    if (!path) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'No green image' } });
-    return reply.type('image/png').header('Cache-Control', 'public, max-age=86400').send(readFileSync(path));
   },
 
   async nextHole(request: FastifyRequest, reply: FastifyReply) {

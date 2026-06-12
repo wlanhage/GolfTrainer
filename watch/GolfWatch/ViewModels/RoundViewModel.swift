@@ -55,14 +55,6 @@ final class RoundViewModel: ObservableObject {
     var holeNumber: Int { round?.currentHole.number ?? 0 }
     var par: Int { round?.currentHole.par ?? 0 }
 
-    /// API-relative path of the current hole's green image, if one exists.
-    var greenImageURLPath: String? { round?.currentHole.greenImageUrl }
-
-    func loadGreenImage() async -> Data? {
-        guard let path = greenImageURLPath else { return nil }
-        return try? await service.fetchImage(path: path)
-    }
-
     // MARK: - Lifecycle
 
     func onAppear() async {

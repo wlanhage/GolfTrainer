@@ -1,7 +1,6 @@
 import { prisma } from '../../infrastructure/prisma/client.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/AppError.js';
 import { roundsRepository } from './rounds.repository.js';
-import { greenImages } from './greenImages.js';
 import { notificationsService } from '../notifications/notifications.service.js';
 import type {
   CreateRoundInput,
@@ -354,7 +353,6 @@ export const roundsService = {
     if (!roundHole) throw new NotFoundError('Current hole not found');
 
     const { greenFront, greenBack } = deriveGreenEnds(roundHole.hole.holeLayout);
-    const courseHoleId = roundHole.holeId;
 
     return {
       roundId: round.id,
@@ -364,8 +362,7 @@ export const roundsService = {
         par: roundHole.parSnapshot ?? roundHole.hole.par ?? 0,
         strokes: roundHole.scores[0]?.strokes ?? 0,
         greenFront,
-        greenBack,
-        greenImageUrl: greenImages.has(courseHoleId) ? `/rounds/green-image/${courseHoleId}` : null
+        greenBack
       }
     };
   },
