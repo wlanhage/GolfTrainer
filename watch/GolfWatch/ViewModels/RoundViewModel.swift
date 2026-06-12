@@ -55,6 +55,10 @@ final class RoundViewModel: ObservableObject {
     var holeNumber: Int { round?.currentHole.number ?? 0 }
     var par: Int { round?.currentHole.par ?? 0 }
 
+    /// Strokes cap. 0…10 show the number; the step above 10 shows a dash.
+    static let maxStrokes = 11
+    var strokesText: String { strokes > 10 ? "–" : "\(strokes)" }
+
     // MARK: - Lifecycle
 
     func onAppear() async {
@@ -96,9 +100,9 @@ final class RoundViewModel: ObservableObject {
 
     private func apply(_ round: ActiveRound) {
         self.round = round
-        strokes = round.currentHole.strokes
-        savedStrokes = round.currentHole.strokes
-        crownValue = Double(round.currentHole.strokes)
+        strokes = min(Self.maxStrokes, round.currentHole.strokes)
+        savedStrokes = strokes
+        crownValue = Double(strokes)
         if let loc = location.location {
             recomputeDistances(from: loc)
         } else {
@@ -110,7 +114,7 @@ final class RoundViewModel: ObservableObject {
     // MARK: - Digital Crown → strokes
 
     func crownChanged(to value: Double) {
-        let newValue = max(0, Int(value.rounded()))
+        let newValue = min(Self.maxStrokes, max(0, Int(value.rounded())))
         guard newValue != strokes else { return }
         strokes = newValue           // immediate UI update
         scheduleStrokeSave(newValue) // debounced backend update

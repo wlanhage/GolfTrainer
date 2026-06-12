@@ -31,7 +31,7 @@ struct RoundView: View {
         .digitalCrownRotation(
             $viewModel.crownValue,
             from: 0,
-            through: 30,
+            through: 11,
             by: 1,
             sensitivity: .low,
             isContinuous: false,
@@ -62,7 +62,7 @@ struct RoundView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.muted)
             Spacer()
-            Text("\(viewModel.strokes)")
+            Text(viewModel.strokesText)
                 .font(.system(size: 26, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
