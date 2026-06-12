@@ -69,6 +69,32 @@ function extractRing(polygon: unknown): Ring | null {
   return null;
 }
 
+type LatLng = { lat: number; lng: number };
+
+// Tee point as {lat,lng} (real format) or GeoJSON Point, else null.
+function extractPoint(point: unknown): LatLng | null {
+  if (!point || typeof point !== 'object') return null;
+  const obj = point as { lat?: unknown; lng?: unknown };
+  if (typeof obj.lat === 'number' && typeof obj.lng === 'number') return { lat: obj.lat, lng: obj.lng };
+  const geom = ('geometry' in point ? (point as { geometry?: unknown }).geometry : point) as
+    | { coordinates?: unknown }
+    | undefined;
+  const c = geom?.coordinates;
+  if (Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1]))) {
+    return { lng: Number(c[0]), lat: Number(c[1]) };
+  }
+  return null;
+}
+
+const bearingDeg = (from: LatLng, to: LatLng): number => {
+  const φ1 = (from.lat * Math.PI) / 180;
+  const φ2 = (to.lat * Math.PI) / 180;
+  const Δλ = ((to.lng - from.lng) * Math.PI) / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+};
+
 // ─── Slippy-map (Web-Mercator) pixel math ────────────────────────────────────
 const lngToPx = (lng: number, z: number) => ((lng + 180) / 360) * TILE * 2 ** z;
 const latToPx = (lat: number, z: number) => {
@@ -95,15 +121,25 @@ async function fetchTileRGBA(z: number, x: number, y: number): Promise<Uint8Arra
   }
 }
 
-/** Stitch the tiles covering green±margin and centre-crop to the desired span. */
-async function renderGreen(lat: number, lng: number, desiredSpanM: number) {
+/**
+ * Stitch the tiles around the green and centre-crop to `desiredSpanM`. When a
+ * `bearing` (tee→green, degrees) is given, the image is rotated so the play
+ * direction points UP (you always approach from the bottom). A larger area is
+ * stitched first so the rotated crop has no black corners; sampling is bilinear.
+ */
+async function renderGreen(lat: number, lng: number, desiredSpanM: number, bearing: number | null) {
   const win = Math.max(64, Math.round(desiredSpanM / metresPerPx(lat, ZOOM))); // output px
-  const minX = lngToPx(lng, ZOOM) - win / 2;
-  const minY = latToPx(lat, ZOOM) - win / 2;
+  const rotate = bearing != null && Number.isFinite(bearing);
+  const cover = rotate ? Math.ceil(win * Math.SQRT2) + 2 : win; // source coverage px
+
+  const cpx = lngToPx(lng, ZOOM);
+  const cpy = latToPx(lat, ZOOM);
+  const minX = cpx - cover / 2;
+  const minY = cpy - cover / 2;
   const tx0 = Math.floor(minX / TILE);
   const ty0 = Math.floor(minY / TILE);
-  const tx1 = Math.floor((minX + win) / TILE);
-  const ty1 = Math.floor((minY + win) / TILE);
+  const tx1 = Math.floor((minX + cover) / TILE);
+  const ty1 = Math.floor((minY + cover) / TILE);
   const canvasW = (tx1 - tx0 + 1) * TILE;
   const canvasH = (ty1 - ty0 + 1) * TILE;
   const canvas = new Uint8Array(canvasW * canvasH * 4);
@@ -122,16 +158,42 @@ async function renderGreen(lat: number, lng: number, desiredSpanM: number) {
     }
   }
 
-  const sx = Math.round(minX - tx0 * TILE);
-  const sy = Math.round(minY - ty0 * TILE);
+  const originX = tx0 * TILE;
+  const originY = ty0 * TILE;
+  // Output "up" maps to the play direction; right = play dir rotated 90° CW.
+  const B = rotate ? (bearing! * Math.PI) / 180 : 0;
+  const cosB = Math.cos(B);
+  const sinB = Math.sin(B);
+
   const png = new PNG({ width: win, height: win });
   for (let row = 0; row < win; row++) {
     for (let col = 0; col < win; col++) {
-      const si = ((sy + row) * canvasW + (sx + col)) * 4;
+      const u = col - win / 2 + 0.5;
+      const v = row - win / 2 + 0.5;
+      const gx = cpx + u * cosB - v * sinB; // global pixel
+      const gy = cpy + u * sinB + v * cosB;
+      const lx = gx - originX;
+      const ly = gy - originY;
       const di = (row * win + col) * 4;
-      png.data[di] = canvas[si];
-      png.data[di + 1] = canvas[si + 1];
-      png.data[di + 2] = canvas[si + 2];
+      // Bilinear sample.
+      const x0 = Math.floor(lx);
+      const y0 = Math.floor(ly);
+      if (x0 < 0 || y0 < 0 || x0 >= canvasW - 1 || y0 >= canvasH - 1) {
+        png.data[di] = png.data[di + 1] = png.data[di + 2] = 0;
+        png.data[di + 3] = 255;
+        continue;
+      }
+      const fx = lx - x0;
+      const fy = ly - y0;
+      const i00 = (y0 * canvasW + x0) * 4;
+      const i10 = i00 + 4;
+      const i01 = i00 + canvasW * 4;
+      const i11 = i01 + 4;
+      for (let ch = 0; ch < 3; ch++) {
+        const top = canvas[i00 + ch] * (1 - fx) + canvas[i10 + ch] * fx;
+        const bot = canvas[i01 + ch] * (1 - fx) + canvas[i11 + ch] * fx;
+        png.data[di + ch] = Math.round(top * (1 - fy) + bot * fy);
+      }
       png.data[di + 3] = 255;
     }
   }
@@ -164,6 +226,17 @@ async function main() {
     const lngM = (Math.max(...lngs) - Math.min(...lngs)) * 111320 * Math.cos((lat * Math.PI) / 180);
     const desiredSpanM = Math.max(latM, lngM, 12) + 2 * MARGIN_M;
 
+    // Rotate so the play direction (tee→green) points up. Prefer the stored
+    // holeBearing; fall back to the tee→green-centre bearing; else no rotation.
+    let bearing: number | null =
+      layout.holeBearing != null && Number.isFinite(Number(layout.holeBearing))
+        ? Number(layout.holeBearing)
+        : null;
+    if (bearing == null) {
+      const tee = extractPoint(layout.teePoint);
+      if (tee) bearing = bearingDeg(tee, { lat, lng });
+    }
+
     const course = layout.hole.course;
     const file = `${slug(course.clubName)}__${slug(course.courseName)}__hole${layout.hole.holeNumber}.png`;
 
@@ -182,7 +255,7 @@ async function main() {
       continue;
     }
 
-    const { buf, px } = await renderGreen(lat, lng, desiredSpanM);
+    const { buf, px } = await renderGreen(lat, lng, desiredSpanM, bearing);
     writeFileSync(resolve(OUT_DIR, file), buf);
     manifest.push({
       holeId: layout.holeId,
@@ -192,10 +265,11 @@ async function main() {
       file,
       center: [lat, lng],
       spanMeters: Math.round(desiredSpanM),
+      bearing: bearing == null ? null : Math.round(bearing),
       px
     });
     ok++;
-    console.log(`  ✓ ${file} (${px}px, ~${Math.round(desiredSpanM)}m)`);
+    console.log(`  ✓ ${file} (${px}px, ~${Math.round(desiredSpanM)}m, up=${bearing == null ? 'N' : Math.round(bearing) + '°'})`);
   }
 
   writeFileSync(resolve(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
