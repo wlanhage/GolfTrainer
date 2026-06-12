@@ -22,8 +22,28 @@ struct RoundService {
     func goToNextHole(roundId: String) async throws {
         try await api.post(AppConfig.nextHole(roundId: roundId))
     }
+
+    /// `POST /rounds/{roundId}/prev-hole`
+    func goToPrevHole(roundId: String) async throws {
+        try await api.post(AppConfig.prevHole(roundId: roundId))
+    }
+
+    /// `PATCH /rounds/{roundId}` with `{ status: "COMPLETED" }`
+    func finishRound(roundId: String) async throws {
+        try await api.patch(AppConfig.round(roundId: roundId), body: RoundStatusPayload(status: "COMPLETED"))
+    }
+
+    /// `GET /rounds/{roundId}/scorecard`
+    func scorecard(roundId: String) async throws -> [ScorecardRow] {
+        let response: ScorecardResponse = try await api.get(AppConfig.scorecard(roundId: roundId))
+        return response.rows
+    }
 }
 
 private struct StrokesPayload: Encodable {
     let strokes: Int
+}
+
+private struct RoundStatusPayload: Encodable {
+    let status: String
 }

@@ -353,9 +353,11 @@ export const roundsService = {
     if (!roundHole) throw new NotFoundError('Current hole not found');
 
     const { greenFront, greenBack } = deriveGreenEnds(roundHole.hole.holeLayout);
+    const holeCount = await prisma.roundHole.count({ where: { roundId: round.id } });
 
     return {
       roundId: round.id,
+      holeCount,
       currentHole: {
         id: roundHole.id,
         holeNumber: roundHole.holeNumber,
@@ -365,6 +367,48 @@ export const roundsService = {
         greenBack
       }
     };
+  },
+
+  /** Watch companion: go back to the previous hole (clamped to 1). */
+  async advanceToPrevHole(roundId: string, userId: string) {
+    await assertParticipant(roundId, userId);
+    const round = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: { currentHoleNumber: true }
+    });
+    if (!round) throw new NotFoundError('Round not found');
+
+    const prev = Math.max(1, round.currentHoleNumber - 1);
+    const updated = await prisma.round.update({
+      where: { id: roundId },
+      data: { currentHoleNumber: prev },
+      select: { id: true, currentHoleNumber: true }
+    });
+    return { roundId: updated.id, currentHoleNumber: updated.currentHoleNumber };
+  },
+
+  /** Watch companion: the caller's score per hole (for the end-of-round card). */
+  async getScorecard(roundId: string, userId: string) {
+    const player = await prisma.roundPlayer.findUnique({
+      where: { roundId_userId: { roundId, userId } },
+      select: { id: true }
+    });
+    if (!player) throw new ForbiddenError('You are not a participant in this round');
+
+    const holes = await prisma.roundHole.findMany({
+      where: { roundId },
+      orderBy: { holeNumber: 'asc' },
+      select: {
+        holeNumber: true,
+        parSnapshot: true,
+        scores: { where: { playerId: player.id }, select: { strokes: true } }
+      }
+    });
+    return holes.map((h) => ({
+      holeNumber: h.holeNumber,
+      par: h.parSnapshot ?? 0,
+      strokes: h.scores[0]?.strokes ?? null
+    }));
   },
 
   /** Watch companion: advance the round to the next hole (clamped to hole count). */

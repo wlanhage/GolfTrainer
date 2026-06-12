@@ -58,6 +58,18 @@ export const roundsController = {
     return reply.send(result);
   },
 
+  async prevHole(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const result = await roundsService.advanceToPrevHole(roundId, request.auth!.userId);
+    return reply.send(result);
+  },
+
+  async scorecard(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const rows = await roundsService.getScorecard(roundId, request.auth!.userId);
+    return reply.send({ rows });
+  },
+
   async updateStrokes(request: FastifyRequest, reply: FastifyReply) {
     const { roundId, holeNumber } = roundHoleParamSchema.parse(request.params);
     const { strokes } = updateStrokesSchema.parse(request.body);

@@ -30,6 +30,10 @@ final class RoundViewModel: ObservableObject {
     @Published private(set) var backMeters: Int?
     @Published private(set) var isAdvancing = false
 
+    /// End-of-round scorecard, shown after finishing.
+    @Published var showScorecard = false
+    @Published private(set) var scorecard: [ScorecardRow] = []
+
     // MARK: - Dependencies
 
     private let service: RoundService
@@ -54,6 +58,11 @@ final class RoundViewModel: ObservableObject {
 
     var holeNumber: Int { round?.currentHole.number ?? 0 }
     var par: Int { round?.currentHole.par ?? 0 }
+    var canGoBack: Bool { holeNumber > 1 }
+    var isLastHole: Bool {
+        guard let round, let count = round.holeCount else { return false }
+        return round.currentHole.number >= count
+    }
 
     /// Strokes cap. 0…10 show the number; the step above 10 shows a dash.
     static let maxStrokes = 11
@@ -170,6 +179,48 @@ final class RoundViewModel: ObservableObject {
             WKInterfaceDevice.current().play(.failure)
             state = .error(Self.message(for: error))
         }
+    }
+
+    func prevHole() async {
+        guard let round, !isAdvancing, canGoBack else { return }
+        isAdvancing = true
+        defer { isAdvancing = false }
+        strokeSaveTask?.cancel()
+        await saveStrokes(strokes)
+        do {
+            try await service.goToPrevHole(roundId: round.id)
+            await load()
+            WKInterfaceDevice.current().play(.click)
+        } catch {
+            WKInterfaceDevice.current().play(.failure)
+            state = .error(Self.message(for: error))
+        }
+    }
+
+    // MARK: - Finish round
+
+    func finishRound() async {
+        guard let round, !isAdvancing else { return }
+        isAdvancing = true
+        defer { isAdvancing = false }
+        strokeSaveTask?.cancel()
+        await saveStrokes(strokes)
+        do {
+            try await service.finishRound(roundId: round.id)
+            scorecard = (try? await service.scorecard(roundId: round.id)) ?? []
+            showScorecard = true
+            WKInterfaceDevice.current().play(.success)
+        } catch {
+            WKInterfaceDevice.current().play(.failure)
+            state = .error(Self.message(for: error))
+        }
+    }
+
+    /// After the scorecard: back to the standby screen, waiting for a new round.
+    func startNewRound() async {
+        showScorecard = false
+        scorecard = []
+        await load() // round is COMPLETED → no active round → empty/standby
     }
 
     // MARK: - Distances

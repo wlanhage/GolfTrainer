@@ -10,10 +10,10 @@ private enum Theme {
 }
 
 /// The play view. Minimal, high-contrast, big numbers — front distance first.
-/// No ScrollView, so the Digital Crown drives the stroke count (not scrolling),
-/// and the whole layout fits on screen.
+/// No ScrollView, so the Digital Crown drives the stroke count (not scrolling).
 struct RoundView: View {
     @ObservedObject var viewModel: RoundViewModel
+    @State private var confirmFinish = false
 
     var body: some View {
         VStack(spacing: 4) {
@@ -21,7 +21,7 @@ struct RoundView: View {
             DistanceView(label: "FRONT", meters: viewModel.frontMeters, emphasized: true)
             DistanceView(label: "BACK", meters: viewModel.backMeters, emphasized: false)
             strokes
-            nextHoleButton
+            bottomBar
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -40,20 +40,27 @@ struct RoundView: View {
         .onChange(of: viewModel.crownValue) { _, newValue in
             viewModel.crownChanged(to: newValue)
         }
+        .confirmationDialog("Finish round?", isPresented: $confirmFinish, titleVisibility: .visible) {
+            Button("Yes") { Task { await viewModel.finishRound() } }
+            Button("No", role: .cancel) {}
+        }
+        .sheet(isPresented: $viewModel.showScorecard) {
+            ScorecardView(viewModel: viewModel)
+        }
     }
 
     // MARK: - Sections
 
     private var header: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Hole \(viewModel.holeNumber)")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
             Text("Par \(viewModel.par)")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Theme.muted)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var strokes: some View {
@@ -71,24 +78,52 @@ struct RoundView: View {
         }
     }
 
-    private var nextHoleButton: some View {
-        Button {
-            Task { await viewModel.nextHole() }
-        } label: {
-            Group {
-                if viewModel.isAdvancing {
-                    ProgressView().tint(Theme.actionText)
-                } else {
-                    Text("Next Hole").font(.system(size: 15, weight: .semibold))
+    // Back (prev hole) on the left 20%, main action on the right 80%.
+    private var bottomBar: some View {
+        GeometryReader { geo in
+            HStack(spacing: 6) {
+                Button {
+                    Task { await viewModel.prevHole() }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.white.opacity(viewModel.canGoBack ? 0.16 : 0.06))
+                        .foregroundStyle(viewModel.canGoBack ? Color.white : Theme.muted)
+                        .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canGoBack || viewModel.isAdvancing)
+                .frame(width: geo.size.width * 0.2)
+
+                Button {
+                    if viewModel.isLastHole {
+                        confirmFinish = true
+                    } else {
+                        Task { await viewModel.nextHole() }
+                    }
+                } label: {
+                    Group {
+                        if viewModel.isAdvancing {
+                            ProgressView().tint(Theme.actionText)
+                        } else {
+                            Text(viewModel.isLastHole ? "Finish Round" : "Next Hole")
+                                .font(.system(size: 15, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.action)
+                    .foregroundStyle(Theme.actionText)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isAdvancing)
+                .frame(width: geo.size.width * 0.8 - 6)
             }
-            .frame(maxWidth: .infinity, minHeight: 30)
-            .background(Theme.action)
-            .foregroundStyle(Theme.actionText)
-            .clipShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isAdvancing)
+        .frame(height: 38)
         .padding(.top, 2)
     }
 }
@@ -108,7 +143,7 @@ private struct DistanceView: View {
                 .frame(width: 44, alignment: .leading)
             Spacer(minLength: 0)
             Text(valueText)
-                .font(.system(size: emphasized ? 40 : 28,
+                .font(.system(size: emphasized ? 38 : 27,
                                weight: .heavy,
                                design: .rounded))
                 .foregroundStyle(emphasized ? Theme.front : .white)

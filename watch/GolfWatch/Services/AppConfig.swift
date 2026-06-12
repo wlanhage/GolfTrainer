@@ -22,6 +22,18 @@ enum AppConfig {
         "/rounds/\(roundId)/next-hole"
     }
 
+    static func prevHole(roundId: String) -> String {
+        "/rounds/\(roundId)/prev-hole"
+    }
+
+    static func scorecard(roundId: String) -> String {
+        "/rounds/\(roundId)/scorecard"
+    }
+
+    static func round(roundId: String) -> String {
+        "/rounds/\(roundId)"
+    }
+
     /// DEBUG-only convenience: paste a valid access-token JWT here to test on the
     /// simulator without a paired phone. Just the accessToken — NOT the whole
     /// login JSON. Leave empty in commits. Applied at launch.
