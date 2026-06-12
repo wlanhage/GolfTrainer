@@ -1,6 +1,7 @@
 'use client';
 
-import { LogOut, RefreshCw, Globe, ChevronRight, Crosshair, Check, HelpCircle, X } from 'lucide-react';
+import { LogOut, RefreshCw, Globe, ChevronRight, Crosshair, Check, HelpCircle, X, Watch } from 'lucide-react';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useI18n, useT } from '@/lib/i18n/I18nProvider';
@@ -53,6 +54,15 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 flex flex-col gap-4">
+      {/* Apple Watch pairing */}
+      <Link href="/profile/watch" className="card flex items-center justify-between py-3">
+        <div className="flex items-center gap-3">
+          <Watch size={20} className="text-slate-500" />
+          <span className="text-sm font-semibold text-ink">Para Apple Watch</span>
+        </div>
+        <ChevronRight size={18} className="text-slate-400" />
+      </Link>
+
       {/* Shot tracking section */}
       <section className="card flex flex-col gap-0">
         <div className="flex items-center justify-between mb-2">

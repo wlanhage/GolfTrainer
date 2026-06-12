@@ -476,6 +476,20 @@ export function useUsersApi() {
   );
 }
 
+export function useWatchApi() {
+  const client = useApiClient();
+  return useMemo(
+    () => ({
+      pairClaim: (code: string) =>
+        client.request<{ ok: boolean }>('/auth/watch/pair/claim', {
+          method: 'POST',
+          body: JSON.stringify({ code })
+        })
+    }),
+    [client]
+  );
+}
+
 export function usePushApi() {
   const client = useApiClient();
   return useMemo(
