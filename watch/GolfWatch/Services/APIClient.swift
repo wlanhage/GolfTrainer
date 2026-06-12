@@ -66,6 +66,28 @@ final class APIClient {
         let _: Empty = try await perform(path: path, method: "PATCH", body: body)
     }
 
+    /// Fetch raw bytes (e.g. an image) with the bearer token attached.
+    func fetchData(_ path: String) async throws -> Data {
+        guard let url = URL(string: baseURL + path) else { throw APIError.invalidResponse }
+        var request = URLRequest(url: url)
+        if let token = token.accessToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw APIError.transport(error)
+        }
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        switch http.statusCode {
+        case 200..<300: return data
+        case 401: throw APIError.unauthorized
+        default: throw APIError.server(status: http.statusCode)
+        }
+    }
+
     // MARK: - Core
 
     private func perform<B: Encodable, T: Decodable>(

@@ -14,6 +14,7 @@ private enum Theme {
 /// Layout priority (top → bottom): hole/par · FRONT · BACK · strokes · Next Hole.
 struct RoundView: View {
     @ObservedObject var viewModel: RoundViewModel
+    @State private var showGreen = false
 
     var body: some View {
         ScrollView {
@@ -27,6 +28,22 @@ struct RoundView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 2)
+        }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.greenImageURLPath != nil {
+                Button { showGreen = true } label: {
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.front)
+                        .padding(6)
+                        .background(.black.opacity(0.45), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 2)
+            }
+        }
+        .sheet(isPresented: $showGreen) {
+            GreenView(viewModel: viewModel)
         }
         // Digital Crown adjusts the stroke count. The view must be focusable.
         .focusable(true)

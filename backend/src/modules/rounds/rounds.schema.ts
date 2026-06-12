@@ -9,6 +9,10 @@ export const roundHoleParamSchema = z.object({
   holeNumber: z.coerce.number().int().min(1).max(36)
 });
 
+export const holeIdParamSchema = z.object({
+  holeId: z.string().min(1)
+});
+
 export const roundFormatEnum = z.enum([
   'STROKE_PLAY',
   'STABLEFORD',
