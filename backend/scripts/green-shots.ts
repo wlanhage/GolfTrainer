@@ -17,6 +17,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: process.env.ENV_FILE ?? '.env.supabase' });
 
 import { PrismaClient } from '@prisma/client';
+import { PNG } from 'pngjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -32,9 +33,10 @@ const KEY_NAME = PROVIDER === 'mapbox' ? 'MAPBOX_TOKEN' : 'MAPTILER_KEY';
 const NEEDS_KEY = PROVIDER !== 'esri';
 
 const OUT_DIR = resolve(process.cwd(), 'green-shots');
-const IMG_PX = 800; // output pixels (square)
-const MARGIN_M = 22; // metres of surroundings to include on each side
+const IMG_PX = 800; // MapTiler/Mapbox output pixels (square)
+const MARGIN_M = 25; // metres of surroundings to keep around the green
 const ESRI_MIN_SPAN_M = 280; // Esri's export 500s ("Error: bytes") below ~250m
+const FETCH_PX = 800; // Esri export caps output (~800px); fetched then cropped tight
 const ZOOM_MIN = 16;
 const ZOOM_MAX = 20; // satellite imagery thins out past this in rural areas
 
@@ -88,21 +90,42 @@ function frame(ring: Ring) {
   const lng0 = (Math.min(...lngs) + Math.max(...lngs)) / 2;
   const latSpanM = (Math.max(...lats) - Math.min(...lats)) * 111320;
   const lngSpanM = (Math.max(...lngs) - Math.min(...lngs)) * 111320 * Math.cos((lat0 * Math.PI) / 180);
-  const greenSpanM = Math.max(latSpanM, lngSpanM, 10) + 2 * MARGIN_M;
-  // Esri export rejects tiny extents → clamp to a working minimum.
-  const spanM = Math.max(greenSpanM, ESRI_MIN_SPAN_M);
+  // The tight view we actually want (green + ~MARGIN_M around).
+  const desiredSpanM = Math.max(latSpanM, lngSpanM, 10) + 2 * MARGIN_M;
+  // Esri export rejects tiny extents → fetch at a working minimum, crop later.
+  const fetchSpanM = Math.max(desiredSpanM, ESRI_MIN_SPAN_M);
 
-  // Zoom (for MapTiler/Mapbox) so the image width covers spanM.
-  const z = Math.log2((156543.03 * Math.cos((lat0 * Math.PI) / 180) * IMG_PX) / spanM);
+  // Zoom (for MapTiler/Mapbox) so the image width covers the desired span.
+  const z = Math.log2((156543.03 * Math.cos((lat0 * Math.PI) / 180) * IMG_PX) / desiredSpanM);
   const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z)));
 
-  // Square Web-Mercator bbox (conformal → undistorted square image). Mercator
-  // units stretch by 1/cos(lat), so scale the half-extent accordingly.
-  const halfMerc = spanM / 2 / Math.cos((lat0 * Math.PI) / 180);
+  // Square Web-Mercator bbox at the FETCH span (conformal → undistorted).
+  // Mercator units stretch by 1/cos(lat), so scale the half-extent accordingly.
+  const halfMerc = fetchSpanM / 2 / Math.cos((lat0 * Math.PI) / 180);
   const cx = toMercX(lng0);
   const cy = toMercY(lat0);
   const bbox3857: [number, number, number, number] = [cx - halfMerc, cy - halfMerc, cx + halfMerc, cy + halfMerc];
-  return { lat0, lng0, zoom, spanM, bbox3857 };
+  return { lat0, lng0, zoom, desiredSpanM, fetchSpanM, bbox3857 };
+}
+
+/** Centre-crop a PNG buffer to `cropPx`×`cropPx` (clamped to the image). */
+function cropCenter(buf: Buffer, cropPx: number): Buffer {
+  const src = PNG.sync.read(buf);
+  const size = Math.min(cropPx, src.width, src.height);
+  const x0 = Math.floor((src.width - size) / 2);
+  const y0 = Math.floor((src.height - size) / 2);
+  const out = new PNG({ width: size, height: size });
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const si = ((y0 + y) * src.width + (x0 + x)) * 4;
+      const di = (y * size + x) * 4;
+      out.data[di] = src.data[si];
+      out.data[di + 1] = src.data[si + 1];
+      out.data[di + 2] = src.data[si + 2];
+      out.data[di + 3] = src.data[si + 3];
+    }
+  }
+  return PNG.sync.write(out);
 }
 
 type Frame = ReturnType<typeof frame>;
@@ -119,7 +142,7 @@ function buildUrl(f: Frame): string {
     const [a, b, c, d] = f.bbox3857;
     return (
       `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export` +
-      `?bbox=${a},${b},${c},${d}&bboxSR=3857&imageSR=3857&size=${IMG_PX},${IMG_PX}&format=png&f=image`
+      `?bbox=${a},${b},${c},${d}&bboxSR=3857&imageSR=3857&size=${FETCH_PX},${FETCH_PX}&format=png32&f=image`
     );
   }
   if (PROVIDER === 'mapbox') {
@@ -157,7 +180,7 @@ async function main() {
       continue;
     }
     const f = frame(ring);
-    const { lat0, lng0, zoom, spanM } = f;
+    const { lat0, lng0, desiredSpanM } = f;
     const course = layout.hole.course;
     const file = `${slug(course.clubName)}__${slug(course.courseName)}__hole${layout.hole.holeNumber}.png`;
 
@@ -171,10 +194,10 @@ async function main() {
         holeNumber: layout.hole.holeNumber,
         file,
         center: [lat0, lng0],
-        zoom
+        spanMeters: Math.round(desiredSpanM)
       });
       ok++;
-      console.log(`  • ${file} → center ${lat0.toFixed(5)},${lng0.toFixed(5)} ~${Math.round(spanM)}m`);
+      console.log(`  • ${file} → center ${lat0.toFixed(5)},${lng0.toFixed(5)} ~${Math.round(desiredSpanM)}m`);
       continue;
     }
 
@@ -194,7 +217,14 @@ async function main() {
       console.warn(`  fail hole ${layout.hole.holeNumber}: HTTP ${res.status}${detail}`);
       continue;
     }
-    writeFileSync(resolve(OUT_DIR, file), Buffer.from(await res.arrayBuffer()));
+    const raw = Buffer.from(await res.arrayBuffer());
+    // Esri is fetched wide (≥280m) then centre-cropped to the tight desired span.
+    let out = raw;
+    if (PROVIDER === 'esri') {
+      const cropPx = Math.max(256, Math.round(FETCH_PX * Math.min(1, f.desiredSpanM / f.fetchSpanM)));
+      out = cropCenter(raw, cropPx);
+    }
+    writeFileSync(resolve(OUT_DIR, file), out);
     manifest.push({
       holeId: layout.holeId,
       club: course.clubName,
@@ -202,10 +232,10 @@ async function main() {
       holeNumber: layout.hole.holeNumber,
       file,
       center: [lat0, lng0],
-      zoom
+      spanMeters: Math.round(desiredSpanM)
     });
     ok++;
-    console.log(`  ✓ ${file} (zoom ${zoom})`);
+    console.log(`  ✓ ${file} (~${Math.round(desiredSpanM)}m)`);
   }
 
   writeFileSync(resolve(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
