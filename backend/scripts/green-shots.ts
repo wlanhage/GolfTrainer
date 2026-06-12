@@ -28,7 +28,7 @@ const prisma = new PrismaClient();
 const OUT_DIR = resolve(process.cwd(), 'green-shots');
 const ZOOM = 19; // Esri's sharp native level over Sweden (z20 is upsampled)
 const TILE = 256;
-const MARGIN_M = 25; // metres of surroundings to keep around the green
+const MARGIN_M = 20; // metres of surroundings to keep around the green
 const DRY_RUN = process.argv.includes('--dry-run');
 
 const tileUrl = (z: number, x: number, y: number) =>
