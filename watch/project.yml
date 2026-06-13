@@ -31,6 +31,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.golftrainer.watch
         INFOPLIST_FILE: GolfWatch/Info.plist
+        # Backend base URL (public, not a secret) — surfaced to Info.plist.
+        API_BASE_URL: "https://golftrainer-backend.onrender.com/api/v1"
         TARGETED_DEVICE_FAMILY: "4"          # Apple Watch
         WATCHOS_DEPLOYMENT_TARGET: "10.0"
         ENABLE_PREVIEWS: YES

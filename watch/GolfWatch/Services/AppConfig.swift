@@ -4,10 +4,18 @@ import Foundation
 /// for the watch (`GET /rounds/active`, `PATCH /rounds/:id/holes/:n/strokes`,
 /// `POST /rounds/:id/next-hole`), served under the `/api/v1` prefix.
 enum AppConfig {
-    /// Override at runtime by setting `baseURL` in UserDefaults. Must include the
-    /// `/api/v1` prefix and no trailing slash.
+    /// Resolved in order: a `baseURL` override in UserDefaults (for ad-hoc local
+    /// dev) → the `API_BASE_URL` build setting from Info.plist (set in
+    /// project.yml, public, not a secret) → a hard fallback.
     static var baseURL: String {
-        UserDefaults.standard.string(forKey: "baseURL") ?? "http://localhost:3000/api/v1"
+        if let override = UserDefaults.standard.string(forKey: "baseURL"), !override.isEmpty {
+            return override
+        }
+        if let fromPlist = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String,
+           !fromPlist.isEmpty, !fromPlist.contains("$(") {
+            return fromPlist
+        }
+        return "https://golftrainer-backend.onrender.com/api/v1"
     }
 
     static func activeRound() -> String {

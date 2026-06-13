@@ -24,6 +24,8 @@
     <true/>
     <key>WKWatchOnly</key>
     <true/>
+    <key>API_BASE_URL</key>
+    <string>$(API_BASE_URL)</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Används för att visa avstånd till green under rundan.</string>
     <!-- Allow plain-HTTP to localhost/.local during dev (production uses HTTPS,
