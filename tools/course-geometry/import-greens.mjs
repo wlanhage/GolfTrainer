@@ -81,43 +81,53 @@ if (args.fromJson) {
 
 const report = [];
 for (const e of entries) {
-  const hole = course.holes.find((h) => h.holeNumber === e.holeNumber);
-  if (!hole) {
-    report.push({ hole: e.holeNumber, action: 'no-such-hole-in-db' });
-    continue;
+  try {
+    const hole = course.holes.find((h) => h.holeNumber === e.holeNumber);
+    if (!hole) {
+      report.push({ hole: e.holeNumber, action: 'no-such-hole-in-db' });
+      continue;
+    }
+    if (!e.polygon || e.status !== 'matched') {
+      const action = e.status !== 'matched' ? (e.status ?? 'unmatched') : 'missing-polygon';
+      report.push({ hole: e.holeNumber, action });
+      continue;
+    }
+    const v = validateGreen(e.polygon);
+    if (!v.ok) {
+      report.push({ hole: e.holeNumber, action: 'failed-validation', detail: v.reasons.join('; ') });
+      continue;
+    }
+    const existing = hole.layout.geometry;
+    if (existing.greenPolygon.length > 0 && !args.force) {
+      report.push({ hole: e.holeNumber, action: 'skipped-existing' });
+      continue;
+    }
+    if (args.dryRun) {
+      report.push({ hole: e.holeNumber, action: 'would-import', areaM2: v.area, distanceM: e.distanceM });
+      continue;
+    }
+    // Merge-safe: replace ONLY greenPolygon, keep everything else verbatim.
+    // v.ring is the normalized open ring — never PATCH e.polygon directly
+    // (a hand-edited --from-json polygon may carry a closed ring, which would
+    // bias the backend's vertex-averaged green center).
+    await api.patchHoleLayout(args.courseId, e.holeNumber, {
+      teePoint: existing.teePoint,
+      greenPolygon: v.ring,
+      fairwayPolygons: existing.fairwayPolygons ?? [],
+      bunkerPolygons: existing.bunkerPolygons ?? [],
+      treesPolygons: existing.treesPolygons ?? [],
+      obPolygons: existing.obPolygons ?? []
+    });
+    report.push({ hole: e.holeNumber, action: 'imported', areaM2: v.area, distanceM: e.distanceM });
+  } catch (err) {
+    report.push({ hole: e.holeNumber, action: 'failed', detail: err.message });
   }
-  if (!e.polygon || e.status !== 'matched') {
-    report.push({ hole: e.holeNumber, action: e.status ?? 'unmatched' });
-    continue;
-  }
-  const v = validateGreen(e.polygon);
-  if (!v.ok) {
-    report.push({ hole: e.holeNumber, action: 'failed-validation', detail: v.reasons.join('; ') });
-    continue;
-  }
-  const existing = hole.layout.geometry;
-  if (existing.greenPolygon.length > 0 && !args.force) {
-    report.push({ hole: e.holeNumber, action: 'skipped-existing' });
-    continue;
-  }
-  if (args.dryRun) {
-    report.push({ hole: e.holeNumber, action: 'would-import', areaM2: v.area, distanceM: e.distanceM });
-    continue;
-  }
-  // Merge-safe: replace ONLY greenPolygon, keep everything else verbatim.
-  // v.ring is the normalized open ring — never PATCH e.polygon directly
-  // (a hand-edited --from-json polygon may carry a closed ring, which would
-  // bias the backend's vertex-averaged green center).
-  await api.patchHoleLayout(args.courseId, e.holeNumber, {
-    teePoint: existing.teePoint,
-    greenPolygon: v.ring,
-    fairwayPolygons: existing.fairwayPolygons ?? [],
-    bunkerPolygons: existing.bunkerPolygons ?? [],
-    treesPolygons: existing.treesPolygons ?? [],
-    obPolygons: existing.obPolygons ?? []
-  });
-  report.push({ hole: e.holeNumber, action: 'imported', areaM2: v.area, distanceM: e.distanceM });
 }
+
+for (let n = 1; n <= course.holeCount; n++) {
+  if (!report.some((r) => r.hole === n)) report.push({ hole: n, action: 'not-in-json' });
+}
+report.sort((a, b) => a.hole - b.hole);
 
 console.table(report);
 const unresolved = report.filter(

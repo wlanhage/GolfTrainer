@@ -4,14 +4,19 @@ export function createApi(baseUrl) {
   let token = null;
 
   const call = async (method, path, body) => {
-    const res = await fetch(`${base}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      body: body ? JSON.stringify(body) : undefined
-    });
+    let res;
+    try {
+      res = await fetch(`${base}${path}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (err) {
+      throw new Error(`Cannot reach ${base} — is the backend running? (${err.message})`);
+    }
     if (!res.ok) {
       throw new Error(`${method} ${path} -> HTTP ${res.status}: ${await res.text()}`);
     }

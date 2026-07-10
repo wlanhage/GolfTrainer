@@ -63,3 +63,6 @@ $RECYCLE.BIN/
 
 # Ideas
 idé.md
+# Course-geometry import artifacts
+tools/course-geometry/greens.*.json
+tools/course-geometry/out/

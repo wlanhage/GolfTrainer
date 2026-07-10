@@ -40,7 +40,7 @@ export function parseOverpass(json) {
       courseNames.push(tags.name ?? `${el.type}/${el.id}`);
       continue;
     }
-    const points = (el.geometry ?? []).map((g) => ({ lat: g.lat, lng: g.lon }));
+    const points = (el.geometry ?? []).filter(Boolean).map((g) => ({ lat: g.lat, lng: g.lon }));
     if (tags.golf === 'hole') holes.push({ ref: tags.ref ?? null, points });
     else if (tags.golf === 'green')
       greens.push({ id: `${el.type}/${el.id}`, points: normalizeRing(points) });

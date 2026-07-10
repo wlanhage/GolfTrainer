@@ -113,3 +113,10 @@ test('ambiguous results carry the runner-up green', () => {
   assert.equal(r.secondGreenId, 'b');
   assert.equal(r.secondDistanceM, 44);
 });
+
+test('validateGreen rejects non-numeric coordinates and non-arrays', () => {
+  const v = validateGreen([{ lat: '56', lng: 12 }, { lat: 56.001, lng: 12 }, { lat: 56.001, lng: 12.001 }]);
+  assert.equal(v.ok, false);
+  assert.ok(v.reasons[0].includes('non-numeric'));
+  assert.equal(validateGreen({}).ok, false);
+});

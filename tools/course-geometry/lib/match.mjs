@@ -6,6 +6,9 @@ export const MIN_AREA_M2 = 150;
 export const MAX_AREA_M2 = 1500;
 
 export function validateGreen(points) {
+  if (!Array.isArray(points) || !points.every((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng))) {
+    return { ok: false, area: 0, reasons: ['non-numeric coordinates'], ring: [] };
+  }
   const ring = normalizeRing(points);
   const area = Math.round(polygonAreaM2(ring));
   const reasons = [];
