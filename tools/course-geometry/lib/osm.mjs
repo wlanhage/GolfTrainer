@@ -1,4 +1,4 @@
-import { normalizeRing } from './geo.mjs';
+import { normalizeRing, centroid } from './geo.mjs';
 
 // overpass.kumi.systems is gone (CNAME to private.coffee since 2026), and
 // overpass-api.de sits behind DNS round-robin where a single broken server
@@ -28,16 +28,19 @@ area["ISO3166-1"="SE"][admin_level=2]->.se;
 (
   way(area.c)["golf"="hole"];
   way(area.c)["golf"="green"];
+  way(area.c)["golf"="tee"];
+  node(area.c)["golf"="tee"];
 );
 out geom;
 .gc out tags;`;
 }
 
-// → { courseNames: string[], holes: [{ref, points}], greens: [{id, points}] }
+// → { courseNames: string[], holes: [{ref, points}], greens: [{id, points}], tees: [{id, point, ref, name}] }
 export function parseOverpass(json) {
   const courseNames = [];
   const holes = [];
   const greens = [];
+  const tees = [];
   for (const el of json.elements ?? []) {
     const tags = el.tags ?? {};
     if (tags.leisure === 'golf_course') {
@@ -48,8 +51,17 @@ export function parseOverpass(json) {
     if (tags.golf === 'hole') holes.push({ ref: tags.ref ?? null, points });
     else if (tags.golf === 'green')
       greens.push({ id: `${el.type}/${el.id}`, points: normalizeRing(points) });
+    else if (tags.golf === 'tee') {
+      const point =
+        el.type === 'node' && Number.isFinite(el.lat)
+          ? { lat: el.lat, lng: el.lon }
+          : points.length > 0
+            ? centroid(normalizeRing(points))
+            : null;
+      if (point) tees.push({ id: `${el.type}/${el.id}`, point, ref: tags.ref ?? null, name: tags.name ?? null });
+    }
   }
-  return { courseNames, holes, greens };
+  return { courseNames, holes, greens, tees };
 }
 
 export async function fetchOverpass(query) {
