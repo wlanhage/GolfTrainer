@@ -24,6 +24,7 @@ ${imgs.join('\n')}
 
 // Render pages sequentially in one browser; prints each output path.
 export async function renderPagesToPngs(pages) {
+  if (pages.length === 0) return;
   const require = createRequire(new URL('../../pr-screenshots/package.json', import.meta.url));
   const { chromium } = require('playwright');
   const browser = await chromium.launch();

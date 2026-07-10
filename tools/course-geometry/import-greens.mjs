@@ -4,12 +4,12 @@
 // Usage:
 //   node import-greens.mjs --course-id <cuid> --club "Vasatorp" [--course "TC"]
 //     [--api-base http://localhost:3000] [--email ...] [--password ...]
-//     [--dry-run] [--force] [--from-json greens.<id>.json]
+//     [--dry-run] [--force] [--refetch] [--from-json greens.<id>.json]
 //
 // Writes greens.<courseId>.json (match results) so unresolved holes can be
 // hand-edited and re-imported with --from-json. Exit codes: 0 all holes
 // resolved, 1 fatal error, 2 completed with unresolved holes.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildOverpassQuery, parseOverpass, fetchOverpass } from './lib/osm.mjs';
 import { matchGreens, validateGreen } from './lib/match.mjs';
@@ -22,7 +22,8 @@ function parseArgs(argv) {
     password: process.env.GT_ADMIN_PASSWORD ?? 'Admin123!',
     dryRun: false,
     force: false,
-    fromJson: null
+    fromJson: null,
+    refetch: false
   };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -35,6 +36,7 @@ function parseArgs(argv) {
     else if (a === '--from-json') args.fromJson = argv[++i];
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--force') args.force = true;
+    else if (a === '--refetch') args.refetch = true;
     else throw new Error(`Unknown arg: ${a}`);
   }
   if (!args.courseId) throw new Error('Missing --course-id');
@@ -53,13 +55,30 @@ if (args.fromJson) {
   entries = JSON.parse(readFileSync(args.fromJson, 'utf8')).holes;
 } else {
   const jsonPath = fileURLToPath(new URL(`greens.${args.courseId}.json`, import.meta.url));
+  const writeGreensJson = (payload) => {
+    if (existsSync(jsonPath) && !args.refetch) {
+      let prev = null;
+      try {
+        prev = JSON.parse(readFileSync(jsonPath, 'utf8'));
+      } catch {
+        // corrupt file — safe to overwrite
+      }
+      if (prev?.holes?.some((h) => h?.source)) {
+        console.error(
+          `${jsonPath} contains hand-traced/assigned entries (source set). Import it with --from-json, or re-run with --refetch to overwrite.`
+        );
+        process.exit(1);
+      }
+    }
+    writeFileSync(jsonPath, JSON.stringify(payload, null, 2));
+  };
   const osm = parseOverpass(await fetchOverpass(buildOverpassQuery(args)));
   console.log(
     `OSM: ${osm.courseNames.length} course polygon(s), ${osm.holes.length} hole way(s), ${osm.greens.length} green(s)`
   );
   if (osm.holes.length === 0 && osm.greens.length === 0) {
     // Case C: nothing mapped. Leave a skeleton so trace.mjs --into works.
-    writeFileSync(jsonPath, JSON.stringify({ courseId: args.courseId, club: args.club, holes: [] }, null, 2));
+    writeGreensJson({ courseId: args.courseId, club: args.club, holes: [] });
     console.error(
       `No golf=hole or golf=green in OSM for "${args.club}". Candidate course polygons: ${
         osm.courseNames.join(' | ') || 'none'
@@ -67,23 +86,29 @@ if (args.fromJson) {
     );
     process.exit(1);
   }
+  if (osm.holes.length === 0) {
+    // Greens exist but no hole ways — an assignment problem, not tracing.
+    writeGreensJson({
+      courseId: args.courseId,
+      club: args.club,
+      holes: [],
+      unassigned: { holeWays: [], greens: osm.greens }
+    });
+    console.error(
+      `No golf=hole ways for "${args.club}" but ${osm.greens.length} green(s) exist — assign them via the README ladder (rung B/D). Dumped to ${jsonPath}.`
+    );
+    process.exit(1);
+  }
   const refs = osm.holes.map((h) => h.ref).filter(Boolean);
   const dupes = [...new Set(refs.filter((r, i) => refs.indexOf(r) !== i))];
   if (dupes.length > 0) {
     // Case B: ambiguous assignment. Dump the raw data for manual assignment.
-    writeFileSync(
-      jsonPath,
-      JSON.stringify(
-        {
-          courseId: args.courseId,
-          club: args.club,
-          holes: [],
-          unassigned: { holeWays: osm.holes, greens: osm.greens }
-        },
-        null,
-        2
-      )
-    );
+    writeGreensJson({
+      courseId: args.courseId,
+      club: args.club,
+      holes: [],
+      unassigned: { holeWays: osm.holes, greens: osm.greens }
+    });
     console.error(
       `Duplicate hole refs (${dupes.join(', ')}) — matched course polygon(s): ${osm.courseNames.join(' | ')}.` +
         (args.course
@@ -94,7 +119,7 @@ if (args.fromJson) {
     process.exit(1);
   }
   entries = matchGreens({ holes: osm.holes, greens: osm.greens, holeCount: course.holeCount });
-  writeFileSync(jsonPath, JSON.stringify({ courseId: args.courseId, club: args.club, holes: entries }, null, 2));
+  writeGreensJson({ courseId: args.courseId, club: args.club, holes: entries });
   console.log(`Wrote ${jsonPath}`);
 }
 

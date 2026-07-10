@@ -6,10 +6,24 @@
 // Usage:
 //   node trace.mjs snap.<name>.json --hole 7 --points "x,y x,y x,y ..." --into greens.<courseId>.json
 //   node trace.mjs snap.<name>.json --mark "A:x,y B:x,y" [--out marked.png]
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { pixelsToPolygon, parseMarks } from './lib/georef.mjs';
 import { validateGreen } from './lib/match.mjs';
 import { tileGridHtml, renderPagesToPngs } from './lib/tiles.mjs';
+
+function readJson(path, hint) {
+  let raw;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    throw new Error(`${path} not found${hint ? ` — ${hint}` : ''}`);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`${path} is not valid JSON`);
+  }
+}
 
 function parseArgs(argv) {
   const args = { snap: argv[2] };
@@ -32,7 +46,7 @@ function parseArgs(argv) {
 }
 
 const args = parseArgs(process.argv);
-const georef = JSON.parse(readFileSync(args.snap, 'utf8'));
+const georef = readJson(args.snap, 'run snap.mjs first');
 
 if (args.mark) {
   const marks = parseMarks(args.mark);
@@ -52,10 +66,7 @@ if (args.mark) {
     console.error(`Refusing hole ${args.hole}: ${v.reasons.join('; ')}`);
     process.exit(1);
   }
-  if (!existsSync(args.into)) {
-    throw new Error(`${args.into} not found — run import-greens.mjs --dry-run first to create it`);
-  }
-  const data = JSON.parse(readFileSync(args.into, 'utf8'));
+  const data = readJson(args.into, 'run import-greens.mjs --dry-run first to create it');
   if (!Array.isArray(data.holes)) throw new Error(`${args.into} has no holes array`);
   const entry = { holeNumber: args.hole, status: 'matched', source: 'traced', polygon: v.ring };
   const idx = data.holes.findIndex((h) => h?.holeNumber === args.hole);

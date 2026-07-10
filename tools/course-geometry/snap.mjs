@@ -35,6 +35,9 @@ function parseArgs(argv) {
   if (!args.center && !(args.club && args.overview)) {
     throw new Error('Need --center <lat,lng> or --club "<name>" --overview');
   }
+  if (args.center && args.overview) {
+    throw new Error('--center and --overview are mutually exclusive');
+  }
   return args;
 }
 
@@ -57,6 +60,9 @@ if (args.center) {
   if (courses.length > 1) {
     console.error(`Several courses matched: ${courses.map((c) => c.name).join(' | ')}. Narrow with --course.`);
     process.exit(1);
+  }
+  if (args.zoom !== 19 || args.grid !== 3) {
+    console.error('note: --zoom/--grid are ignored in --overview mode (zoom is auto-picked to fit the course)');
   }
   georef = makeGeorefFromBounds(courses[0].bounds);
   defaultName = courses[0].name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-');

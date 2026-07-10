@@ -35,6 +35,9 @@ node import-greens.mjs --course-id <id> --club "Vasatorp"
 Exit codes: `0` all holes resolved, `1` fatal error, `2` finished but some
 holes are unresolved (see the printed table).
 
+Re-running the OSM fetch refuses to overwrite a greens JSON containing
+hand-traced/assigned entries unless `--refetch` is given.
+
 Hole statuses in `greens.<courseId>.json`: `matched`, `ambiguous` (two greens
 nearly equidistant — the entry carries `secondGreenId`/`secondDistanceM`, or
 `reason: "shared-green"` when two holes claimed the same green, which usually
@@ -62,8 +65,8 @@ Report actions beyond those statuses: `imported`, `would-import` (dry-run),
    data not yet available", Esri simply lacks zoom-19 imagery there — that is
    the tile source, not a polygon error — check the spot in admin-web's
    HoleManager instead (zoom out manually until imagery renders).
-4. For `ambiguous`/`unmatched`/undumped holes, follow **Tracing & assignment
-   (no OSM data)** below.
+4. For `ambiguous`/`unmatched` holes, or when a dump/skeleton file was
+   written, follow **Tracing & assignment (no OSM data)** below.
 5. Import, then share the per-hole report and the previews with the user.
 
 ## Tracing & assignment (no OSM data)
