@@ -1,0 +1,10 @@
+{
+  "name": "course-geometry",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Import green polygons for a course from OpenStreetMap.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
