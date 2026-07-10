@@ -102,7 +102,7 @@ matches the scorecard length (`errM`), plus a routing hint (`chainM`: best
 green → next hole's best tee). The `tee` column shows the tee-pick verdict
 (`ambiguous-tees` means confirm the tee visually before importing it), and a
 `*` on a green id means it is the best candidate for more than one hole —
-resolve those together. Assign a hole when the best `errM` is < 10 m
+resolve those together. Heads-up for clubs whose OSM course polygons overlap (e.g. Albatross): the dump pools every course's tees and greens, so `errM` ties across many holes — expect the arithmetic to auto-resolve only holes with unique refs or clear length separation, and lean on `chainM`, per-way endpoint proximity (`ways` column, `wayEnds` in `--json`), and the banguide for the rest. Assign a hole when the best `errM` is < 10 m
 and the runner-up is > 25 m worse; for the rest, consult the club's
 **banguide** (club website, web-search "<klubb> banguide", Caddee) and the
 `--overview` snap. Build `holes` entries in the JSON by copying polygons

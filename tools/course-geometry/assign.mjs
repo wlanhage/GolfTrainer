@@ -85,7 +85,8 @@ const rows = course.holes.map((hole) => {
         teePoint: inBand.t.point,
         distanceM: Math.round(inBand.d),
         errorM: Math.round(Math.abs(inBand.d - L)),
-        teeVerdict: verdict?.point ? 'ok' : (verdict?.reason ?? 'none')
+        // verdict is never null here: the inBand check guarantees at least one tee in pickTee's band.
+        teeVerdict: verdict?.point ? 'ok' : verdict.reason
       };
     })
     .filter(Boolean)

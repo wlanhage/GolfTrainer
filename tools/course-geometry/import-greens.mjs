@@ -158,7 +158,10 @@ for (const e of entries) {
         action: 'would-import',
         areaM2: v.area,
         distanceM: e.distanceM,
-        tee: e.teePoint ? 'yes' : 'no'
+        tee: e.teePoint ? 'yes' : 'no',
+        ...(e.teePoint && Number.isFinite(hole.length)
+          ? { teeErrM: Math.abs(e.teeDistanceM - hole.length) }
+          : {})
       });
       continue;
     }
@@ -179,7 +182,10 @@ for (const e of entries) {
       action: 'imported',
       areaM2: v.area,
       distanceM: e.distanceM,
-      tee: e.teePoint ? 'yes' : 'no'
+      tee: e.teePoint ? 'yes' : 'no',
+      ...(e.teePoint && Number.isFinite(hole.length)
+        ? { teeErrM: Math.abs(e.teeDistanceM - hole.length) }
+        : {})
     });
   } catch (err) {
     report.push({ hole: e?.holeNumber ?? '?', action: 'failed', detail: err.message });
