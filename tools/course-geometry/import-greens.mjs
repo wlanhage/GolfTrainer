@@ -52,31 +52,48 @@ let entries;
 if (args.fromJson) {
   entries = JSON.parse(readFileSync(args.fromJson, 'utf8')).holes;
 } else {
+  const jsonPath = fileURLToPath(new URL(`greens.${args.courseId}.json`, import.meta.url));
   const osm = parseOverpass(await fetchOverpass(buildOverpassQuery(args)));
   console.log(
     `OSM: ${osm.courseNames.length} course polygon(s), ${osm.holes.length} hole way(s), ${osm.greens.length} green(s)`
   );
-  if (osm.greens.length === 0) {
+  if (osm.holes.length === 0 && osm.greens.length === 0) {
+    // Case C: nothing mapped. Leave a skeleton so trace.mjs --into works.
+    writeFileSync(jsonPath, JSON.stringify({ courseId: args.courseId, club: args.club, holes: [] }, null, 2));
     console.error(
-      `No golf=green found for "${args.club}". Candidate course polygons: ${
+      `No golf=hole or golf=green in OSM for "${args.club}". Candidate course polygons: ${
         osm.courseNames.join(' | ') || 'none'
-      }`
+      }. Wrote empty ${jsonPath} — use the tracing workflow (README).`
     );
     process.exit(1);
   }
   const refs = osm.holes.map((h) => h.ref).filter(Boolean);
   const dupes = [...new Set(refs.filter((r, i) => refs.indexOf(r) !== i))];
   if (dupes.length > 0) {
+    // Case B: ambiguous assignment. Dump the raw data for manual assignment.
+    writeFileSync(
+      jsonPath,
+      JSON.stringify(
+        {
+          courseId: args.courseId,
+          club: args.club,
+          holes: [],
+          unassigned: { holeWays: osm.holes, greens: osm.greens }
+        },
+        null,
+        2
+      )
+    );
     console.error(
       `Duplicate hole refs (${dupes.join(', ')}) — matched course polygon(s): ${osm.courseNames.join(' | ')}.` +
         (args.course
-          ? ' --course did not isolate a single course; if OSM maps this club as one polygon, use the --from-json workflow (see README).'
-          : ' Narrow the search with --course.')
+          ? ' --course did not isolate a single course.'
+          : ' Narrow the search with --course.') +
+        ` Raw ways/greens dumped to ${jsonPath} for manual assignment (see README).`
     );
     process.exit(1);
   }
   entries = matchGreens({ holes: osm.holes, greens: osm.greens, holeCount: course.holeCount });
-  const jsonPath = fileURLToPath(new URL(`greens.${args.courseId}.json`, import.meta.url));
   writeFileSync(jsonPath, JSON.stringify({ courseId: args.courseId, club: args.club, holes: entries }, null, 2));
   console.log(`Wrote ${jsonPath}`);
 }

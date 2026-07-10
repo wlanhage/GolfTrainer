@@ -59,7 +59,12 @@ export function matchGreens({ holes, greens, holeCount }) {
     const rev = fwd ? null : attempt(way.points[0]);
     const hit = fwd ?? rev;
     if (!hit) {
-      results.push({ holeNumber: n, status: 'unmatched' });
+      results.push({
+        holeNumber: n,
+        status: 'unmatched',
+        // Where the agent should point snap.mjs --center when tracing.
+        lookAt: way.points[way.points.length - 1]
+      });
       continue;
     }
     results.push({

@@ -120,3 +120,9 @@ test('validateGreen rejects non-numeric coordinates and non-arrays', () => {
   assert.ok(v.reasons[0].includes('non-numeric'));
   assert.equal(validateGreen({}).ok, false);
 });
+
+test('unmatched holes carry a lookAt target (the way end point)', () => {
+  const [r] = matchGreens({ holes: [holeWay('1', 56, 56.002)], greens: [], holeCount: 1 });
+  assert.equal(r.status, 'unmatched');
+  assert.deepEqual(r.lookAt, { lat: 56.002, lng: 12 });
+});
