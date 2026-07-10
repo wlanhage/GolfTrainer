@@ -38,7 +38,7 @@ function pageForHole(entry) {
     }
   }
   const pts = px.map((p) => `${(p.x - minX).toFixed(1)},${(p.y - minY).toFixed(1)}`).join(' ');
-  const label = `Hål ${entry.holeNumber}${entry.status !== 'matched' ? ` (${entry.status})` : ''}`;
+  const label = `Hål ${entry.holeNumber}${entry.status && entry.status !== 'matched' ? ` (${entry.status})` : ''}`;
   return `<!doctype html><body style="margin:0;position:relative;width:${width}px;height:${height}px;background:#000">
 ${imgs.join('\n')}
 <svg width="${width}" height="${height}" style="position:absolute;left:0;top:0">

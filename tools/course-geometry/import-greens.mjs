@@ -10,6 +10,7 @@
 // hand-edited and re-imported with --from-json. Exit codes: 0 all holes
 // resolved, 1 fatal error, 2 completed with unresolved holes.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { buildOverpassQuery, parseOverpass, fetchOverpass } from './lib/osm.mjs';
 import { matchGreens, validateGreen } from './lib/match.mjs';
 import { createApi } from './lib/api.mjs';
@@ -65,16 +66,17 @@ if (args.fromJson) {
   }
   const refs = osm.holes.map((h) => h.ref).filter(Boolean);
   const dupes = [...new Set(refs.filter((r, i) => refs.indexOf(r) !== i))];
-  if (dupes.length > 0 && !args.course) {
+  if (dupes.length > 0) {
     console.error(
-      `Duplicate hole refs (${dupes.join(', ')}) — several courses matched: ${osm.courseNames.join(
-        ' | '
-      )}. Narrow the search with --course.`
+      `Duplicate hole refs (${dupes.join(', ')}) — matched course polygon(s): ${osm.courseNames.join(' | ')}.` +
+        (args.course
+          ? ' --course did not isolate a single course; if OSM maps this club as one polygon, use the --from-json workflow (see README).'
+          : ' Narrow the search with --course.')
     );
     process.exit(1);
   }
   entries = matchGreens({ holes: osm.holes, greens: osm.greens, holeCount: course.holeCount });
-  const jsonPath = `greens.${args.courseId}.json`;
+  const jsonPath = fileURLToPath(new URL(`greens.${args.courseId}.json`, import.meta.url));
   writeFileSync(jsonPath, JSON.stringify({ courseId: args.courseId, club: args.club, holes: entries }, null, 2));
   console.log(`Wrote ${jsonPath}`);
 }
@@ -120,14 +122,14 @@ for (const e of entries) {
     });
     report.push({ hole: e.holeNumber, action: 'imported', areaM2: v.area, distanceM: e.distanceM });
   } catch (err) {
-    report.push({ hole: e?.holeNumber, action: 'failed', detail: err.message });
+    report.push({ hole: e?.holeNumber ?? '?', action: 'failed', detail: err.message });
   }
 }
 
 for (let n = 1; n <= course.holeCount; n++) {
   if (!report.some((r) => r.hole === n)) report.push({ hole: n, action: 'not-in-json' });
 }
-report.sort((a, b) => a.hole - b.hole);
+report.sort((a, b) => (Number.isFinite(a.hole) ? a.hole : 99) - (Number.isFinite(b.hole) ? b.hole : 99));
 
 console.table(report);
 const unresolved = report.filter(
