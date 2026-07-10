@@ -16,7 +16,7 @@ export const SATELLITE_STYLE: StyleSpecification = {
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
       maxzoom: 19,
-      attribution: 'Tiles © Esri'
+      attribution: 'Tiles © Esri | Data © OpenStreetMap contributors'
     }
   },
   layers: [{ id: 'satellite-base', type: 'raster', source: 'satellite' }]

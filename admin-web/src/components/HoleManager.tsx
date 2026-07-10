@@ -58,7 +58,7 @@ const rasterStyle = {
       type: 'raster',
       tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      attribution: 'Tiles &copy; Esri',
+      attribution: 'Tiles &copy; Esri | Data &copy; OpenStreetMap contributors',
     },
   },
   layers: [{ id: 'satellite-base', type: 'raster', source: 'satellite' }],
