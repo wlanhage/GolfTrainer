@@ -74,7 +74,7 @@ if (args.fromJson) {
   };
   const osm = parseOverpass(await fetchOverpass(buildOverpassQuery(args)));
   console.log(
-    `OSM: ${osm.courseNames.length} course polygon(s), ${osm.holes.length} hole way(s), ${osm.greens.length} green(s)`
+    `OSM: ${osm.courseNames.length} course polygon(s), ${osm.holes.length} hole way(s), ${osm.greens.length} green(s), ${osm.tees.length} tee(s)`
   );
   if (osm.holes.length === 0 && osm.greens.length === 0) {
     // Case C: nothing mapped. Leave a skeleton so trace.mjs --into works.
@@ -92,7 +92,7 @@ if (args.fromJson) {
       courseId: args.courseId,
       club: args.club,
       holes: [],
-      unassigned: { holeWays: [], greens: osm.greens }
+      unassigned: { holeWays: [], greens: osm.greens, tees: osm.tees }
     });
     console.error(
       `No golf=hole ways for "${args.club}" but ${osm.greens.length} green(s) exist — assign them via the README ladder (rung B/D). Dumped to ${jsonPath}.`
@@ -107,7 +107,7 @@ if (args.fromJson) {
       courseId: args.courseId,
       club: args.club,
       holes: [],
-      unassigned: { holeWays: osm.holes, greens: osm.greens }
+      unassigned: { holeWays: osm.holes, greens: osm.greens, tees: osm.tees }
     });
     console.error(
       `Duplicate hole refs (${dupes.join(', ')}) — matched course polygon(s): ${osm.courseNames.join(' | ')}.` +
@@ -118,7 +118,13 @@ if (args.fromJson) {
     );
     process.exit(1);
   }
-  entries = matchGreens({ holes: osm.holes, greens: osm.greens, holeCount: course.holeCount });
+  entries = matchGreens({
+    holes: osm.holes,
+    greens: osm.greens,
+    holeCount: course.holeCount,
+    tees: osm.tees,
+    holeLengths: Object.fromEntries(course.holes.map((h) => [h.holeNumber, h.length]))
+  });
   writeGreensJson({ courseId: args.courseId, club: args.club, holes: entries });
   console.log(`Wrote ${jsonPath}`);
 }
@@ -147,7 +153,13 @@ for (const e of entries) {
       continue;
     }
     if (args.dryRun) {
-      report.push({ hole: e.holeNumber, action: 'would-import', areaM2: v.area, distanceM: e.distanceM });
+      report.push({
+        hole: e.holeNumber,
+        action: 'would-import',
+        areaM2: v.area,
+        distanceM: e.distanceM,
+        tee: e.teePoint ? 'yes' : 'no'
+      });
       continue;
     }
     // Merge-safe: replace ONLY greenPolygon, keep everything else verbatim.
@@ -155,14 +167,20 @@ for (const e of entries) {
     // (a hand-edited --from-json polygon may carry a closed ring, which would
     // bias the backend's vertex-averaged green center).
     await api.patchHoleLayout(args.courseId, e.holeNumber, {
-      teePoint: existing.teePoint,
+      teePoint: e.teePoint ?? existing.teePoint,
       greenPolygon: v.ring,
       fairwayPolygons: existing.fairwayPolygons ?? [],
       bunkerPolygons: existing.bunkerPolygons ?? [],
       treesPolygons: existing.treesPolygons ?? [],
       obPolygons: existing.obPolygons ?? []
     });
-    report.push({ hole: e.holeNumber, action: 'imported', areaM2: v.area, distanceM: e.distanceM });
+    report.push({
+      hole: e.holeNumber,
+      action: 'imported',
+      areaM2: v.area,
+      distanceM: e.distanceM,
+      tee: e.teePoint ? 'yes' : 'no'
+    });
   } catch (err) {
     report.push({ hole: e?.holeNumber ?? '?', action: 'failed', detail: err.message });
   }
