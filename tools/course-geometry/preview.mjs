@@ -25,6 +25,9 @@ function pageForHole(entry) {
   const maxY = Math.max(...px.map((p) => p.y)) + MARGIN_PX;
   const width = Math.ceil(maxX - minX);
   const height = Math.ceil(maxY - minY);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    throw new Error(`hole ${entry.holeNumber}: bad polygon (non-numeric coordinates)`);
+  }
   const imgs = [];
   for (let tx = Math.floor(minX / TILE); tx <= Math.floor(maxX / TILE); tx++) {
     for (let ty = Math.floor(minY / TILE); ty <= Math.floor(maxY / TILE); ty++) {
@@ -55,12 +58,12 @@ mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 1200 } });
-for (const entry of data.holes.filter((h) => h.polygon)) {
+for (const entry of data.holes.filter((h) => h?.polygon)) {
   await page.setContent(pageForHole(entry), { waitUntil: 'networkidle' });
   const file = `${outDir}/hole-${String(entry.holeNumber).padStart(2, '0')}.png`;
-  await page.screenshot({ path: file, fullPage: true });
+  await page.locator('body').screenshot({ path: file });
   console.log(file);
 }
 await browser.close();
-const skipped = data.holes.filter((h) => !h.polygon).map((h) => h.holeNumber);
+const skipped = data.holes.filter((h) => !h?.polygon).map((h) => h?.holeNumber);
 if (skipped.length > 0) console.log(`No polygon (not rendered): holes ${skipped.join(', ')}`);

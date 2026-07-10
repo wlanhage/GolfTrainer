@@ -120,7 +120,7 @@ for (const e of entries) {
     });
     report.push({ hole: e.holeNumber, action: 'imported', areaM2: v.area, distanceM: e.distanceM });
   } catch (err) {
-    report.push({ hole: e.holeNumber, action: 'failed', detail: err.message });
+    report.push({ hole: e?.holeNumber, action: 'failed', detail: err.message });
   }
 }
 
