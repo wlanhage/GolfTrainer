@@ -1,5 +1,12 @@
 # Green Polygon Import Implementation Plan
 
+> **Status: EXECUTED** (2026-07-10, branch `feat/green-polygon-import`). Do not
+> re-execute. Several details were superseded by review during execution —
+> trust the final code and `tools/course-geometry/README.md` over this
+> document (test script is bare `node --test`; Overpass mirror list refreshed;
+> the PATCH sends `validateGreen`'s normalized ring, not the raw polygon;
+> extra hardening throughout).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A zero-dependency Node CLI in `tools/course-geometry/` that fetches `golf=green` polygons from OpenStreetMap, matches them to hole numbers, and imports them merge-safely via the existing `PATCH /api/v1/courses/:id/holes/:holeNumber/layout` endpoint, plus per-hole preview PNGs for visual review.
