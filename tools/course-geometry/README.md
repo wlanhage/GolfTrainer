@@ -39,7 +39,7 @@ Hole statuses in `greens.<courseId>.json`: `matched`, `ambiguous` (two greens
 nearly equidistant — the entry carries `secondGreenId`/`secondDistanceM`, or
 `reason: "shared-green"` when two holes claimed the same green, which usually
 means a reversed hole way in OSM — resolve by eye), `unmatched` (no green
-within 80 m), `no-hole-way`, `duplicate-hole-ways`.
+within 80 m — the entry carries `lookAt`, the hole way's end point, for the tracing workflow), `no-hole-way`, `duplicate-hole-ways`.
 
 Report actions beyond those statuses: `imported`, `would-import` (dry-run),
 `skipped-existing` (green already in DB, use `--force`), `failed-validation`,
@@ -62,14 +62,52 @@ Report actions beyond those statuses: `imported`, `would-import` (dry-run),
    data not yet available", Esri simply lacks zoom-19 imagery there — that is
    the tile source, not a polygon error — check the spot in admin-web's
    HoleManager instead (zoom out manually until imagery renders).
-4. For `ambiguous`/`unmatched` holes: fetch Esri tiles around the hole-way
-   end point at z19 (`.../World_Imagery/MapServer/tile/19/{y}/{x}`), trace
-   the green outline visually, convert pixel → lat/lng with
-   `worldPixelToLngLat` in `lib/geo.mjs`, edit the JSON (set `status:
-   "matched"`, fill `polygon`), re-run preview, then import with
-   `--from-json`. Never guess — a hole you cannot see clearly stays
-   unresolved and is reported to the user.
+4. For `ambiguous`/`unmatched`/undumped holes, follow **Tracing & assignment
+   (no OSM data)** below.
 5. Import, then share the per-hole report and the previews with the user.
+
+## Tracing & assignment (no OSM data)
+
+A ladder — take the first rung that applies, and never guess:
+
+**A. Hole way exists, green missing** (`status: "unmatched"`, entry has `lookAt`):
+
+```bash
+node snap.mjs --center "<lookAt.lat>,<lookAt.lng>"        # writes snap.<name>.png + .json
+# open the PNG, read pixel coords of the green outline (8-12 vertices), then:
+node trace.mjs snap.<name>.json --hole <N> --points "x,y x,y ..." --into greens.<courseId>.json
+node preview.mjs greens.<courseId>.json                    # verify the polygon sits on the green
+node import-greens.mjs --course-id <id> --from-json greens.<courseId>.json
+```
+
+Numbering comes free from the OSM hole way's `ref`. Use `--zoom 18` if z19
+shows "Map data not yet available".
+
+**B. Multi-course club, duplicate refs** (`greens.<courseId>.json` has an
+`unassigned` block with all raw hole ways and greens): do NOT trace — the OSM
+green polygons are better than hand-traced ones; only the hole↔green
+assignment is ambiguous. Research the club's **banguide** (club website,
+web-search "<klubb> banguide", Caddee) — per-hole aerial images show each
+course's routing. Compare against `node snap.mjs --club "<klubb>" --overview`,
+then build `holes` entries in the JSON by copying polygons from
+`unassigned.greens` (set `holeNumber`, `status: "matched"`,
+`source: "banguide:<url>"`). Then preview + import with `--from-json`.
+
+**C. Nothing in OSM** (empty skeleton JSON was written):
+`node snap.mjs --club "<klubb>" --overview`, find the greens visually,
+research the banguide for numbering, then per green:
+`snap.mjs --center` + `trace.mjs` as in A.
+
+**D. No banguide found or not matchable:** make a letter map and ask the user
+for the mapping (one short question), then proceed as in A/B:
+
+```bash
+node trace.mjs snap.<name>.json --mark "A:x,y B:x,y C:x,y"
+```
+
+**E. Still unclear** (shadow, tree cover, no imagery at any zoom): leave the
+hole unresolved and say so in the report. Record which rung and which source
+(banguide URL, user confirmation) resolved each hole.
 
 ## Licensing
 
