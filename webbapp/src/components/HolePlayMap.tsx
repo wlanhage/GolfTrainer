@@ -219,7 +219,7 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
       center: [initialCenter.lng, initialCenter.lat],
       zoom: 16,
       bearing: axis?.bearing ?? 0,
-      attributionControl: false,
+      attributionControl: { compact: true },
       maxZoom: 19, // Esri stödjer 19
       fadeDuration: 150, // snabbare tile-fade
       refreshExpiredTiles: false, // mindre nätverk

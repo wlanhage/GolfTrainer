@@ -142,7 +142,7 @@ export function HoleLayoutEditor({ geometry, onChange, onSave }: Props) {
       style: DEFAULT_MAP_STYLE,
       center: [initial.lng, initial.lat],
       zoom: 16,
-      attributionControl: false
+      attributionControl: { compact: true }
     });
     map.on('load', () => {
       map.addSource('hole-edit', { type: 'geojson', data: fc });
