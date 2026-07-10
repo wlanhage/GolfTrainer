@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOverpassQuery, parseOverpass } from '../lib/osm.mjs';
+import { buildOverpassQuery, parseOverpass, buildCourseBoundsQuery, parseCourseBounds } from '../lib/osm.mjs';
 
 test('buildOverpassQuery includes club and optional course name filters', () => {
   const q = buildOverpassQuery({ club: 'Vasatorp', course: 'TC' });
@@ -37,4 +37,27 @@ test('parseOverpass splits course areas, holes and greens; drops closing vertex'
   assert.equal(parsed.greens.length, 1);
   assert.equal(parsed.greens[0].id, 'way/3');
   assert.equal(parsed.greens[0].points.length, 3);
+});
+
+test('buildCourseBoundsQuery asks for tags and bounds only', () => {
+  const q = buildCourseBoundsQuery({ club: 'Hofgård' });
+  assert.ok(q.includes('["name"~"Hofgård",i]'));
+  assert.ok(q.includes('out tags bb;'));
+  assert.ok(!q.includes('golf"="hole'));
+});
+
+test('parseCourseBounds maps Overpass bounds to lat/lng bounds', () => {
+  const json = {
+    elements: [
+      {
+        type: 'way', id: 9, tags: { leisure: 'golf_course', name: 'Test GK' },
+        bounds: { minlat: 55.1, minlon: 12.1, maxlat: 55.2, maxlon: 12.3 }
+      },
+      { type: 'way', id: 10, tags: { leisure: 'golf_course' } } // no bounds → skipped
+    ]
+  };
+  const parsed = parseCourseBounds(json);
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].name, 'Test GK');
+  assert.deepEqual(parsed[0].bounds, { minLat: 55.1, minLng: 12.1, maxLat: 55.2, maxLng: 12.3 });
 });

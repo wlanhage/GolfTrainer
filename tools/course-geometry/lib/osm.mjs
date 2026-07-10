@@ -75,3 +75,32 @@ export async function fetchOverpass(query) {
   }
   throw new Error(`All Overpass endpoints failed. Last error: ${lastErr.message}`);
 }
+
+// Bounds-only lookup of a club's golf_course polygon(s) — works even when
+// the club has no holes/greens mapped. Used by snap.mjs --overview.
+export function buildCourseBoundsQuery({ club, course }) {
+  const nameFilters =
+    `["name"~"${esc(club)}",i]` + (course ? `["name"~"${esc(course)}",i]` : '');
+  return `[out:json][timeout:30];
+area["ISO3166-1"="SE"][admin_level=2]->.se;
+(
+  way(area.se)["leisure"="golf_course"]${nameFilters};
+  relation(area.se)["leisure"="golf_course"]${nameFilters};
+);
+out tags bb;`;
+}
+
+// → [{ name, bounds: {minLat, minLng, maxLat, maxLng} }]
+export function parseCourseBounds(json) {
+  return (json.elements ?? [])
+    .filter((el) => el.bounds)
+    .map((el) => ({
+      name: el.tags?.name ?? `${el.type}/${el.id}`,
+      bounds: {
+        minLat: el.bounds.minlat,
+        minLng: el.bounds.minlon,
+        maxLat: el.bounds.maxlat,
+        maxLng: el.bounds.maxlon
+      }
+    }));
+}
