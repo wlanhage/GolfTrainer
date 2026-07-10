@@ -1,8 +1,12 @@
 import { normalizeRing } from './geo.mjs';
 
+// overpass.kumi.systems is gone (CNAME to private.coffee since 2026), and
+// overpass-api.de sits behind DNS round-robin where a single broken server
+// can answer HTTP 406 to everything — so keep several independent mirrors.
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
 ];
 
 // --club / --course are used as case-insensitive Overpass regexes; escape
