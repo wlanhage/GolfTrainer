@@ -42,3 +42,8 @@ test('worldPixelToLngLat round-trips lngLatToWorldPixel', () => {
   const back = worldPixelToLngLat(lngLatToWorldPixel(p, 19), 19);
   assert.ok(Math.abs(back.lat - p.lat) < 1e-9 && Math.abs(back.lng - p.lng) < 1e-9);
 });
+
+test('polygonAreaM2 returns 0 for degenerate polygons', () => {
+  assert.equal(polygonAreaM2([]), 0);
+  assert.equal(polygonAreaM2([{ lat: 56, lng: 12 }, { lat: 56.001, lng: 12 }]), 0);
+});
