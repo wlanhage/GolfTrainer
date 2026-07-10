@@ -43,6 +43,30 @@ Notes:
   `gt_admin_auth_tokens` for admin-web).
 - Re-running `post.mjs` updates the existing comment instead of stacking new ones.
 
+## Painting greens (hole geometry)
+
+Green polygons are imported from OpenStreetMap, not hand-drawn. Tooling lives
+in `tools/course-geometry/` (see its README for the full agent workflow,
+including the satellite-tracing fallback for holes OSM lacks):
+
+```bash
+cd tools/course-geometry
+node import-greens.mjs --course-id <id> --club "<klubb>" --dry-run
+node preview.mjs greens.<id>.json          # PNG per hole — inspect before importing
+node import-greens.mjs --course-id <id> --club "<klubb>"
+```
+
+If the course does not exist yet, create it first (admin-only REST, seeded
+`admin@golf.test` / `Admin123!`):
+
+1. `POST /api/v1/courses` — `{ clubName, courseName, teeName, holeCount }`
+   (`holeCount` must be literally 9 or 18)
+2. `POST /api/v1/courses/:id/holes` — `{ holeCount }` (idempotent)
+3. `PATCH /api/v1/courses/:id/holes/:n` — `{ par, length, hcpIndex }` per hole
+
+Only fall back to hand-drawing in admin-web's HoleManager when OSM has no
+data and satellite tracing fails.
+
 ## Conventions
 
 - Commit messages follow the existing style, e.g. `ui(webbapp): …`,
