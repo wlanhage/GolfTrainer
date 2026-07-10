@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { matchGreens, validateGreen } from '../lib/match.mjs';
+import { matchGreens, validateGreen, pickTee } from '../lib/match.mjs';
 
 const M = 1 / 111_195; // degrees latitude per metre
 const squareGreen = (id, lat, lng, side = 30) => {
@@ -125,4 +125,78 @@ test('unmatched holes carry a lookAt target (the way end point)', () => {
   const [r] = matchGreens({ holes: [holeWay('1', 56, 56.002)], greens: [], holeCount: 1 });
   assert.equal(r.status, 'unmatched');
   assert.deepEqual(r.lookAt, { lat: 56.002, lng: 12 });
+});
+
+const teeAt = (id, lat, lng) => ({ id, point: { lat, lng }, ref: null, name: null });
+
+test('pickTee picks the tee whose distance best matches the scorecard length', () => {
+  const greenCenter = { lat: 56, lng: 12 };
+  const tees = [
+    teeAt('t-back', 56 + 380 * M, 12),   // 380 m
+    teeAt('t-mid', 56 + 350 * M, 12),    // 350 m
+    teeAt('t-front', 56 + 300 * M, 12)   // 300 m
+  ];
+  const r = pickTee({ tees, greenCenter, holeLengthM: 355 });
+  assert.equal(r.teeId, 't-mid');
+  assert.ok(Math.abs(r.distanceM - 350) <= 1);
+});
+
+test('pickTee band: rejects tees shorter than 75% or longer than 105% of the length', () => {
+  const greenCenter = { lat: 56, lng: 12 };
+  assert.equal(pickTee({ tees: [teeAt('a', 56 + 250 * M, 12)], greenCenter, holeLengthM: 400 }), null); // 62%
+  assert.equal(pickTee({ tees: [teeAt('b', 56 + 440 * M, 12)], greenCenter, holeLengthM: 400 }), null); // 110%
+});
+
+test('pickTee refuses near-ties between far-apart tees, allows adjacent pads', () => {
+  const greenCenter = { lat: 56, lng: 12 };
+  // Two tees with ~equal length error but 100+ m apart (different holes' tees) → refuse
+  const farApart = [
+    teeAt('a', 56 + 350 * M, 12),
+    teeAt('b', 56, 12 + (352 * M) / Math.cos((56 * Math.PI) / 180))
+  ];
+  const refused = pickTee({ tees: farApart, greenCenter, holeLengthM: 351 });
+  assert.equal(refused.reason, 'ambiguous-tees');
+  assert.equal(refused.point, undefined);
+  // Two pads 10 m apart (same tee area) → pick the better one, no refusal
+  const adjacent = [teeAt('a', 56 + 350 * M, 12), teeAt('b', 56 + 360 * M, 12)];
+  assert.equal(pickTee({ tees: adjacent, greenCenter, holeLengthM: 351 }).teeId, 'a');
+});
+
+test('pickTee refuses when a far-apart rival hides behind an adjacent pad', () => {
+  const greenCenter = { lat: 56, lng: 12 };
+  const tees = [
+    teeAt('a', 56 + 349 * M, 12),
+    teeAt('b', 56 + 352 * M, 12), // adjacent pad ~3 m from a — must not block
+    teeAt('c', 56, 12 + (353 * M) / Math.cos((56 * Math.PI) / 180)) // ~500 m away, similar error
+  ];
+  const r = pickTee({ tees, greenCenter, holeLengthM: 350 });
+  assert.equal(r.reason, 'ambiguous-tees');
+});
+
+test('pickTee handles missing/invalid input', () => {
+  assert.equal(pickTee({ tees: [], greenCenter: { lat: 56, lng: 12 }, holeLengthM: 300 }), null);
+  assert.equal(pickTee({ tees: [teeAt('a', 56.003, 12)], greenCenter: { lat: 56, lng: 12 }, holeLengthM: null }), null);
+});
+
+test('matchGreens without tees/lengths behaves exactly as before (back-compat)', () => {
+  const greens = [squareGreen('g', 56.0022, 12)];
+  const [r] = matchGreens({ holes: [holeWay('1', 56, 56.002)], greens, holeCount: 1 });
+  assert.equal(r.status, 'matched');
+  assert.equal('teePoint' in r, false);
+});
+
+test('matchGreens attaches teePoint when tees and lengths are provided', () => {
+  const greens = [squareGreen('g', 56.0022, 12)];
+  const tees = [teeAt('t', 56.0022 - 350 * M, 12)];
+  const [r] = matchGreens({
+    holes: [holeWay('1', 56, 56.002)],
+    greens,
+    holeCount: 1,
+    tees,
+    holeLengths: { 1: 350 }
+  });
+  assert.equal(r.status, 'matched');
+  assert.equal(r.teeId, 't');
+  assert.ok(Math.abs(r.teeDistanceM - 350) <= 1);
+  assert.ok(Math.abs(r.teePoint.lat - (56.0022 - 350 * M)) < 1e-9);
 });

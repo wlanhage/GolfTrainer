@@ -5,6 +5,11 @@ export const AMBIGUITY_MARGIN_M = 20;
 export const MIN_AREA_M2 = 150;
 export const MAX_AREA_M2 = 1500;
 
+export const TEE_BAND_MIN = 0.75; // scorecard length is play-line; straight tee→green is shorter on doglegs
+export const TEE_BAND_MAX = 1.05;
+export const TEE_TIE_MARGIN_M = 15;
+export const TEE_TIE_SPREAD_M = 30;
+
 export function validateGreen(points) {
   if (!Array.isArray(points) || !points.every((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng))) {
     return { ok: false, area: 0, reasons: ['non-numeric coordinates'], ring: [] };
@@ -19,9 +24,34 @@ export function validateGreen(points) {
   return { ok: reasons.length === 0, area, reasons, ring };
 }
 
+// Pick the tee whose straight-line distance to the green center best matches
+// the scorecard length. Returns {point, distanceM, teeId}, or
+// {reason: 'ambiguous-tees'} when two far-apart tees fit equally well, or
+// null when nothing lands in the band / inputs are unusable.
+export function pickTee({ tees, greenCenter, holeLengthM }) {
+  if (!tees?.length || !greenCenter || !Number.isFinite(holeLengthM) || holeLengthM <= 0) return null;
+  const candidates = tees
+    .map((t) => ({ t, d: haversineMeters(t.point, greenCenter) }))
+    .filter(({ d }) => d >= TEE_BAND_MIN * holeLengthM && d <= TEE_BAND_MAX * holeLengthM)
+    .sort((a, b) => Math.abs(a.d - holeLengthM) - Math.abs(b.d - holeLengthM));
+  const best = candidates[0];
+  if (!best) return null;
+  // Refuse when ANY far-apart rival fits nearly as well — adjacent pads
+  // (< TEE_TIE_SPREAD_M apart) are the same tee area and never block.
+  const rival = candidates
+    .slice(1)
+    .find(
+      (c) =>
+        Math.abs(c.d - holeLengthM) - Math.abs(best.d - holeLengthM) < TEE_TIE_MARGIN_M &&
+        haversineMeters(best.t.point, c.t.point) > TEE_TIE_SPREAD_M
+    );
+  if (rival) return { reason: 'ambiguous-tees' };
+  return { point: best.t.point, distanceM: Math.round(best.d), teeId: best.t.id };
+}
+
 // One result per hole number 1..holeCount. Statuses:
 //   matched | ambiguous | unmatched | no-hole-way | duplicate-hole-ways
-export function matchGreens({ holes, greens, holeCount }) {
+export function matchGreens({ holes, greens, holeCount, tees = [], holeLengths = {} }) {
   // Mis-tagged OSM greens with <3 points have a meaningless centroid — drop
   // them up front so they can never "win" a proximity match.
   const usableGreens = greens.filter((g) => g.points.length >= 3);
@@ -67,6 +97,11 @@ export function matchGreens({ holes, greens, holeCount }) {
       });
       continue;
     }
+    const tee = pickTee({
+      tees,
+      greenCenter: centroid(hit.green.points),
+      holeLengthM: holeLengths[n]
+    });
     results.push({
       holeNumber: n,
       status: hit.ambiguous ? 'ambiguous' : 'matched',
@@ -74,7 +109,9 @@ export function matchGreens({ holes, greens, holeCount }) {
       greenId: hit.green.id,
       distanceM: hit.distance,
       polygon: hit.green.points,
-      ...(hit.second ? { secondGreenId: hit.second.greenId, secondDistanceM: hit.second.distanceM } : {})
+      ...(hit.second ? { secondGreenId: hit.second.greenId, secondDistanceM: hit.second.distanceM } : {}),
+      ...(tee?.point ? { teePoint: tee.point, teeDistanceM: tee.distanceM, teeId: tee.teeId } : {}),
+      ...(tee?.reason ? { teeNote: tee.reason } : {})
     });
   }
   // A green claimed by two holes usually means one hole way is reversed and
