@@ -36,7 +36,9 @@ Exit codes: `0` all holes resolved, `1` fatal error, `2` finished but some
 holes are unresolved (see the printed table).
 
 Re-running the OSM fetch refuses to overwrite a greens JSON containing
-hand-traced/assigned entries unless `--refetch` is given.
+hand-traced/assigned entries unless `--refetch` is given. Imported holes also
+get a `teePoint` when OSM tees + scorecard lengths identify one (the report
+shows `tee: yes/no`).
 
 Hole statuses in `greens.<courseId>.json`: `matched`, `ambiguous` (two greens
 nearly equidistant — the entry carries `secondGreenId`/`secondDistanceM`, or
@@ -87,14 +89,27 @@ Numbering comes free from the OSM hole way's `ref`. Use `--zoom 18` if z19
 shows "Map data not yet available".
 
 **B. Multi-course club, duplicate refs** (`greens.<courseId>.json` has an
-`unassigned` block with all raw hole ways and greens): do NOT trace — the OSM
-green polygons are better than hand-traced ones; only the hole↔green
-assignment is ambiguous. Research the club's **banguide** (club website,
-web-search "<klubb> banguide", Caddee) — per-hole aerial images show each
-course's routing. Compare against `node snap.mjs --club "<klubb>" --overview`,
-then build `holes` entries in the JSON by copying polygons from
-`unassigned.greens` (set `holeNumber`, `status: "matched"`,
-`source: "banguide:<url>"`). Then preview + import with `--from-json`.
+`unassigned` block with all raw hole ways, greens and tees): do NOT trace —
+the OSM polygons are better than hand-traced ones; only the numbering is
+ambiguous. Run the arithmetic first:
+
+```bash
+node assign.mjs greens.<courseId>.json
+```
+
+For each hole it ranks green candidates by how well the best-fitting tee
+matches the scorecard length (`errM`), plus a routing hint (`chainM`: best
+green → next hole's best tee). The `tee` column shows the tee-pick verdict
+(`ambiguous-tees` means confirm the tee visually before importing it), and a
+`*` on a green id means it is the best candidate for more than one hole —
+resolve those together. Assign a hole when the best `errM` is < 10 m
+and the runner-up is > 25 m worse; for the rest, consult the club's
+**banguide** (club website, web-search "<klubb> banguide", Caddee) and the
+`--overview` snap. Build `holes` entries in the JSON by copying polygons
+from `unassigned.greens` (set `holeNumber`, `status: "matched"`, `polygon`,
+optionally `teePoint` from the assign output, and `source:
+"assign:errM=<n>"` or `"banguide:<url>"`). Then preview + import with
+`--from-json`.
 
 **C. Nothing in OSM** (empty skeleton JSON was written):
 `node snap.mjs --club "<klubb>" --overview`, find the greens visually,
