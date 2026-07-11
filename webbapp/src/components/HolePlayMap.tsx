@@ -171,10 +171,11 @@ const buildCandidateFC = (
   return { type: 'FeatureCollection' as const, features };
 };
 
-/** Bounds som rymmer spelare + green (eller tee om mindre tillgängligt). */
+/** Bounds som rymmer spelare + green (eller tee/kandidatgreener om mindre tillgängligt). */
 const computeHoleBounds = (
   geometry: HoleLayoutGeometry,
-  playerPosition: GeoPoint | null
+  playerPosition: GeoPoint | null,
+  candidates: Array<{ id: string; polygon: GeoPoint[] }> = []
 ): LngLatBoundsLike | null => {
   const points: GeoPoint[] = [];
   if (playerPosition) points.push(playerPosition);
@@ -182,8 +183,13 @@ const computeHoleBounds = (
 
   if (geometry.greenPolygon.length >= 3) {
     points.push(...geometry.greenPolygon);
-  } else if (geometry.teePoint && playerPosition) {
-    points.push(geometry.teePoint);
+  } else {
+    // Ingen bekräftad green ännu — ramen måste rymma kandidatgreenerna,
+    // annars hamnar de utanför vyn och går inte att trycka på (t.ex. utan GPS).
+    for (const c of candidates) {
+      if (c.polygon.length >= 3) points.push(...c.polygon);
+    }
+    if (geometry.teePoint) points.push(geometry.teePoint);
   }
   if (points.length < 2) return null;
 
@@ -229,7 +235,18 @@ export function HolePlayMap({
   const fittedRef = useRef<{ key: string; geometry: HoleLayoutGeometry | null }>({ key: '', geometry: null });
 
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
-  const initialCenter = playerPosition ?? geometry.teePoint ?? axis?.origin ?? DEFAULT_CENTER;
+  // Mittpunkt över alla kandidatgreener — används som fallback-centrering när
+  // hålet saknar green/tee/GPS, så kartan öppnar vid kandidaterna (ej default).
+  const candidateCenter = useMemo(() => {
+    const pts = (greenCandidates ?? []).flatMap((c) => (c.polygon.length >= 3 ? c.polygon : []));
+    if (pts.length === 0) return null;
+    return {
+      lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length,
+      lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length
+    };
+  }, [greenCandidates]);
+  const initialCenter =
+    playerPosition ?? geometry.teePoint ?? candidateCenter ?? axis?.origin ?? DEFAULT_CENTER;
 
   // Memoizeade feature collections — uppladdas bara när relevanta props ändras
   const layoutFC = useMemo(() => buildLayoutFC(geometry), [geometry]);
@@ -244,7 +261,7 @@ export function HolePlayMap({
     const map = mapRef.current;
     if (!map) return;
     programmaticMoveRef.current = true;
-    const bounds = computeHoleBounds(geometry, playerPosition);
+    const bounds = computeHoleBounds(geometry, playerPosition, greenCandidates ?? []);
     if (!bounds) {
       map.easeTo({
         center: [initialCenter.lng, initialCenter.lat],
@@ -535,12 +552,15 @@ export function HolePlayMap({
     if (!loaded) return;
     const map = mapRef.current;
     if (!map) return;
-    const key = `${holeKey}::${playerPosition ? 'p' : 'np'}`;
+    // Kandidat-signaturen ingår i nyckeln så att kartan om-fittar när
+    // kandidatgreenerna laddats in asynkront (efter första fit på ett tomt hål).
+    const candKey = (greenCandidates ?? []).map((c) => c.id).join(',');
+    const key = `${holeKey}::${playerPosition ? 'p' : 'np'}::${candKey}`;
     if (fittedRef.current.key === key && fittedRef.current.geometry === geometry) return;
     fitToHole(true);
     fittedRef.current = { key, geometry };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [holeKey, playerPosition, geometry, loaded]);
+  }, [holeKey, playerPosition, geometry, greenCandidates, loaded]);
 
   // Manuell recenter
   useEffect(() => {

@@ -65,6 +65,7 @@ $RECYCLE.BIN/
 idé.md
 # Course-geometry import artifacts
 tools/course-geometry/greens.*.json
+tools/course-geometry/candidates.*.json
 tools/course-geometry/out/
 tools/course-geometry/snap.*.png
 tools/course-geometry/snap.*.json
