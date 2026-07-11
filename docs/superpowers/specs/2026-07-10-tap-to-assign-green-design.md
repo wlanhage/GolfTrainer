@@ -30,9 +30,16 @@ in HoleManager.
    explicit requirement — see Rendering below). Greens on satellite imagery
    are themselves green, so markers must not rely on green and must not be
    faint outlines that blend into grass.
-5. **Self-healing.** Confirming green A for hole 3 removes it from hole 5's
-   candidate list; often only one candidate remains for hole 5, making the
-   next player's choice trivial.
+5. **Self-healing, and single-candidate degrades to yes/no.** Confirming
+   green A for hole 3 removes it from hole 5's candidate list; often only one
+   candidate remains for hole 5. With two candidates the view asks "tap the
+   one you're playing toward"; with exactly one it reads as "Är detta din
+   green? Ja / Nej" — same UI, no extra machinery. We deliberately do **not**
+   auto-guess a single green and ask yes/no when multiple candidates exist:
+   these holes are unresolved precisely because the arithmetic couldn't
+   distinguish the greens (~50/50), so a coin-flip yes/no would train players
+   to rubber-stamp wrong data. The player's eyes (they can see which green
+   they aim at) are the high-confidence signal, not a guess.
 6. **Zero noise for finished courses.** Holes that already have a green never
    show any of this.
 
