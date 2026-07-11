@@ -29,6 +29,12 @@ type Props = {
   holeKey: string | number;
   /** Inkrementera för att tvinga en ny auto-fit (t.ex. recenter-knapp). */
   recenterTick?: number;
+  /** Öppna kandidatgreener för aktuellt hål (endast när hålet saknar green). */
+  greenCandidates?: Array<{ id: string; polygon: GeoPoint[] }>;
+  /** Anropas när spelaren trycker på en kandidat. */
+  onCandidateTap?: (id: string) => void;
+  /** Markerad kandidat (highlightas; övriga dimmas). */
+  selectedCandidateId?: string | null;
 };
 
 const DEFAULT_CENTER: GeoPoint = { lat: 59.3293, lng: 18.0686 };
@@ -136,6 +142,35 @@ const buildHeatmapFC = (heatmap: CaddyMapHeatmap | null | undefined) => {
   return { type: 'FeatureCollection' as const, features };
 };
 
+/** Kandidatgreener (öppna, ej bekräftade) — ring + centrum-pin per kandidat.
+ * Renderas i icke-gröna, högkontrastfärger (amber/vit, teal vid val) så de
+ * aldrig smälter in i satellitgräset. */
+const buildCandidateFC = (
+  candidates: Array<{ id: string; polygon: GeoPoint[] }>,
+  selectedId: string | null | undefined
+) => {
+  const features: GeoJSON.Feature[] = [];
+  for (const c of candidates) {
+    if (c.polygon.length < 3) continue;
+    const selected = c.id === selectedId;
+    features.push({
+      type: 'Feature',
+      id: `${c.id}-ring`,
+      properties: { candidateId: c.id, selected },
+      geometry: { type: 'Polygon', coordinates: [c.polygon.map((p) => [p.lng, p.lat])] }
+    });
+    const cx = c.polygon.reduce((s, p) => s + p.lng, 0) / c.polygon.length;
+    const cy = c.polygon.reduce((s, p) => s + p.lat, 0) / c.polygon.length;
+    features.push({
+      type: 'Feature',
+      id: `${c.id}-pin`,
+      properties: { candidateId: c.id, selected },
+      geometry: { type: 'Point', coordinates: [cx, cy] }
+    });
+  }
+  return { type: 'FeatureCollection' as const, features };
+};
+
 /** Bounds som rymmer spelare + green (eller tee om mindre tillgängligt). */
 const computeHoleBounds = (
   geometry: HoleLayoutGeometry,
@@ -162,7 +197,16 @@ const computeHoleBounds = (
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, recenterTick = 0 }: Props) {
+export function HolePlayMap({
+  geometry,
+  playerPosition,
+  caddyHeatmap,
+  holeKey,
+  recenterTick = 0,
+  greenCandidates,
+  onCandidateTap,
+  selectedCandidateId
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -176,6 +220,12 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
   const playerPosRef = useRef<GeoPoint | null>(playerPosition);
   playerPosRef.current = playerPosition;
 
+  // Ref för tap-callbacken — click-handlers på candidate-lagren registreras
+  // EN gång (i init-effekten) och läser callbacken via ref, så de inte
+  // behöver omregistreras vid varje render.
+  const onCandidateTapRef = useRef<((id: string) => void) | undefined>(onCandidateTap);
+  onCandidateTapRef.current = onCandidateTap;
+
   const fittedRef = useRef<{ key: string; geometry: HoleLayoutGeometry | null }>({ key: '', geometry: null });
 
   const axis = useMemo(() => resolveHoleAxis(geometry), [geometry]);
@@ -185,6 +235,10 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
   const layoutFC = useMemo(() => buildLayoutFC(geometry), [geometry]);
   const playerFC = useMemo(() => buildPlayerFC(playerPosition), [playerPosition]);
   const heatmapFC = useMemo(() => buildHeatmapFC(caddyHeatmap), [caddyHeatmap]);
+  const candidatesFC = useMemo(
+    () => buildCandidateFC(greenCandidates ?? [], selectedCandidateId),
+    [greenCandidates, selectedCandidateId]
+  );
 
   const fitToHole = (animate: boolean) => {
     const map = mapRef.current;
@@ -327,11 +381,72 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
         }
       });
 
+      // Kandidatgreener — högst upp (ovanpå satellite-base + övriga lager)
+      // så de alltid syns tydligt. Icke-gröna färger med avsikt: amber/vit
+      // (öppen), teal (vald) — greent smälter annars in i satellitgräset.
+      map.addSource('candidates', { type: 'geojson', data: candidatesFC });
+      map.addLayer({
+        id: 'candidate-fill',
+        type: 'fill',
+        source: 'candidates',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: {
+          'fill-color': ['case', ['get', 'selected'], '#1D9E75', '#EF9F27'],
+          'fill-opacity': ['case', ['get', 'selected'], 0.35, 0.18]
+        }
+      });
+      map.addLayer({
+        id: 'candidate-outline',
+        type: 'line',
+        source: 'candidates',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: {
+          'line-color': ['case', ['get', 'selected'], '#0F6E56', '#FFFFFF'],
+          'line-width': 3
+        }
+      });
+      map.addLayer({
+        id: 'candidate-pin',
+        type: 'circle',
+        source: 'candidates',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-radius': 11,
+          'circle-color': ['case', ['get', 'selected'], '#1D9E75', '#FFFFFF'],
+          'circle-stroke-color': '#0F6E56',
+          'circle-stroke-width': 3
+        }
+      });
+
+      // Tap-handlers för kandidaterna — registreras EN gång här; callbacken
+      // läses via ref så vi slipper omregistrera vid varje render.
+      for (const layerId of ['candidate-pin', 'candidate-fill']) {
+        map.on('click', layerId, (e) => {
+          const id = e.features?.[0]?.properties?.candidateId;
+          if (id && onCandidateTapRef.current) onCandidateTapRef.current(String(id));
+        });
+        map.on('mouseenter', layerId, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = '';
+        });
+      }
+
       setLoaded(true);
     });
 
-    // Tap-to-measure: click on map shows distance from player
+    // Tap-to-measure: click on map shows distance from player.
+    // Hoppa över om tappet träffade en kandidatgreen — det trycket hanteras
+    // av candidate-lagrens egna click-handlers (öppnar bekräftelse-sheet
+    // istället för avstånds-toasten).
     map.on('click', (e) => {
+      if (map.getLayer('candidate-pin')) {
+        const hitCandidate = map.queryRenderedFeatures(e.point, {
+          layers: ['candidate-pin', 'candidate-fill']
+        });
+        if (hitCandidate.length > 0) return;
+      }
       const pos = playerPosRef.current;
       if (!pos) return;
       const tapped: GeoPoint = { lat: e.lngLat.lat, lng: e.lngLat.lng };
@@ -406,6 +521,14 @@ export function HolePlayMap({ geometry, playerPosition, caddyHeatmap, holeKey, r
     const src = map.getSource('caddy-heatmap') as maplibregl.GeoJSONSource | undefined;
     src?.setData(heatmapFC);
   }, [heatmapFC, loaded]);
+
+  // Kandidatgreener-uppdatering — när listan eller markerat val ändras
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource('candidates') as maplibregl.GeoJSONSource | undefined;
+    src?.setData(candidatesFC);
+  }, [candidatesFC, loaded]);
 
   // Auto-fit per hål eller när spelar-position först kommer in
   useEffect(() => {
