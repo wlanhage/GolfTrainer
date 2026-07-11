@@ -111,7 +111,7 @@ const mapCourse = (course: any) => ({
   syncStatus: String(course.syncStatus).toLowerCase()
 });
 
-const mapHoleWithLayout = (hole: any) => {
+export const mapHoleWithLayout = (hole: any) => {
   const fairwayPolygons = normalizeFairwayPolygons(hole.holeLayout?.fairwayPolygon);
   const geometry = {
     teePoint: (hole.holeLayout?.teePoint as GeoPoint | null) ?? null,

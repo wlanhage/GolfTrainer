@@ -126,6 +126,10 @@ export const coursesRepository = {
     return prisma.hole.findFirst({ where: { courseId, holeNumber } });
   },
 
+  getHoleWithLayout(courseId: string, holeNumber: number) {
+    return prisma.hole.findFirst({ where: { courseId, holeNumber }, include: { holeLayout: true } });
+  },
+
   updateHoleMeta(holeId: string, data: { par?: number | null; length?: number | null; hcpIndex?: number | null }) {
     return prisma.hole.updateMany({ where: { id: holeId }, data });
   },
