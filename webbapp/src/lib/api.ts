@@ -14,6 +14,7 @@ import type {
   FollowCounts,
   FollowEntry,
   FollowingFeedEntry,
+  GreenCandidate,
   Hole,
   HoleLayoutGeometry,
   MeResponse,
@@ -282,7 +283,14 @@ export function useCoursesApi() {
           method: 'PATCH',
           body: JSON.stringify({ geometry })
         });
-      }
+      },
+      getGreenCandidates: async (courseId: string): Promise<GreenCandidate[]> =>
+        client.request<GreenCandidate[]>(`/courses/${courseId}/green-candidates`),
+      confirmGreen: async (courseId: string, holeNumber: number, candidateId: string) =>
+        client.request(`/courses/${courseId}/holes/${holeNumber}/confirm-green`, {
+          method: 'POST',
+          body: JSON.stringify({ candidateId })
+        })
     }),
     [client]
   );

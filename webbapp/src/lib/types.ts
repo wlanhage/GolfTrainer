@@ -183,6 +183,8 @@ export type GeoPoint = { lat: number; lng: number };
 
 export type HoleLayoutLayer = 'tee' | 'green' | 'fairway' | 'bunker' | 'trees' | 'ob';
 
+export type GreenCandidate = { id: string; polygon: GeoPoint[]; forHoles: number[] };
+
 export type HoleLayoutGeometry = {
   teePoint: GeoPoint | null;
   greenPolygon: GeoPoint[];
