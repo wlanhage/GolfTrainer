@@ -30,6 +30,9 @@ export function createApi(baseUrl) {
     },
     getCourse: (id) => call('GET', `/api/v1/courses/${id}`),
     patchHoleLayout: (courseId, holeNumber, geometry) =>
-      call('PATCH', `/api/v1/courses/${courseId}/holes/${holeNumber}/layout`, { geometry })
+      call('PATCH', `/api/v1/courses/${courseId}/holes/${holeNumber}/layout`, { geometry }),
+    listGreenCandidates: (courseId) => call('GET', `/api/v1/courses/${courseId}/green-candidates`),
+    createGreenCandidates: (courseId, items) =>
+      call('POST', `/api/v1/courses/${courseId}/green-candidates`, { items })
   };
 }
