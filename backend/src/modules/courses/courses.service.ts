@@ -76,6 +76,27 @@ const resolveBearing = (origin: GeoPoint, target: GeoPoint): number => {
   return (bearing + 360) % 360;
 };
 
+export function buildLayoutWrite(geometry: HoleLayoutGeometry) {
+  const greenCenter = resolveGreenCenter(geometry.greenPolygon);
+  const bearing = geometry.teePoint && greenCenter ? resolveBearing(geometry.teePoint, greenCenter) : null;
+  const length = geometry.teePoint && greenCenter ? haversineMeters(geometry.teePoint, greenCenter) : null;
+  const centerline = geometry.teePoint && greenCenter ? [geometry.teePoint, greenCenter] : [];
+  const fairwayPolygons = geometry.fairwayPolygons?.slice(0, 3)
+    ?? (geometry.fairwayPolygon && geometry.fairwayPolygon.length > 0 ? [geometry.fairwayPolygon] : []);
+  return {
+    teePoint: geometry.teePoint,
+    greenPolygon: geometry.greenPolygon,
+    fairwayPolygon: fairwayPolygons,
+    bunkerPolygons: geometry.bunkerPolygons,
+    treesPolygons: geometry.treesPolygons,
+    obPolygons: geometry.obPolygons,
+    holeBearing: bearing,
+    holeLengthMeters: length,
+    teeToGreenCenterline: centerline,
+    layoutStatus: fromGeometryStatus(geometry)
+  };
+}
+
 const mapCourse = (course: any) => ({
   id: course.id,
   clubName: course.clubName,
@@ -193,26 +214,6 @@ export const coursesService = {
     const hole = await coursesRepository.getHoleByNumber(id, holeNumber);
     if (!hole) throw new NotFoundError('Hole not found');
 
-    const status = fromGeometryStatus(geometry);
-    const greenCenter = resolveGreenCenter(geometry.greenPolygon);
-    const bearing = geometry.teePoint && greenCenter ? resolveBearing(geometry.teePoint, greenCenter) : null;
-    const length = geometry.teePoint && greenCenter ? haversineMeters(geometry.teePoint, greenCenter) : null;
-    const centerline = geometry.teePoint && greenCenter ? [geometry.teePoint, greenCenter] : [];
-
-    const fairwayPolygons = geometry.fairwayPolygons?.slice(0, 3)
-      ?? (geometry.fairwayPolygon && geometry.fairwayPolygon.length > 0 ? [geometry.fairwayPolygon] : []);
-
-    return coursesRepository.updateHoleLayout(hole.id, {
-      teePoint: geometry.teePoint,
-      greenPolygon: geometry.greenPolygon,
-      fairwayPolygon: fairwayPolygons,
-      bunkerPolygons: geometry.bunkerPolygons,
-      treesPolygons: geometry.treesPolygons,
-      obPolygons: geometry.obPolygons,
-      holeBearing: bearing,
-      holeLengthMeters: length,
-      teeToGreenCenterline: centerline,
-      layoutStatus: status
-    });
+    return coursesRepository.updateHoleLayout(hole.id, buildLayoutWrite(geometry));
   }
 };
