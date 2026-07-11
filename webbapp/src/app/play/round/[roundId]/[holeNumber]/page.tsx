@@ -15,7 +15,7 @@ import { ScorePadSheet } from '@/components/play/ScorePadSheet';
 import { GroupControlBar } from '@/components/round-hole/GroupControlBar';
 import { EndRoundConfirmIncomplete, EndRoundDialog } from '@/components/round-hole/EndRoundDialog';
 import { caddyClubs } from '@/lib/caddyClubs';
-import { getGreenDistances, resolveHeatmapBearing } from '@/lib/holeGeometry';
+import { getGreenDistances, normalizeLayoutGeometry, resolveHeatmapBearing } from '@/lib/holeGeometry';
 import { HEATMAP_BIN_SIZE_METERS, HEATMAP_GRID_SIZE } from '@/lib/heatmapConfig';
 import { useHeatmapAuto } from '@/lib/heatmapAutoStore';
 import { recommendClub } from '@/lib/clubRecommender';
@@ -23,7 +23,7 @@ import { useToast } from '@/lib/ToastProvider';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { getAiErrorKey } from '@/lib/aiErrorMapper';
 import { parseStrokes } from '@/lib/validation';
-import type { CaddyClubSummary, CaddyShot, GeoPoint, HoleLayoutGeometry, Round } from '@/lib/types';
+import type { CaddyClubSummary, CaddyShot, GeoPoint, GreenCandidate, HoleLayoutGeometry, Round } from '@/lib/types';
 import type { CaddyMapHeatmap } from '@/components/HolePlayMap';
 import { BackButton } from '@/components/round-hole/BackButton';
 import { HoleHeader } from '@/components/round-hole/HoleHeader';
@@ -36,8 +36,12 @@ import { ShotTrackingRail } from '@/components/round-hole/ShotTrackingRail';
 import { CameraRecommendSheet } from '@/components/round-hole/CameraRecommendSheet';
 import { AiChoiceSheet } from '@/components/round-hole/AiChoiceSheet';
 import { ShotReviewSheet, type ReviewShot } from '@/components/round-hole/ShotReviewSheet';
+import { CandidateConfirmSheet } from '@/components/round-hole/CandidateConfirmSheet';
 import { shotTrackingStore } from '@/lib/shotTrackingStore';
 import { Loader } from '@/components/Loader';
+
+/** Shape of the hole returned by POST .../confirm-green (mapHoleWithLayout on the backend). */
+type ConfirmGreenResponse = { layout?: { geometry?: unknown } | null } | null | undefined;
 
 const HolePlayMap = dynamic(() => import('@/components/HolePlayMap').then((m) => m.HolePlayMap), { ssr: false });
 
@@ -77,6 +81,10 @@ export default function RoundHolePage() {
   const [shotsByClub, setShotsByClub] = useState<Map<string, CaddyShot[]>>(new Map());
   const [courseId, setCourseId] = useState<string | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
+
+  // Tap-to-assign green: öppna kandidatgreener + spelarens val innan bekräftelse
+  const [candidates, setCandidates] = useState<GreenCandidate[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
 
   // AI recommendation state
   const [aiChoiceOpen, setAiChoiceOpen] = useState(false);
@@ -196,6 +204,26 @@ export default function RoundHolePage() {
     });
   }, [coursesApi, courseId, holeNumber]);
 
+  // Öppna kandidatgreener för banan — hämtas en gång per bana, filtreras per hål nedan
+  useEffect(() => {
+    if (!courseId) return;
+    let alive = true;
+    coursesApi
+      .getGreenCandidates(courseId)
+      .then((cs) => {
+        if (alive) setCandidates(cs);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [coursesApi, courseId]);
+
+  // Nollställ markerad kandidat vid hål-byte
+  useEffect(() => {
+    setSelectedCandidateId(null);
+  }, [holeNumber]);
+
   // GPS — kontinuerlig prenumeration
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -274,6 +302,47 @@ export default function RoundHolePage() {
   }, [caddySummaries]);
 
   const hasCaddyData = heatmapClubsWithData.length > 0;
+
+  // Tap-to-assign green: bara relevant när hålet saknar en riktig green ännu
+  const holeHasGreen = (layout?.greenPolygon.length ?? 0) >= 3;
+  const holeCandidates = useMemo(
+    () => (holeHasGreen ? [] : candidates.filter((c) => c.forHoles.includes(holeNumber))),
+    [holeHasGreen, candidates, holeNumber]
+  );
+  const selectedCandidate = holeCandidates.find((c) => c.id === selectedCandidateId) ?? null;
+  const candidateCenter = useMemo<GeoPoint | null>(() => {
+    if (!selectedCandidate) return null;
+    const n = selectedCandidate.polygon.length;
+    return {
+      lat: selectedCandidate.polygon.reduce((s, p) => s + p.lat, 0) / n,
+      lng: selectedCandidate.polygon.reduce((s, p) => s + p.lng, 0) / n
+    };
+  }, [selectedCandidate]);
+
+  const confirmGreen = useCallback(async () => {
+    if (!courseId || !selectedCandidateId) return;
+    try {
+      const hole = (await coursesApi.confirmGreen(courseId, holeNumber, selectedCandidateId)) as ConfirmGreenResponse;
+      setLayout(normalizeLayoutGeometry(hole?.layout?.geometry));
+      setCandidates((cs) => cs.filter((c) => c.id !== selectedCandidateId));
+      setSelectedCandidateId(null);
+      toast.success(`Hål ${holeNumber} uppdaterat`);
+    } catch {
+      // Race (annan spelare bekräftade samtidigt) eller annat fel — hämta om
+      // både kandidatlistan och hålets layout, så den vinnande greenen
+      // renderas direkt och banderollen försvinner om hålet nu har fått en
+      // green.
+      coursesApi.getGreenCandidates(courseId).then(setCandidates).catch(() => {});
+      coursesApi
+        .getCourseDetail(courseId)
+        .then((d) => {
+          const target = d?.holes.find((h) => h.holeNumber === holeNumber);
+          if (target) setLayout(target.layout?.geometry ?? null);
+        })
+        .catch(() => {});
+      setSelectedCandidateId(null);
+    }
+  }, [courseId, holeNumber, selectedCandidateId, coursesApi, toast]);
 
   const recommendation = useMemo(() => {
     if (!hasCaddyData) return null;
@@ -611,6 +680,9 @@ export default function RoundHolePage() {
             playerPosition={playerPosition}
             caddyHeatmap={caddyHeatmap}
             holeKey={holeNumber}
+            greenCandidates={holeCandidates}
+            selectedCandidateId={selectedCandidateId}
+            onCandidateTap={setSelectedCandidateId}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-slate-300">Ingen layout sparad för detta hål.</div>
@@ -719,6 +791,12 @@ export default function RoundHolePage() {
         showResetAuto={autoEnabled && manualOverride}
         onResetAuto={() => setManualOverride(false)}
       />
+
+      {holeCandidates.length > 0 && !selectedCandidateId && (
+        <div className="absolute inset-x-3 bottom-24 z-30 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-700 font-semibold shadow-lg text-center">
+          Vilken green spelar du mot? Tryck på den så får du avstånd
+        </div>
+      )}
 
       {isWolf ? (
         <>
@@ -836,6 +914,16 @@ export default function RoundHolePage() {
         onChangeClub={handleShotReviewChangeClub}
         onDeleteShot={(shotId) => void handleShotReviewDelete(shotId)}
       />
+
+      {selectedCandidate && candidateCenter && (
+        <CandidateConfirmSheet
+          holeNumber={holeNumber}
+          candidateCenter={candidateCenter}
+          playerPosition={playerPosition}
+          onConfirm={() => void confirmGreen()}
+          onCancel={() => setSelectedCandidateId(null)}
+        />
+      )}
 
       <EndRoundDialog
         open={endDialogOpen}
