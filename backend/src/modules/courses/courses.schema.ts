@@ -59,3 +59,13 @@ export const updateHoleMetaSchema = z
 export const updateHoleLayoutSchema = z.object({
   geometry: holeLayoutGeometrySchema
 });
+
+export const confirmGreenSchema = z.object({ candidateId: z.string().cuid() });
+
+export const createGreenCandidatesSchema = z.object({
+  items: z.array(z.object({
+    polygon: z.array(z.object({ lat: z.number(), lng: z.number() })).min(3),
+    forHoles: z.array(z.number().int().min(1).max(18)).min(1),
+    source: z.string().min(1)
+  })).min(1)
+});

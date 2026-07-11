@@ -15,4 +15,8 @@ export async function coursesRoutes(app: FastifyInstance) {
   app.post('/:id/holes', { preHandler: [requireAdmin] }, coursesController.ensureHoles);
   app.patch('/:id/holes/:holeNumber', { preHandler: [requireAdmin] }, coursesController.updateHoleMeta);
   app.patch('/:id/holes/:holeNumber/layout', { preHandler: [requireAdmin] }, coursesController.updateHoleLayout);
+
+  app.get('/:id/green-candidates', coursesController.listGreenCandidates);
+  app.post('/:id/holes/:holeNumber/confirm-green', coursesController.confirmGreen);
+  app.post('/:id/green-candidates', { preHandler: [requireAdmin] }, coursesController.createGreenCandidates);
 }

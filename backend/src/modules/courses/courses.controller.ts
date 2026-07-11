@@ -1,8 +1,12 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { coursesService } from './courses.service.js';
+import { greenCandidatesRepository } from './greenCandidates.repository.js';
+import { greenCandidatesService } from './greenCandidates.service.js';
 import {
+  confirmGreenSchema,
   courseIdParamSchema,
   createCourseSchema,
+  createGreenCandidatesSchema,
   ensureHolesSchema,
   holeParamsSchema,
   listCoursesQuerySchema,
@@ -65,5 +69,24 @@ export const coursesController = {
     const { geometry } = updateHoleLayoutSchema.parse(request.body);
     const layout = await coursesService.updateHoleLayout(id, holeNumber, geometry);
     return reply.send(layout);
+  },
+
+  async listGreenCandidates(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = courseIdParamSchema.parse(request.params);
+    return reply.send(await greenCandidatesService.listOpen(id));
+  },
+
+  async confirmGreen(request: FastifyRequest, reply: FastifyReply) {
+    const { id, holeNumber } = holeParamsSchema.parse(request.params);
+    const { candidateId } = confirmGreenSchema.parse(request.body);
+    const hole = await greenCandidatesService.confirm(id, holeNumber, candidateId, request.auth!.userId);
+    return reply.send(hole);
+  },
+
+  async createGreenCandidates(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = courseIdParamSchema.parse(request.params);
+    const { items } = createGreenCandidatesSchema.parse(request.body);
+    await greenCandidatesRepository.createMany(id, items);
+    return reply.code(201).send({ created: items.length });
   }
 };
