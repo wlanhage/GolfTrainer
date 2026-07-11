@@ -257,18 +257,28 @@ export function HoleManager({ initialCourse }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fly to tee on hole switch
-  const prevSelectedHoleRef = useRef(selectedHole);
+  // Fly to the hole's geometry on first load AND on hole switch. Prefer the
+  // tee; fall back to the green centroid for greens-only holes. Without this,
+  // an imported course opens on DEFAULT_CENTER (Stockholm) instead of the hole.
+  const flownHoleRef = useRef<number | null>(null);
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    if (prevSelectedHoleRef.current === selectedHole && mapReady) return;
-    prevSelectedHoleRef.current = selectedHole;
-    const teePoint = hole.layout.teePoint;
-    if (teePoint) {
-      map.flyTo({ center: [teePoint.lng, teePoint.lat], zoom: Math.max(map.getZoom(), 16), essential: true });
+    if (!map || !mapReady) return;
+    if (flownHoleRef.current === selectedHole) return;
+    flownHoleRef.current = selectedHole;
+    const green = hole.layout.greenPolygon;
+    const target =
+      hole.layout.teePoint ??
+      (green.length
+        ? {
+            lat: green.reduce((s, p) => s + p.lat, 0) / green.length,
+            lng: green.reduce((s, p) => s + p.lng, 0) / green.length,
+          }
+        : null);
+    if (target) {
+      map.flyTo({ center: [target.lng, target.lat], zoom: Math.max(map.getZoom(), 16), essential: true });
     }
-  }, [selectedHole, mapReady, hole.layout.teePoint]);
+  }, [selectedHole, mapReady, hole.layout.teePoint, hole.layout.greenPolygon]);
 
   // ── Autosave ──────────────────────────────────────────────────────────────
 
