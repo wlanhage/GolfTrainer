@@ -15,6 +15,7 @@ node import-greens.mjs --course-id <id> --club "Vasatorp" --dry-run
 
 # 2. Render one PNG per hole for visual review
 node preview.mjs greens.<courseId>.json
+# Use `--zoom 18` where Esri lacks zoom-19 imagery (common on Swedish west-coast/inland courses — the default z19 shows a grey "Map data not yet available" placeholder).
 
 # 3. Import (merge-safe: only greenPolygon is written; holes that already
 #    have a green are skipped unless --force)
