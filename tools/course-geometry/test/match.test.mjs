@@ -42,6 +42,17 @@ test('falls back to the way start for reversed ways and flags it', () => {
   assert.equal(r.reversedWay, true);
 });
 
+test('matchGreens picks the green end on a reversed (green->tee) hole way', () => {
+  const rightGreen = squareGreen('right', 56.000, 12);      // near the way's FIRST point
+  const wrongGreen = squareGreen('wrong', 56.0025, 12);     // near the way's LAST point (the tee end)
+  // way digitised green(56.0)->tee(56.0025+): last point ~50 m from wrongGreen, first point ~0 m from rightGreen
+  const way = { ref: '1', points: [{ lat: 56.0, lng: 12 }, { lat: 56.0025 + 50 * M, lng: 12 }] };
+  const [r] = matchGreens({ holes: [way], greens: [rightGreen, wrongGreen], holeCount: 1 });
+  assert.equal(r.status, 'matched');
+  assert.equal(r.greenId, 'right');
+  assert.equal(r.reversedWay, true);
+});
+
 test('reports unmatched when no green is within 80 m', () => {
   const greens = [squareGreen('g', 56.005, 12)]; // ≈330 m from the way end
   const [r] = matchGreens({ holes: [holeWay('1', 56, 56.002)], greens, holeCount: 1 });

@@ -85,9 +85,21 @@ export function matchGreens({ holes, greens, holeCount, tees = [], holeLengths =
           : null
       };
     };
-    const fwd = attempt(way.points[way.points.length - 1]);
-    const rev = fwd ? null : attempt(way.points[0]);
-    const hit = fwd ?? rev;
+    const endA = attempt(way.points[way.points.length - 1]);
+    const endB = attempt(way.points[0]);
+    // The green end is the endpoint whose nearest green is closest; the other
+    // end is the tee. A reversed (green→tee) way therefore matches correctly.
+    let hit = null;
+    let reversed = false;
+    if (endA && endB) {
+      if (endA.distance <= endB.distance) hit = endA;
+      else { hit = endB; reversed = true; }
+    } else if (endA) {
+      hit = endA;
+    } else if (endB) {
+      hit = endB;
+      reversed = true;
+    }
     if (!hit) {
       results.push({
         holeNumber: n,
@@ -105,7 +117,7 @@ export function matchGreens({ holes, greens, holeCount, tees = [], holeLengths =
     results.push({
       holeNumber: n,
       status: hit.ambiguous ? 'ambiguous' : 'matched',
-      reversedWay: Boolean(rev),
+      reversedWay: reversed,
       greenId: hit.green.id,
       distanceM: hit.distance,
       polygon: hit.green.points,
