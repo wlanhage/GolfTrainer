@@ -331,15 +331,24 @@ export default function RoundHolePage() {
       // Race (annan spelare bekräftade samtidigt) eller annat fel — hämta om
       // både kandidatlistan och hålets layout, så den vinnande greenen
       // renderas direkt och banderollen försvinner om hålet nu har fått en
-      // green.
+      // green. Ge spelaren feedback baserat på det uppdaterade tillståndet.
       coursesApi.getGreenCandidates(courseId).then(setCandidates).catch(() => {});
       coursesApi
         .getCourseDetail(courseId)
         .then((d) => {
           const target = d?.holes.find((h) => h.holeNumber === holeNumber);
-          if (target) setLayout(target.layout?.geometry ?? null);
+          const geometry = normalizeLayoutGeometry(target?.layout?.geometry);
+          setLayout(target ? geometry : null);
+          if (geometry.greenPolygon.length >= 3) {
+            // Någon annan hann bekräfta en green för hålet först
+            toast.info(`En annan spelare valde redan green för hål ${holeNumber}`);
+          } else {
+            toast.error('Kunde inte spara, försök igen');
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          toast.error('Kunde inte spara, försök igen');
+        });
       setSelectedCandidateId(null);
     }
   }, [courseId, holeNumber, selectedCandidateId, coursesApi, toast]);
