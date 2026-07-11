@@ -549,9 +549,10 @@ model Course {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  holes  Hole[]
-  rounds Round[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holes           Hole[]
+  rounds          Round[]
+  greenCandidates GreenCandidate[]
 
   @@index([userId, updatedAt])
 }
@@ -597,6 +598,28 @@ model HoleLayout {
   updatedAt DateTime @updatedAt
 
   hole Hole @relation(fields: [holeId], references: [id], onDelete: Cascade)
+}
+
+enum GreenCandidateStatus {
+  OPEN
+  ASSIGNED
+}
+
+model GreenCandidate {
+  id                 String               @id @default(cuid())
+  courseId           String
+  polygon            Json
+  forHoles           Int[]
+  source             String
+  status             GreenCandidateStatus @default(OPEN)
+  assignedHoleNumber Int?
+  confirmedByUserId  String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, status])
 }
 
 // ─── Rounds ────────────────────────────────────────────────────────────────
