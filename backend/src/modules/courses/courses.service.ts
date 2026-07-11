@@ -4,7 +4,7 @@ import { coursesRepository } from './courses.repository.js';
 
 type GeoPoint = { lat: number; lng: number };
 
-type HoleLayoutGeometry = {
+export type HoleLayoutGeometry = {
   teePoint: GeoPoint | null;
   greenPolygon: GeoPoint[];
   fairwayPolygon?: GeoPoint[];
