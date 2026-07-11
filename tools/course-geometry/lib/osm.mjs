@@ -25,11 +25,18 @@ area["ISO3166-1"="SE"][admin_level=2]->.se;
   relation(area.se)["leisure"="golf_course"]${nameFilters};
 )->.gc;
 .gc map_to_area ->.c;
+// area.c only covers the golf_course boundary polygon, which OSM mappers
+// sometimes draw too tight — union with around.gc:150 to also catch
+// greens/tees mapped just outside a sloppy boundary (dedup is automatic).
 (
   way(area.c)["golf"="hole"];
+  way(around.gc:150)["golf"="hole"];
   way(area.c)["golf"="green"];
+  way(around.gc:150)["golf"="green"];
   way(area.c)["golf"="tee"];
+  way(around.gc:150)["golf"="tee"];
   node(area.c)["golf"="tee"];
+  node(around.gc:150)["golf"="tee"];
 );
 out geom;
 .gc out tags;`;
@@ -79,6 +86,10 @@ export async function fetchOverpass(query) {
       // and a partial elements array — treat that as failure so we retry
       // against the mirror.
       if (json.remark) throw new Error(`Overpass remark from ${url}: ${json.remark}`);
+      console.error(`Overpass: served by ${url}`);
+      if (url !== ENDPOINTS[0]) {
+        console.error(`Overpass: primary failed, served by mirror ${url} — data may be less fresh`);
+      }
       return json;
     } catch (err) {
       lastErr = err;

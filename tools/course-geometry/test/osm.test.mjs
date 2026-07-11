@@ -9,6 +9,17 @@ test('buildOverpassQuery includes club and optional course name filters', () => 
   assert.ok(q.includes('["golf"="hole"]'));
   assert.ok(q.includes('["golf"="tee"]'));
   assert.ok(q.includes('node(area.c)["golf"="tee"]'));
+  // area.c (inside a tight boundary) variants still present
+  assert.ok(q.includes('way(area.c)["golf"="hole"]'), q);
+  assert.ok(q.includes('way(area.c)["golf"="green"]'), q);
+  assert.ok(q.includes('way(area.c)["golf"="tee"]'), q);
+  assert.ok(q.includes('node(area.c)["golf"="tee"]'), q);
+  // around.gc:150 (outside a sloppy/tight boundary) variants catch features
+  // OSM placed just outside the mapped golf_course polygon
+  assert.ok(q.includes('way(around.gc:150)["golf"="hole"]'), q);
+  assert.ok(q.includes('way(around.gc:150)["golf"="green"]'), q);
+  assert.ok(q.includes('way(around.gc:150)["golf"="tee"]'), q);
+  assert.ok(q.includes('node(around.gc:150)["golf"="tee"]'), q);
   const noCourse = buildOverpassQuery({ club: 'Rya' });
   assert.ok(noCourse.includes('["name"~"Rya",i];') || noCourse.includes('["name"~"Rya",i]\n'), noCourse);
 });
