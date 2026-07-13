@@ -254,10 +254,10 @@ export default function PlayPage() {
             <button
               key={course.id}
               onClick={() => void onCoursePick(course)}
-              className="card text-left flex gap-3 items-start active:bg-primary-softer"
+              className="card text-left flex gap-3.5 items-stretch active:bg-primary-softer"
             >
               <div
-                className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base tracking-wide ${
+                className={`shrink-0 w-[72px] self-stretch rounded-2xl flex items-center justify-center font-extrabold text-2xl tracking-wide ${
                   course.id === nearestCourseId
                     ? 'bg-primary-softer text-primary'
                     : 'bg-slate-100 text-slate-500'
