@@ -104,6 +104,22 @@ type CourseRemote = {
 
 const toIso = (v: string | Date) => (typeof v === 'string' ? v : new Date(v).toISOString());
 
+// Summera bara när alla hål har värdet — en partiell summa (t.ex. par för 12
+// av 18 hål) skulle se ut som en riktig totalsiffra och vilseleda.
+const totalIfComplete = (
+  holes: CourseRemote['holes'],
+  pick: (h: { par: number | null; length: number | null }) => number | null
+): number | null => {
+  if (!holes || holes.length === 0) return null;
+  let sum = 0;
+  for (const h of holes) {
+    const v = pick(h);
+    if (v == null) return null;
+    sum += v;
+  }
+  return sum;
+};
+
 const toCourse = (c: CourseRemote): Course => ({
   id: c.id,
   clubName: c.clubName,
@@ -115,7 +131,9 @@ const toCourse = (c: CourseRemote): Course => ({
   source: (String(c.source ?? 'manual').toLowerCase() as Course['source']),
   isDraft: Boolean(c.isDraft),
   localOnly: Boolean(c.localOnly),
-  syncStatus: (String(c.syncStatus ?? 'synced').toLowerCase() as Course['syncStatus'])
+  syncStatus: (String(c.syncStatus ?? 'synced').toLowerCase() as Course['syncStatus']),
+  parTotal: totalIfComplete(c.holes, (h) => h.par),
+  lengthTotal: totalIfComplete(c.holes, (h) => h.length)
 });
 
 export function useProfileApi() {

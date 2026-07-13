@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, MapPin, Flag, Crosshair, Ruler } from 'lucide-react';
 import { useCoursesApi } from '@/lib/api';
 import { useRoundsStore } from '@/lib/roundsStore';
 import { useToast } from '@/lib/ToastProvider';
@@ -25,6 +25,13 @@ function haversineMeters(a: GeoPoint, b: GeoPoint): number {
 function formatDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m bort`;
   return `${(meters / 1000).toFixed(1).replace('.', ',')} km bort`;
+}
+
+/** Klubbens initialer (upp till 2 ord) för monogrammet: "Timrå Golfklubb" → "TG". */
+function clubInitials(clubName: string): string {
+  const words = clubName.trim().split(/\s+/).filter(Boolean);
+  const letters = words.slice(0, 2).map((w) => w[0]);
+  return (letters.join('') || clubName.slice(0, 2)).toUpperCase();
 }
 
 function matchesSearch(course: Course, query: string): boolean {
@@ -136,6 +143,16 @@ export default function PlayPage() {
   const canLoadMore = filteredCourses.length > visibleCount;
   const showSearch = courses.length > PAGE_SIZE;
 
+  // Närmaste banan (om GPS finns) — dess monogram framhävs i teal.
+  const nearestCourseId = useMemo(() => {
+    let best: { id: string; d: number } | null = null;
+    for (const c of courses) {
+      const d = distanceFor(c.id);
+      if (d != null && (best == null || d < best.d)) best = { id: c.id, d };
+    }
+    return best?.id ?? null;
+  }, [courses, distanceFor]);
+
   const onCoursePick = async (course: Course) => {
     if (inProgress.length > 0) {
       setBlockedByActive(true);
@@ -237,16 +254,59 @@ export default function PlayPage() {
             <button
               key={course.id}
               onClick={() => void onCoursePick(course)}
-              className="card text-left flex flex-col gap-1 active:bg-primary-softer"
+              className="card text-left flex gap-3 items-start active:bg-primary-softer"
             >
-              <span className="text-lg font-bold text-ink">{course.courseName}</span>
-              <span className="text-sm text-slate-700">{course.clubName}</span>
-              <span className="text-xs text-slate-600">
-                {course.holeCount} hål • {course.teeName ?? 'Tee ej satt'}
-              </span>
-              {distance != null ? (
-                <span className="text-xs font-semibold text-primary">{formatDistance(distance)}</span>
-              ) : null}
+              <div
+                className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base tracking-wide ${
+                  course.id === nearestCourseId
+                    ? 'bg-primary-softer text-primary'
+                    : 'bg-slate-100 text-slate-500'
+                }`}
+                aria-hidden="true"
+              >
+                {clubInitials(course.clubName)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <span className="block text-[17px] font-extrabold text-ink leading-tight">
+                      {course.clubName}
+                    </span>
+                    <span className="block text-sm font-medium text-slate-600 truncate">
+                      {course.courseName}
+                    </span>
+                  </div>
+                  {distance != null ? (
+                    <span className="shrink-0 inline-flex items-center gap-1 bg-primary-softer text-primary text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap">
+                      <MapPin size={13} aria-hidden="true" />
+                      {formatDistance(distance).replace(' bort', '')}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-x-3.5 gap-y-1 mt-2.5 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1">
+                    <Flag size={14} aria-hidden="true" />
+                    {course.holeCount} hål
+                  </span>
+                  {course.parTotal != null ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Crosshair size={14} aria-hidden="true" />
+                      Par {course.parTotal}
+                    </span>
+                  ) : null}
+                  {course.lengthTotal != null ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Ruler size={14} aria-hidden="true" />
+                      {course.lengthTotal.toLocaleString('sv-SE')} m
+                    </span>
+                  ) : null}
+                  {course.teeName ? (
+                    <span className="inline-flex items-center gap-1 text-primary font-medium">
+                      {course.teeName}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </button>
           );
         })}

@@ -212,6 +212,9 @@ export type Course = {
   isDraft: boolean;
   localOnly: boolean;
   syncStatus: SyncStatus;
+  /** Summerade från hålen i list-svaret; null när scorekortet är ofullständigt. */
+  parTotal: number | null;
+  lengthTotal: number | null;
 };
 
 export type Hole = {
