@@ -15,6 +15,11 @@ const prisma = new PrismaClient();
 
 const log = (msg: string) => console.log(`[seed] ${msg}`);
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000);
+const minutesAgo = (n: number) => new Date(Date.now() - n * 60000);
+
+// Stable id for Markus so a deterministic URL (/community/chat/<id>) can be used
+// for chat screenshots in CI. Keep in sync with shots.webbapp.ci.json.
+const SEED_CHAT_PARTNER_ID = 'seedusermarkus0000000000001';
 
 // ─── Users ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +42,7 @@ type ProfileSeed = {
 };
 
 async function upsertUser(input: {
+  id?: string;
   email: string;
   password: string;
   role: 'USER' | 'PREMIUM_USER' | 'ADMIN';
@@ -48,6 +54,7 @@ async function upsertUser(input: {
   return prisma.user.upsert({
     where: { email: input.email },
     create: {
+      ...(input.id ? { id: input.id } : {}),
       email: input.email,
       passwordHash,
       role: input.role,
@@ -385,6 +392,51 @@ async function follow(followerId: string, followingId: string) {
   });
 }
 
+// ─── Chat ─────────────────────────────────────────────────────────────────--
+
+// Seed a two-way conversation so the chat view renders real content (and is
+// tall enough to exercise scrolling). Idempotent: clears the pair first.
+async function seedConversation(aId: string, bId: string) {
+  await prisma.chatMessage.deleteMany({
+    where: {
+      OR: [
+        { senderId: aId, recipientId: bId },
+        { senderId: bId, recipientId: aId }
+      ]
+    }
+  });
+
+  // [from, content, minutesAgo] — 'a' = Anna (the logged-in screenshot user).
+  const script: Array<['a' | 'b', string, number]> = [
+    ['a', 'Hej Markus! Snyggt spelat i helgen 🏌️', 240],
+    ['b', 'Tack! Kände mig stabil med järnen för en gångs skull.', 236],
+    ['a', 'Märktes. Din approach på 7:an var sjuk.', 231],
+    ['b', 'Haha tur snarare än skicklighet 😅', 229],
+    ['a', 'Hur tänker du kring puttningen? Jag tappar massa slag på greenerna.', 224],
+    ['b', 'Mest tempo. Jag övar med en peg bakom bollen för att hålla putterbladet stabilt.', 220],
+    ['a', 'Smart. Har du tid att spela en runda på Parkbanan i helgen?', 180],
+    ['b', 'Lördag förmiddag funkar fint. Boka 09:20?', 176],
+    ['a', 'Bokar! Tar med Erik också om det är ok.', 173],
+    ['b', 'Givetvis, ju fler desto bättre. Vi kör matchspel?', 170],
+    ['a', 'Kör! Jag behöver all hjälp jag kan få mot dig 😄', 168],
+    ['b', 'Snälla, du spelar bättre än ditt handicap visar.', 120],
+    ['a', 'Vi får se på lördag. Ska kolla väderprognosen.', 90],
+    ['b', 'Ser torrt ut hela helgen. Perfekt golfväder.', 60],
+    ['a', 'Toppen. Då ses vi 09:20 vid första tee 🚩', 12],
+    ['b', 'Klockrent. Ha en bra vecka tills dess!', 4]
+  ];
+
+  await prisma.chatMessage.createMany({
+    data: script.map(([from, content, min]) => ({
+      senderId: from === 'a' ? aId : bId,
+      recipientId: from === 'a' ? bId : aId,
+      content,
+      createdAt: minutesAgo(min),
+      readAt: minutesAgo(min - 1)
+    }))
+  });
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -467,6 +519,7 @@ async function main() {
   });
 
   const markus = await upsertUser({
+    id: SEED_CHAT_PARTNER_ID,
     email: 'markus@golf.test',
     password: 'Markus123!',
     role: 'USER',
@@ -688,6 +741,9 @@ async function main() {
   await follow(erik.id, anna.id);
   await follow(lisa.id, anna.id);
   await follow(anna.id, admin.id);
+
+  log('Chatt-konversation (Anna ↔ Markus)...');
+  await seedConversation(anna.id, markus.id);
 
   log('');
   log('Seed klar!');

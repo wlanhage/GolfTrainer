@@ -19,7 +19,9 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const MARKER = '<!-- pr-screenshots:do-not-remove -->';
+// Per-app marker so multiple apps (webbapp + admin-web) each get their own
+// comment instead of overwriting one another.
+const markerFor = (app) => `<!-- pr-screenshots:${app || 'app'}:do-not-remove -->`;
 const repoRoot = resolve(here, '..', '..');
 
 function sh(cmd, cmdArgs, opts = {}) {
@@ -126,7 +128,7 @@ function buildComment({ owner, repo, sha, srcBranch, index }) {
     (s) => s.navFailed || (typeof s.status === 'number' && s.status >= 400) || s.pageErrorCount > 0,
   );
 
-  let body = `${MARKER}\n## 📸 Frontend screenshots — \`${index.title}\`\n\n`;
+  let body = `${markerFor(index.app)}\n## 📸 Frontend screenshots — \`${index.title}\`\n\n`;
   body += `_Auto-captured from branch \`${srcBranch}\`. ${index.shots.length} shot(s)._\n\n`;
   if (flagged.length) {
     body += `> ⚠️ **${flagged.length} page(s) look broken** — ${flagged
@@ -184,11 +186,11 @@ function resolvePr(explicit) {
   return String(JSON.parse(json).number);
 }
 
-function upsertComment(pr, body) {
-  // Find an existing comment with our marker and edit it; otherwise create.
+function upsertComment(pr, body, marker) {
+  // Find an existing comment with this app's marker and edit it; otherwise create.
   const raw = sh('gh', ['api', `repos/{owner}/{repo}/issues/${pr}/comments`, '--paginate']);
   const comments = JSON.parse(raw);
-  const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+  const existing = comments.find((c) => c.body && c.body.includes(marker));
   if (existing) {
     sh('gh', ['api', '--method', 'PATCH', `repos/{owner}/{repo}/issues/comments/${existing.id}`,
       '-f', `body=${body}`]);
@@ -221,7 +223,7 @@ function main() {
   const pr = resolvePr(args.pr);
   const body = buildComment({ owner, repo, sha, srcBranch, index });
   console.log(`→ Posting to PR #${pr} …`);
-  const result = upsertComment(pr, body);
+  const result = upsertComment(pr, body, markerFor(index.app));
   console.log(`✓ ${result}`);
 }
 

@@ -98,9 +98,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const showBack = isSubPage(pathname);
   const current = activeTab(pathname);
+  // Chat conversations fill the viewport exactly (header + scrollable body +
+  // nav) so only the message list scrolls — no page-level scroll on top.
+  const isConversation = pathname.startsWith('/community/chat/');
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className={isConversation ? 'flex flex-col h-[100dvh] bg-white' : 'min-h-screen bg-white pb-20'}>
       {/* Top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-white border-b border-border px-3 py-2 shadow-sm">
         {showBack ? (
@@ -128,10 +131,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
       </header>
 
-      <main className="max-w-3xl mx-auto">{children}</main>
+      <main
+        className={
+          isConversation
+            ? 'flex-1 min-h-0 overflow-hidden w-full max-w-3xl mx-auto flex flex-col'
+            : 'max-w-3xl mx-auto'
+        }
+      >
+        {children}
+      </main>
 
-      {/* Bottom tab bar */}
-      <nav className="pwa-bottom-nav fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border"
+      {/* Bottom tab bar — fixed on scrolling pages, in-flow on full-height chat */}
+      <nav
+        className={`pwa-bottom-nav z-30 bg-white border-t border-border ${
+          isConversation ? 'shrink-0' : 'fixed bottom-0 inset-x-0'
+        }`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="max-w-3xl mx-auto grid grid-cols-5">

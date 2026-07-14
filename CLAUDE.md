@@ -15,18 +15,30 @@ When a PR changes anything visual in `webbapp` or `admin-web`, attach
 screenshots of the affected views so the change can be reviewed before merge.
 Tooling lives in `tools/pr-screenshots/` (see its README).
 
+**Seed data is part of the PR.** Screenshots are only useful if the affected
+view has data to render. Before capturing, make sure `backend/scripts/seed.ts`
+contains the data the changed view needs. **If your change introduces or
+depends on data that the seed doesn't already create (a new entity, field,
+state, edge case, empty/error state, etc.), extend `backend/scripts/seed.ts` in
+the same PR** so the view renders real content in CI and locally. Keep the seed
+deterministic and idempotent (it uses `upsert`/stable ids and re-runs cleanly).
+Use the existing seeded accounts where possible (`anna@golf.test` has the
+richest data — 3 rounds, follows, missions).
+
 Workflow:
 
 1. Make the change on a feature branch.
-2. Ensure backend + the relevant frontend are running, and the DB is seeded:
+2. Ensure the seed covers the view you changed; extend `backend/scripts/seed.ts`
+   if it needs data that isn't there yet.
+3. Ensure backend + the relevant frontend are running, and the DB is seeded:
    ```bash
    npm --prefix backend run prisma:seed:local   # if not already seeded
    npm --prefix backend run dev:local           # :3000
    npm --prefix webbapp run dev                 # :3002  (or admin-web :3005)
    ```
-3. Write a manifest listing **only the routes your PR touched** (copy
+4. Write a manifest listing **only the routes your PR touched** (copy
    `tools/pr-screenshots/shots.webbapp.example.json` → `shots.json`).
-4. Capture + post:
+5. Capture + post:
    ```bash
    cd tools/pr-screenshots
    node capture.mjs --manifest shots.json
