@@ -2,6 +2,7 @@ import { prisma } from '../../infrastructure/prisma/client.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/AppError.js';
 import { roundsRepository } from './rounds.repository.js';
 import { notificationsService } from '../notifications/notifications.service.js';
+import { joinService } from '../join/join.service.js';
 import type {
   CreateRoundInput,
   CreateRoundShotInput,
@@ -281,16 +282,9 @@ export const roundsService = {
       players: allPlayers
     });
 
-    // Koppla hostens öppna QR-invites (utan runda) till den nya rundan så
-    // att de som skannat koden innan start kan joina nu.
-    await prisma.roundInvite.updateMany({
-      where: {
-        hostUserId,
-        roundId: null,
-        createdAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24) }
-      },
-      data: { roundId: created.id }
-    });
+    // Koppla hostens öppna QR-invites till den nya rundan och lägg till
+    // alla som redan joinat via koden som spelare.
+    await joinService.attachInvitesToRound(hostUserId, created.id);
 
     // Notisera alla inbjudna spelare om att rundan har börjat.
     // Fire-and-forget — runda skapas oavsett om notiserna lyckas.

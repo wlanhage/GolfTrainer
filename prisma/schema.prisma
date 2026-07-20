@@ -165,6 +165,7 @@ model User {
   watchPairings           WatchPairing[]
   roundReactions          RoundReaction[]    @relation("UserRoundReactions")
   roundInvites            RoundInvite[]      @relation("UserRoundInvites")
+  roundInviteMemberships  RoundInviteMember[] @relation("UserRoundInviteMembers")
 }
 
 model UserProfile {
@@ -672,11 +673,27 @@ model RoundInvite {
   roundId    String?
   createdAt  DateTime @default(now())
 
-  host  User   @relation("UserRoundInvites", fields: [hostUserId], references: [id], onDelete: Cascade)
-  round Round? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  host    User                @relation("UserRoundInvites", fields: [hostUserId], references: [id], onDelete: Cascade)
+  round   Round?              @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  members RoundInviteMember[]
 
   @@index([hostUserId, createdAt])
   @@index([roundId])
+}
+
+// Någon som joinat via QR innan rundan startats. Läggs automatiskt till
+// som RoundPlayer när hostens runda skapas och inviten binds.
+model RoundInviteMember {
+  id        String   @id @default(cuid())
+  inviteId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  invite RoundInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user   User        @relation("UserRoundInviteMembers", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteId, userId])
+  @@index([userId])
 }
 
 // Emoji-reaktion på en runda (t.ex. i vänner-flödet). En reaktion per

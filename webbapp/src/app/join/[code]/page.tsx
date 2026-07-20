@@ -25,6 +25,9 @@ export default function JoinRoundPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [guestName, setGuestName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Man har joinat innan rundan startats — spelare läggs till automatiskt
+  // vid start; sidan pollar och hoppar in i rundan när den finns.
+  const [waitingForStart, setWaitingForStart] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Hämta + polla invite-info tills rundan är igång
@@ -66,7 +69,12 @@ export default function JoinRoundPage() {
     setError(null);
     try {
       const result = await authedJoinApi.joinAsUser(code);
-      goToRound(result.roundId, result.currentHoleNumber);
+      if (result.status === 'joined') {
+        goToRound(result.roundId, result.currentHoleNumber);
+        return;
+      }
+      setWaitingForStart(true);
+      setSubmitting(false);
     } catch {
       setError('Kunde inte joina rundan. Försök igen.');
       setSubmitting(false);
@@ -85,12 +93,34 @@ export default function JoinRoundPage() {
     try {
       const result = await joinApi.joinAsGuest(code, name);
       await adoptTokens(result.tokens);
-      goToRound(result.roundId, result.currentHoleNumber);
+      if (result.status === 'joined') {
+        goToRound(result.roundId, result.currentHoleNumber);
+        return;
+      }
+      setWaitingForStart(true);
+      setSubmitting(false);
     } catch {
       setError('Kunde inte joina rundan. Försök igen.');
       setSubmitting(false);
     }
   };
+
+  // Joinade innan start: när rundan dyker upp i pollningen är man redan
+  // tillagd som spelare — hämta hålet och hoppa in.
+  useEffect(() => {
+    if (!waitingForStart || !info?.round) return;
+    let active = true;
+    authedJoinApi
+      .joinAsUser(code)
+      .then((result) => {
+        if (!active) return;
+        if (result.status === 'joined') goToRound(result.roundId, result.currentHoleNumber);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [waitingForStart, info?.round, authedJoinApi, code, goToRound]);
 
   if (loadError) {
     return (
@@ -107,7 +137,6 @@ export default function JoinRoundPage() {
     );
   }
 
-  const roundReady = info.round !== null;
   const roundOver = info.roundStatus === 'COMPLETED' || info.roundStatus === 'ABANDONED';
   const isLoggedInUser = status === 'authenticated' && me && me.isGuest !== true;
 
@@ -124,14 +153,19 @@ export default function JoinRoundPage() {
           </p>
         ) : roundOver ? (
           <p className="text-sm text-slate-500">Rundan är redan avslutad.</p>
-        ) : (
-          <p className="text-sm text-slate-500">
-            Rundan har inte startat än — sidan uppdateras automatiskt.
-          </p>
-        )}
+        ) : null}
       </header>
 
-      {roundOver ? null : (
+      {roundOver ? null : waitingForStart ? (
+        <section className="bg-primary-softer border-2 border-primary/30 rounded-2xl p-5 flex flex-col items-center gap-2 text-center">
+          <p className="text-2xl" aria-hidden="true">⛳</p>
+          <h2 className="font-extrabold text-ink">Du är med!</h2>
+          <p className="text-sm text-slate-600">
+            Du hoppar in automatiskt så fort {info.hostName} startar rundan.
+            Håll sidan öppen.
+          </p>
+        </section>
+      ) : (
         <>
           <p className="text-center text-sm font-bold text-slate-600 uppercase tracking-wider mt-2">
             Spela som
@@ -143,12 +177,10 @@ export default function JoinRoundPage() {
             {isLoggedInUser ? (
               <button
                 onClick={() => void joinAsUser()}
-                disabled={!roundReady || submitting}
+                disabled={submitting}
                 className="btn-primary disabled:opacity-50"
               >
-                {roundReady
-                  ? `Gå med som ${me?.profile?.displayName ?? 'mig'}`
-                  : 'Väntar på att rundan startar…'}
+                Gå med som {me?.profile?.displayName ?? 'mig'}
               </button>
             ) : (
               <div className="flex flex-col gap-2">
@@ -184,10 +216,10 @@ export default function JoinRoundPage() {
             />
             <button
               onClick={() => void joinAsGuest()}
-              disabled={!roundReady || submitting}
+              disabled={submitting}
               className="btn-primary disabled:opacity-50"
             >
-              {roundReady ? 'Spela som gäst' : 'Väntar på att rundan startar…'}
+              Spela som gäst
             </button>
           </section>
 

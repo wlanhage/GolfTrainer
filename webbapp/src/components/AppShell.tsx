@@ -113,9 +113,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const showBack = isSubPage(pathname);
   const current = activeTab(pathname);
+  // Rundöversikten (scorekortet) visas utan bottennav — den är en del av
+  // spel-flödet, inte apphubben.
+  const hideTabBar = pathname.startsWith('/play/round/') && pathname.includes('/overview');
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className={`min-h-screen bg-white ${hideTabBar ? '' : 'pb-20'}`}>
       {/* Top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-white border-b border-border px-3 py-2 shadow-sm">
         {showBack ? (
@@ -152,6 +155,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="max-w-3xl mx-auto">{children}</main>
 
       {/* Bottom tab bar */}
+      {hideTabBar ? null : (
       <nav className="pwa-bottom-nav fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -177,6 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </div>
       </nav>
+      )}
     </div>
   );
 }

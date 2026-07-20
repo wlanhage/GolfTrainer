@@ -12,11 +12,11 @@ export type InviteInfo = {
   } | null;
 };
 
-export type GuestJoinResult = {
-  tokens: AuthResponse;
-  roundId: string;
-  currentHoleNumber: number;
-};
+export type JoinResult =
+  | { status: 'joined'; roundId: string; currentHoleNumber: number }
+  | { status: 'pending' };
+
+export type GuestJoinResult = JoinResult & { tokens: AuthResponse };
 
 async function timedFetch(input: RequestInfo, init?: RequestInit) {
   const controller = new AbortController();

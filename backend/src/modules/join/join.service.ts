@@ -18,7 +18,7 @@ const getDisplayName = async (userId: string): Promise<string> => {
   return u?.email ?? 'Spelare';
 };
 
-const getJoinableInvite = async (code: string) => {
+const getInvite = async (code: string) => {
   const invite = await prisma.roundInvite.findUnique({
     where: { code },
     include: {
@@ -28,9 +28,34 @@ const getJoinableInvite = async (code: string) => {
     }
   });
   if (!invite) throw new NotFoundError('Invite not found');
-  if (!invite.round) throw new BadRequestError('Round has not started yet');
-  if (invite.round.status !== 'IN_PROGRESS') throw new BadRequestError('Round is no longer in progress');
-  return { roundId: invite.round.id, currentHoleNumber: invite.round.currentHoleNumber };
+  if (invite.round && invite.round.status !== 'IN_PROGRESS') {
+    throw new BadRequestError('Round is no longer in progress');
+  }
+  return invite;
+};
+
+/**
+ * Gemensam join: har inviten en pågående runda läggs användaren till som
+ * spelare direkt; annars registreras hen som väntande medlem och blir
+ * spelare automatiskt när rundan startar.
+ */
+const joinInvite = async (
+  invite: Awaited<ReturnType<typeof getInvite>>,
+  userId: string
+): Promise<
+  | { status: 'joined'; roundId: string; currentHoleNumber: number }
+  | { status: 'pending' }
+> => {
+  if (invite.round) {
+    await addPlayer(invite.round.id, userId);
+    return { status: 'joined', roundId: invite.round.id, currentHoleNumber: invite.round.currentHoleNumber };
+  }
+  await prisma.roundInviteMember.upsert({
+    where: { inviteId_userId: { inviteId: invite.id, userId } },
+    update: {},
+    create: { inviteId: invite.id, userId }
+  });
+  return { status: 'pending' };
 };
 
 /** Lägg till en användare som spelare i rundan (idempotent). */
@@ -112,19 +137,19 @@ export const joinService = {
     };
   },
 
-  /** Joina som inloggad användare. */
+  /** Joina som inloggad användare — direkt, eller som väntande före start. */
   async joinAsUser(code: string, userId: string) {
-    const { roundId, currentHoleNumber } = await getJoinableInvite(code);
-    await addPlayer(roundId, userId);
-    return { roundId, currentHoleNumber };
+    const invite = await getInvite(code);
+    return joinInvite(invite, userId);
   },
 
   /**
    * Joina som gäst: skapar ett gästkonto (osynligt i sök, kan uppgraderas
-   * via /auth/claim-guest) och loggar in det direkt.
+   * via /auth/claim-guest) och loggar in det direkt. Går att göra innan
+   * rundan startat — gästen blir då väntande medlem.
    */
   async joinAsGuest(code: string, name: string, meta: { ip?: string; userAgent?: string }) {
-    const { roundId, currentHoleNumber } = await getJoinableInvite(code);
+    const invite = await getInvite(code);
 
     const email = `guest_${crypto.randomBytes(8).toString('hex')}@guest.kaddy.invalid`;
     const passwordHash = await passwordService.hash(crypto.randomBytes(24).toString('base64url'));
@@ -137,8 +162,32 @@ export const joinService = {
       }
     });
 
-    await addPlayer(roundId, user.id);
+    const result = await joinInvite(invite, user.id);
     const tokens = await authService.issueTokenPair(user.id, meta);
-    return { tokens, roundId, currentHoleNumber };
+    return { tokens, ...result };
+  },
+
+  /**
+   * Körs när hosten startar sin runda: binder hostens öppna invites till
+   * rundan och lägger till alla väntande medlemmar som spelare.
+   */
+  async attachInvitesToRound(hostUserId: string, roundId: string) {
+    await prisma.roundInvite.updateMany({
+      where: {
+        hostUserId,
+        roundId: null,
+        createdAt: { gte: new Date(Date.now() - INVITE_TTL_MS) }
+      },
+      data: { roundId }
+    });
+
+    const members = await prisma.roundInviteMember.findMany({
+      where: { invite: { roundId } },
+      select: { userId: true },
+      orderBy: { createdAt: 'asc' }
+    });
+    for (const member of members) {
+      await addPlayer(roundId, member.userId);
+    }
   }
 };

@@ -698,7 +698,8 @@ export default function RoundHolePage() {
         )}
       </div>
 
-      <BackButton onClick={() => router.push('/')} />
+      {/* Gäster har varken tillbaka-knapp eller inställningar — bara spelet */}
+      {me?.isGuest ? null : <BackButton onClick={() => router.push('/')} />}
 
       <HoleHeader
         holeNumber={roundHole.holeNumber}
@@ -709,7 +710,7 @@ export default function RoundHolePage() {
       />
 
       <TopRightFabs
-        onSettings={() => setSettingsOpen(true)}
+        onSettings={me?.isGuest ? undefined : () => setSettingsOpen(true)}
         overviewHref={`/play/round/${roundId}/overview`}
       />
 

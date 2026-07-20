@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { LayoutGrid, Settings } from 'lucide-react';
 
 type Props = {
-  onSettings: () => void;
+  /** Utelämnas (t.ex. för gäster) → ingen inställningsknapp visas. */
+  onSettings?: () => void;
   overviewHref: string;
 };
 
@@ -18,13 +19,15 @@ export function TopRightFabs({ onSettings, overviewHref }: Props) {
       >
         <LayoutGrid size={20} aria-hidden="true" />
       </Link>
-      <button
-        onClick={onSettings}
-        aria-label="Inställningar"
-        className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-slate-700"
-      >
-        <Settings size={20} aria-hidden="true" />
-      </button>
+      {onSettings ? (
+        <button
+          onClick={onSettings}
+          aria-label="Inställningar"
+          className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-slate-700"
+        >
+          <Settings size={20} aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   );
 }

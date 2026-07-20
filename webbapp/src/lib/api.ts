@@ -465,10 +465,9 @@ export function useJoinApi() {
     () => ({
       createInvite: () => client.request<{ code: string }>('/join/invites', { method: 'POST' }),
       joinAsUser: (code: string) =>
-        client.request<{ roundId: string; currentHoleNumber: number }>(
-          `/join/invites/${encodeURIComponent(code)}/join`,
-          { method: 'POST' }
-        ),
+        client.request<
+          { status: 'joined'; roundId: string; currentHoleNumber: number } | { status: 'pending' }
+        >(`/join/invites/${encodeURIComponent(code)}/join`, { method: 'POST' }),
       claimGuest: (email: string, password: string) =>
         client.request<{ ok: boolean }>('/auth/claim-guest', {
           method: 'POST',
