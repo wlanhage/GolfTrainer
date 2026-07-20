@@ -285,12 +285,7 @@ function PlayerCard({
         />
       </button>
 
-      {/* Emoji reactions on this player's score */}
-      <div className="px-4 pb-3">
-        <RoundReactions roundId={player.roundId} playerId={player.id} />
-      </div>
-
-      {/* Expanded scorecard */}
+      {/* Expanded scorecard + reactions (bottom-left) */}
       {open && (
         <div className="border-t border-border px-4 py-3">
           <ScorecardTable
@@ -299,6 +294,9 @@ function PlayerCard({
             showHcp={hasHcpData}
             t={t}
           />
+          <div className="mt-3">
+            <RoundReactions roundId={player.roundId} playerId={player.id} />
+          </div>
         </div>
       )}
     </div>
