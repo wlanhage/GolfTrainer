@@ -75,9 +75,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     const isPublicRoute = isAuthRoute || pathname === '/welcome' || pathname.startsWith('/join/');
     if (status === 'guest' && !isPublicRoute) router.replace('/login');
     if (status === 'authenticated' && isAuthRoute) {
-      // Auth-sidor kan skickas en ?next= (t.ex. tillbaka till QR-join-sidan)
+      // Auth-sidor kan skickas en ?next= (t.ex. tillbaka till QR-join-sidan).
+      // Nyregistrerade utan next landar på /welcome (profil-setup) — samma
+      // mål som registersidans egen redirect så att racet är ofarligt.
       const next = new URLSearchParams(window.location.search).get('next');
-      router.replace(next && next.startsWith('/') ? next : '/');
+      const fallback = pathname === '/register' ? '/welcome' : '/';
+      router.replace(next && next.startsWith('/') ? next : fallback);
     }
     if (status === 'authenticated' && pathname.startsWith('/admin') && me?.role !== 'ADMIN') {
       router.replace('/');

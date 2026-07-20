@@ -22,7 +22,11 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input)
     });
-    if (!res.ok) throw new Error('Registration failed');
+    if (!res.ok) {
+      // Låt UI:t skilja på "e-post upptagen" (409) och övriga fel
+      const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+      throw new Error(body?.error?.code === 'CONFLICT' || res.status === 409 ? 'EMAIL_TAKEN' : 'REGISTRATION_FAILED');
+    }
     return res.json();
   },
   async login(input: { email: string; password: string }): Promise<AuthResponse> {
