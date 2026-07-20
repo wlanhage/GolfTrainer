@@ -29,7 +29,8 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ displayName, email, password });
-      router.replace('/welcome');
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.replace(next && next.startsWith('/') ? next : '/welcome');
     } catch {
       setError(t('auth.registerFailed'));
     } finally {

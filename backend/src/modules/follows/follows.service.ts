@@ -2,6 +2,7 @@ import { BadRequestError, NotFoundError } from '../../common/errors/AppError.js'
 import { usersRepository } from '../users/users.repository.js';
 import { followsRepository } from './follows.repository.js';
 import { notificationsService } from '../notifications/notifications.service.js';
+import { roundsRepository } from '../rounds/rounds.repository.js';
 
 const ensureUserExists = async (userId: string, message = 'User not found') => {
   const user = await usersRepository.getById(userId);
@@ -81,8 +82,21 @@ export const followsService = {
     return followsRepository.getFollowedCourseLeaderboard(viewerUserId, courseId, limit, offset);
   },
 
-  getFollowingFeed(viewerUserId: string, limit: number, offset: number) {
-    return followsRepository.getFollowingFeed(viewerUserId, limit, offset);
+  async getFollowingFeed(viewerUserId: string, limit: number, offset: number) {
+    const rows = await followsRepository.getFollowingFeed(viewerUserId, limit, offset);
+    const reactions = await roundsRepository.listReactionsForRounds(rows.map((r) => r.roundId));
+    const byRound = new Map<string, Array<{ emoji: string; userId: string; displayName: string; avatarImage: string | null }>>();
+    for (const reaction of reactions) {
+      const list = byRound.get(reaction.roundId) ?? [];
+      list.push({
+        emoji: reaction.emoji,
+        userId: reaction.user.id,
+        displayName: reaction.user.profile?.displayName ?? reaction.user.email,
+        avatarImage: reaction.user.profile?.avatarImage ?? null
+      });
+      byRound.set(reaction.roundId, list);
+    }
+    return rows.map((row) => ({ ...row, reactions: byRound.get(row.roundId) ?? [] }));
   },
 
   getMutualFollowers(userId: string) {

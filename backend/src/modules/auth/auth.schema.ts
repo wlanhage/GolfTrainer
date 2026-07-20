@@ -11,6 +11,11 @@ export const loginSchema = z.object({
   password: z.string().min(8).max(128)
 });
 
+export const claimGuestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(128)
+});
+
 export const refreshSchema = z.object({
   refreshToken: z.string().min(20)
 });

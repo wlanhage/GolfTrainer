@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useFollowsApi, useCoursesApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthProvider';
 import { UserAvatar } from '@/components/UserAvatar';
+import { QrInviteSheet } from '@/components/QrInviteSheet';
 import type { MutualFollower } from '@/lib/types';
 import { saveGroupSetup } from '@/lib/groupSetupStorage';
 
@@ -20,6 +21,7 @@ export default function GroupSetupPage() {
   const [mutuals, setMutuals] = useState<MutualFollower[]>([]);
   const [invited, setInvited] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -144,12 +146,23 @@ export default function GroupSetupPage() {
                 })}
               </div>
             )}
+            <button
+              onClick={() => {
+                setPickerOpen(false);
+                setQrOpen(true);
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary text-primary font-bold py-2.5"
+            >
+              Visa QR-kod — bjud in vem som helst
+            </button>
             <button onClick={() => setPickerOpen(false)} className="btn-primary">
               Klar
             </button>
           </div>
         </div>
       ) : null}
+
+      <QrInviteSheet open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
   );
 }

@@ -102,3 +102,12 @@ export const roundShotIdParamSchema = z.object({
   roundId: z.string().min(1),
   shotId: z.string().min(1),
 });
+
+// Utvalda emojis man kan reagera med på en runda. Måste hållas i synk med
+// REACTION_EMOJIS i webbappens RoundReactions-komponent.
+export const ROUND_REACTION_EMOJIS = ['👏', '🔥', '⛳', '💪', '😂'] as const;
+
+export const setRoundReactionSchema = z.object({
+  emoji: z.enum(ROUND_REACTION_EMOJIS)
+});
+export type SetRoundReactionInput = z.infer<typeof setRoundReactionSchema>;

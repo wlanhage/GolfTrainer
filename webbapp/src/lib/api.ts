@@ -25,6 +25,7 @@ import type {
   MyStats,
   PublicUserProfile,
   PublicUserSummary,
+  RoundReactionEntry,
   TrainingMission,
   UpdateProfileInput
 } from './types';
@@ -373,6 +374,7 @@ export type ServerRoundPlayer = {
   team: string | null;
   order: number;
   leftAt?: string | null;
+  user?: { isGuest: boolean } | null;
 };
 
 export type ServerRoundDetail = ServerRound & {
@@ -444,7 +446,34 @@ export function useRoundsApi() {
       listShots: (roundId: string) =>
         client.request<Array<{ id: string; roundId: string; holeNumber: number; shotOrder: number; clubId: string; fromLat: number; fromLng: number; toLat: number | null; toLng: number | null; distanceMeters: number | null }>>(`/rounds/${roundId}/shots`),
       deleteShot: (roundId: string, shotId: string) =>
-        client.request<null>(`/rounds/${roundId}/shots/${shotId}`, { method: 'DELETE' })
+        client.request<null>(`/rounds/${roundId}/shots/${shotId}`, { method: 'DELETE' }),
+      listReactions: (roundId: string) =>
+        client.request<RoundReactionEntry[]>(`/rounds/${roundId}/reactions`),
+      toggleReaction: (roundId: string, emoji: string) =>
+        client.request<RoundReactionEntry[]>(`/rounds/${roundId}/reactions`, {
+          method: 'POST',
+          body: JSON.stringify({ emoji })
+        })
+    }),
+    [client]
+  );
+}
+
+export function useJoinApi() {
+  const client = useApiClient();
+  return useMemo(
+    () => ({
+      createInvite: () => client.request<{ code: string }>('/join/invites', { method: 'POST' }),
+      joinAsUser: (code: string) =>
+        client.request<{ roundId: string; currentHoleNumber: number }>(
+          `/join/invites/${encodeURIComponent(code)}/join`,
+          { method: 'POST' }
+        ),
+      claimGuest: (email: string, password: string) =>
+        client.request<{ ok: boolean }>('/auth/claim-guest', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        })
     }),
     [client]
   );

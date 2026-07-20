@@ -32,6 +32,10 @@ export async function roundsRoutes(app: FastifyInstance) {
   app.patch('/:roundId/holes/:holeNumber/strokes', roundsController.updateStrokes);
   app.patch('/:roundId/holes/:holeNumber/scores/:playerId', roundsController.updatePlayerScore);
 
+  // Emoji reactions on a round (toggle: same emoji removes, new replaces)
+  app.get('/:roundId/reactions', roundsController.listReactions);
+  app.post('/:roundId/reactions', roundsController.toggleReaction);
+
   // Round shots
   app.post('/:roundId/shots', roundsController.createShot);
   app.get('/:roundId/shots', roundsController.listShots);

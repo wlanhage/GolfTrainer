@@ -7,6 +7,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/login', authController.login);
   app.post('/refresh', authController.refresh);
   app.post('/logout', authController.logout);
+  app.post('/claim-guest', { preHandler: [requireAuth] }, authController.claimGuest);
 
   // Apple Watch pairing (device-code flow)
   app.post('/watch/pair/start', authController.pairStart);

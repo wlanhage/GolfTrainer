@@ -20,6 +20,7 @@ import { aiRoutes } from './modules/ai/ai.routes.js';
 import { pushRoutes } from './modules/push/push.routes.js';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
+import { joinRoutes } from './modules/join/join.routes.js';
 
 export const buildApp = () => {
   const app = Fastify({ logger: true });
@@ -84,6 +85,7 @@ export const buildApp = () => {
   app.register(notificationsRoutes, { prefix: '/api/v1/notifications' });
   app.register(aiRoutes, { prefix: '/api/v1/ai' });
   app.register(chatRoutes, { prefix: '/api/v1/chat' });
+  app.register(joinRoutes, { prefix: '/api/v1/join' });
 
   app.setErrorHandler((err, request, reply) => {
     request.log.error(

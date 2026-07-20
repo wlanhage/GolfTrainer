@@ -133,6 +133,9 @@ model User {
   passwordHash String
   role         UserRole @default(USER)
   isActive     Boolean  @default(true)
+  // Gästkonto skapat via QR-join: kan bara spela rundan, syns ej i sök,
+  // och kan uppgraderas till riktigt konto via /auth/claim-guest.
+  isGuest      Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -160,6 +163,8 @@ model User {
   chatMessagesSent        ChatMessage[]      @relation("ChatMessagesSent")
   chatMessagesReceived    ChatMessage[]      @relation("ChatMessagesReceived")
   watchPairings           WatchPairing[]
+  roundReactions          RoundReaction[]    @relation("UserRoundReactions")
+  roundInvites            RoundInvite[]      @relation("UserRoundInvites")
 }
 
 model UserProfile {
@@ -648,11 +653,46 @@ model Round {
   roundHoles RoundHole[]
   players    RoundPlayer[]
   shots      RoundShot[]
+  reactions  RoundReaction[]
+  invites    RoundInvite[]
 
   @@index([userId, startedAt])
   @@index([userId, totalScore])
   @@index([courseId, totalScore, startedAt])
   @@index([status, startedAt])
+}
+
+// QR-inbjudan till en runda. Skapas när hosten visar QR-koden — innan
+// rundan finns — och kopplas till rundan när hosten startar den. Koden i
+// QR-länken är slumpad och fungerar som behörighet att joina.
+model RoundInvite {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  hostUserId String
+  roundId    String?
+  createdAt  DateTime @default(now())
+
+  host  User   @relation("UserRoundInvites", fields: [hostUserId], references: [id], onDelete: Cascade)
+  round Round? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([hostUserId, createdAt])
+  @@index([roundId])
+}
+
+// Emoji-reaktion på en runda (t.ex. i vänner-flödet). En reaktion per
+// användare och runda — ny emoji ersätter den gamla, samma emoji tar bort.
+model RoundReaction {
+  id        String   @id @default(cuid())
+  roundId   String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User  @relation("UserRoundReactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([userId])
 }
 
 model RoundPlayer {

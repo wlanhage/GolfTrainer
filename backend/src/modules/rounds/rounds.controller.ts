@@ -8,6 +8,7 @@ import {
   roundIdParamSchema,
   roundShotIdParamSchema,
   setRoundImageSchema,
+  setRoundReactionSchema,
   updatePlayerScoreSchema,
   updateRoundHoleSchema,
   updateRoundSchema,
@@ -146,5 +147,18 @@ export const roundsController = {
     const { roundId, shotId } = roundShotIdParamSchema.parse(request.params);
     await roundsService.deleteRoundShot(roundId, request.auth!.userId, shotId);
     return reply.code(204).send();
+  },
+
+  async listReactions(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const reactions = await roundsService.getReactions(roundId);
+    return reply.send(reactions);
+  },
+
+  async toggleReaction(request: FastifyRequest, reply: FastifyReply) {
+    const { roundId } = roundIdParamSchema.parse(request.params);
+    const { emoji } = setRoundReactionSchema.parse(request.body);
+    const reactions = await roundsService.toggleReaction(roundId, request.auth!.userId, emoji);
+    return reply.send(reactions);
   }
 };

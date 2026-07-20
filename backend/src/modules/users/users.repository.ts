@@ -89,6 +89,7 @@ export const usersRepository = {
     return prisma.user.findMany({
       where: {
         isActive: true,
+        isGuest: false,
         NOT: { id: viewerUserId },
         profile: {
           is: {
@@ -113,8 +114,9 @@ export const usersRepository = {
   },
 
   getPublicProfile(userId: string) {
+    // Gästkonton har ingen publik profil.
     return prisma.user.findFirst({
-      where: { id: userId, isActive: true },
+      where: { id: userId, isActive: true, isGuest: false },
       include: {
         profile: {
           select: {

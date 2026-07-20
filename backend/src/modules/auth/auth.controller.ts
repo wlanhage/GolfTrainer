@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { authService } from './auth.service.js';
-import { loginSchema, logoutSchema, refreshSchema, registerSchema } from './auth.schema.js';
+import { claimGuestSchema, loginSchema, logoutSchema, refreshSchema, registerSchema } from './auth.schema.js';
 import { pairingService } from './pairing.service.js';
 import { pairClaimSchema, pairPollSchema } from './pairing.schema.js';
 
@@ -56,5 +56,11 @@ export const authController = {
     const { refreshToken } = logoutSchema.parse(request.body);
     await authService.logout(refreshToken);
     return reply.code(204).send();
+  },
+
+  async claimGuest(request: FastifyRequest, reply: FastifyReply) {
+    const input = claimGuestSchema.parse(request.body);
+    const result = await authService.claimGuest(request.auth!.userId, input);
+    return reply.send(result);
   }
 };

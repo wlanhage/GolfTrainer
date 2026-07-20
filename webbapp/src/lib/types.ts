@@ -26,6 +26,7 @@ export type MeResponse = {
   email: string;
   role: UserRole;
   isActive: boolean;
+  isGuest?: boolean;
   profile: ProfileData | null;
 };
 
@@ -369,6 +370,13 @@ export type FollowCounts = {
   followingCount: number;
 };
 
+export type RoundReactionEntry = {
+  emoji: string;
+  userId: string;
+  displayName: string;
+  avatarImage?: string | null;
+};
+
 export type FollowingFeedEntry = {
   roundId: string;
   userId: string;
@@ -376,6 +384,7 @@ export type FollowingFeedEntry = {
   course: string;
   totalScore: number;
   startedAt: string;
+  reactions: RoundReactionEntry[];
 };
 
 export type InProgressRoundSummary = {

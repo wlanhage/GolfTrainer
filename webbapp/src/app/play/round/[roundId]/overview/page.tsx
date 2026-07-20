@@ -7,6 +7,7 @@ import { BarChart3, Camera, ChevronDown, Flag, Pencil, Target } from 'lucide-rea
 import { useRoundsApi, type ServerRoundDetail, type ServerRoundHole, type ServerRoundPlayer } from '@/lib/api';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { Loader } from '@/components/Loader';
+import { RoundReactions } from '@/components/RoundReactions';
 import { UserAvatar } from '@/components/UserAvatar';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -123,18 +124,15 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     <tbody>
       {/* Hole numbers row */}
       <tr className={headerBg}>
-        <td
-          className={`px-1 py-1 text-slate-500 sticky left-0 z-10 ${headerBg}`}
-          aria-label={t('roundOverview.hole')}
-        >
+        <td className={`py-1 text-slate-500 ${headerBg}`} aria-label={t('roundOverview.hole')}>
           <Flag size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => (
-          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm font-bold">
+          <td key={hole.holeNumber} className="px-0 py-1 text-center text-xs font-bold">
             {hole.holeNumber}
           </td>
         ))}
-        <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
+        <td className={`px-0 py-1 text-center text-xs font-bold border-l border-border ${subtotalBg}`}>
           {section === 'out' ? t('roundOverview.out') : t('roundOverview.in')}
         </td>
       </tr>
@@ -142,45 +140,36 @@ function ScorecardTable({ player, holes, showHcp, t }: {
       {/* HCP index row */}
       {showHcp && (
         <tr>
-          <td
-            className="px-1 py-1 text-slate-400 sticky left-0 z-10 bg-white"
-            aria-label={t('roundOverview.handicap')}
-          >
+          <td className="py-1 text-slate-400" aria-label={t('roundOverview.handicap')}>
             <BarChart3 size={14} className="mx-auto" strokeWidth={2.25} />
           </td>
           {hs.map((hole) => (
-            <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm text-slate-500">
+            <td key={hole.holeNumber} className="px-0 py-1 text-center text-xs text-slate-500">
               {hole.hcpIndexSnapshot ?? '-'}
             </td>
           ))}
-          <td className={`px-1 py-1 text-center text-sm border-l border-border ${subtotalBg}`} />
+          <td className={`px-0 py-1 text-center text-xs border-l border-border ${subtotalBg}`} />
         </tr>
       )}
 
       {/* Par row */}
       <tr>
-        <td
-          className="px-1 py-1 text-slate-600 sticky left-0 z-10 bg-white"
-          aria-label={t('roundOverview.par')}
-        >
+        <td className="py-1 text-slate-600" aria-label={t('roundOverview.par')}>
           <Target size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => (
-          <td key={hole.holeNumber} className="px-1 py-1 text-center text-sm">
+          <td key={hole.holeNumber} className="px-0 py-1 text-center text-xs">
             {hole.parSnapshot ?? '-'}
           </td>
         ))}
-        <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
+        <td className={`px-0 py-1 text-center text-xs font-bold border-l border-border ${subtotalBg}`}>
           {sectionPar > 0 ? sectionPar : '-'}
         </td>
       </tr>
 
       {/* Result row */}
       <tr className="border-t border-border">
-        <td
-          className="px-1 py-1 text-slate-700 sticky left-0 z-10 bg-white"
-          aria-label={t('roundOverview.result')}
-        >
+        <td className="py-1 text-slate-700" aria-label={t('roundOverview.result')}>
           <Pencil size={14} className="mx-auto" strokeWidth={2.25} />
         </td>
         {hs.map((hole) => {
@@ -188,18 +177,18 @@ function ScorecardTable({ player, holes, showHcp, t }: {
           const strokes = score?.strokes ?? null;
           const cellClasses = scoreCellClasses(strokes, hole.parSnapshot);
           return (
-            <td key={hole.holeNumber} className="px-0.5 py-1 text-center">
+            <td key={hole.holeNumber} className="px-px py-1 text-center">
               {strokes !== null ? (
-                <span className={`inline-flex items-center justify-center w-8 h-8 text-sm font-bold ${cellClasses}`}>
+                <span className={`mx-auto flex items-center justify-center w-6 max-w-full h-6 text-xs font-bold ${cellClasses}`}>
                   {strokes}
                 </span>
               ) : (
-                <span className="text-sm text-slate-400">-</span>
+                <span className="text-xs text-slate-400">-</span>
               )}
             </td>
           );
         })}
-        <td className={`px-1 py-1 text-center text-sm font-bold border-l border-border ${subtotalBg}`}>
+        <td className={`px-0 py-1 text-center text-xs font-bold border-l border-border ${subtotalBg}`}>
           {sectionStrokes > 0 ? sectionStrokes : '-'}
         </td>
       </tr>
@@ -212,27 +201,20 @@ function ScorecardTable({ player, holes, showHcp, t }: {
     sectionPar: number,
     sectionStrokes: number,
   ) => (
-    // Horizontal scroll on narrow screens. Each hole gets a fixed min
-    // width so cells don't squeeze; if it overflows the viewport the
-    // user can swipe sideways. Label column is sticky so the icon stays
-    // visible while scrolling.
-    <div className="overflow-x-auto -mx-1 px-1">
-      <table
-        className="border-collapse text-ink"
-        style={{ minWidth: `${32 + hs.length * 36 + 40}px`, width: '100%' }}
-      >
-        <colgroup>
-          <col style={{ width: 32 }} />
-          {hs.map((_, i) => <col key={i} style={{ minWidth: 36 }} />)}
-          <col style={{ width: 40 }} />
-        </colgroup>
-        {renderSection(hs, section, sectionPar, sectionStrokes)}
-      </table>
-    </div>
+    // Fixed layout so all 9 hole columns share the available width and the
+    // whole table fits the mobile viewport without horizontal scrolling.
+    <table className="w-full table-fixed border-collapse text-ink">
+      <colgroup>
+        <col style={{ width: 24 }} />
+        {hs.map((_, i) => <col key={i} />)}
+        <col style={{ width: 32 }} />
+      </colgroup>
+      {renderSection(hs, section, sectionPar, sectionStrokes)}
+    </table>
   );
 
   return (
-    <div className="flex flex-col gap-2 -mx-4 px-4">
+    <div className="flex flex-col gap-2">
       {renderTable(firstNine, 'out', outPar, outStrokes)}
       {is18 && secondNine.length > 0 &&
         renderTable(secondNine, 'in', inPar ?? 0, inStrokes ?? 0)
@@ -274,7 +256,10 @@ function PlayerCard({
         {/* Avatar + name */}
         <UserAvatar displayName={player.displayNameSnapshot} size={36} />
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-ink truncate leading-tight">{player.displayNameSnapshot}</p>
+          <p className="font-bold text-ink truncate leading-tight">
+            {player.displayNameSnapshot}
+            {player.user?.isGuest ? <span className="text-slate-400 font-semibold"> (Gäst)</span> : null}
+          </p>
           <p className="text-xs text-slate-500">
             {holesPlayed} {t('roundOverview.holesPlayed')}
           </p>
@@ -447,6 +432,11 @@ export default function RoundOverviewPage() {
           ))}
         </div>
       )}
+
+      {/* Emoji reactions on the round */}
+      <div className="bg-white border border-border rounded-2xl px-4 py-3">
+        <RoundReactions roundId={roundId} />
+      </div>
 
       {/* Continue playing link if round is still in progress */}
       {round.status === 'IN_PROGRESS' && (

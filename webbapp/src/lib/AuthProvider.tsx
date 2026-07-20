@@ -14,6 +14,8 @@ type AuthValue = {
   me: MeResponse | null;
   login: (email: string, password: string) => Promise<void>;
   register: (input: { email: string; password: string; displayName: string }) => Promise<void>;
+  /** Ta över en färdig token-pair (t.ex. från gäst-join via QR). */
+  adoptTokens: (tokens: AuthTokens) => Promise<void>;
   logout: () => Promise<void>;
   getValidAccessToken: () => Promise<string | null>;
   refreshSession: () => Promise<string | null>;
@@ -97,6 +99,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       login: async (email, password) => {
         const next = await authApi.login({ email, password });
+        const loaded = await loadMe(next);
+        setMe(loaded);
+        setTokens(next);
+        setStatus('authenticated');
+        tokenStorage.save(next);
+      },
+      adoptTokens: async (next) => {
         const loaded = await loadMe(next);
         setMe(loaded);
         setTokens(next);

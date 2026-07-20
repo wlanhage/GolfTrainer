@@ -57,6 +57,9 @@ function relativeLabel(diff: number): string {
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
 
+const playerLabel = (p: ServerRoundPlayer): string =>
+  p.user?.isGuest ? `${p.displayNameSnapshot} (Gäst)` : p.displayNameSnapshot;
+
 function formatLabel(format: string): string {
   switch (format) {
     case 'STROKE_PLAY': return 'Slagtävling';
@@ -301,7 +304,7 @@ export default function RoundSummaryPage() {
             <UserAvatar displayName={heroStats.player.displayNameSnapshot} size={56} />
             <div className="flex-1 min-w-0">
               <p className="font-extrabold text-ink text-lg truncate">
-                {heroStats.player.displayNameSnapshot}
+                {playerLabel(heroStats.player)}
               </p>
               <p className="text-xs text-slate-600">
                 {ranked.length > 1 ? `Plats ${heroPosition} av ${ranked.length}` : 'Solo runda'}
@@ -394,7 +397,7 @@ export default function RoundSummaryPage() {
                   <span className="w-6 text-center text-sm font-bold text-slate-500">#{pos}</span>
                   <UserAvatar displayName={s.player.displayNameSnapshot} size={32} />
                   <span className="flex-1 font-bold text-ink truncate">
-                    {s.player.displayNameSnapshot}
+                    {playerLabel(s.player)}
                   </span>
                   <span className="text-lg font-extrabold text-ink">
                     {s.holesPlayed > 0 ? s.totalStrokes : '—'}
@@ -457,14 +460,35 @@ export default function RoundSummaryPage() {
 
       {/* Action buttons */}
       <div className="flex flex-col gap-2 mt-2">
-        <Link href={`/play/round/${round.id}/overview`} className="btn-primary flex items-center justify-center gap-2">
-          <LayoutGrid size={18} aria-hidden="true" />
-          Se scorecard
-        </Link>
-        <Link href="/" className="btn-ghost flex items-center justify-center gap-2">
-          <Home size={18} aria-hidden="true" />
-          Hem
-        </Link>
+        {me?.isGuest ? (
+          <>
+            <Link
+              href={`/register/claim?roundId=${round.id}`}
+              className="btn-primary flex items-center justify-center gap-2"
+            >
+              Registrera och spara rundan
+            </Link>
+            <p className="text-xs text-slate-500 text-center">
+              Utan konto försvinner rundan från dig när du lämnar — dina medspelare
+              behåller dina scores.
+            </p>
+            <Link href={`/play/round/${round.id}/overview`} className="btn-ghost flex items-center justify-center gap-2">
+              <LayoutGrid size={18} aria-hidden="true" />
+              Se scorecard
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link href={`/play/round/${round.id}/overview`} className="btn-primary flex items-center justify-center gap-2">
+              <LayoutGrid size={18} aria-hidden="true" />
+              Se scorecard
+            </Link>
+            <Link href="/" className="btn-ghost flex items-center justify-center gap-2">
+              <Home size={18} aria-hidden="true" />
+              Hem
+            </Link>
+          </>
+        )}
       </div>
 
       {/* Image lightbox */}

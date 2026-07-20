@@ -7,6 +7,7 @@ const toUserView = (user: Awaited<ReturnType<typeof usersRepository.getMe>>) => 
   email: user!.email,
   role: user!.role,
   isActive: user!.isActive,
+  isGuest: user!.isGuest,
   profile: user!.profile
 });
 

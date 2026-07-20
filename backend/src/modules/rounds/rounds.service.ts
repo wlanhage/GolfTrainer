@@ -199,6 +199,24 @@ const areMutualFollowers = async (a: string, b: string): Promise<boolean> => {
   return both.length === 2;
 };
 
+type ReactionRow = {
+  emoji: string;
+  createdAt: Date;
+  user: {
+    id: string;
+    email: string;
+    profile: { displayName: string; avatarImage: string | null } | null;
+  };
+};
+
+const toReactionDto = (row: ReactionRow) => ({
+  emoji: row.emoji,
+  userId: row.user.id,
+  displayName: row.user.profile?.displayName ?? row.user.email,
+  avatarImage: row.user.profile?.avatarImage ?? null,
+  createdAt: row.createdAt
+});
+
 export const roundsService = {
   async createRound(hostUserId: string, input: CreateRoundInput) {
     const course = await prisma.course.findUnique({
@@ -261,6 +279,17 @@ export const roundsService = {
         hcpIndex: h.hcpIndex
       })),
       players: allPlayers
+    });
+
+    // Koppla hostens öppna QR-invites (utan runda) till den nya rundan så
+    // att de som skannat koden innan start kan joina nu.
+    await prisma.roundInvite.updateMany({
+      where: {
+        hostUserId,
+        roundId: null,
+        createdAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24) }
+      },
+      data: { roundId: created.id }
     });
 
     // Notisera alla inbjudna spelare om att rundan har börjat.
@@ -635,5 +664,20 @@ export const roundsService = {
     const shot = await prisma.roundShot.findUnique({ where: { id: shotId } });
     if (!shot || shot.roundId !== roundId) throw new NotFoundError('Shot not found');
     await prisma.roundShot.delete({ where: { id: shotId } });
+  },
+
+  async getReactions(roundId: string) {
+    const round = await prisma.round.findUnique({ where: { id: roundId }, select: { id: true } });
+    if (!round) throw new NotFoundError('Round not found');
+    const rows = await roundsRepository.listReactions(roundId);
+    return rows.map(toReactionDto);
+  },
+
+  async toggleReaction(roundId: string, userId: string, emoji: string) {
+    const round = await prisma.round.findUnique({ where: { id: roundId }, select: { id: true } });
+    if (!round) throw new NotFoundError('Round not found');
+    await roundsRepository.toggleReaction(roundId, userId, emoji);
+    const rows = await roundsRepository.listReactions(roundId);
+    return rows.map(toReactionDto);
   }
 };

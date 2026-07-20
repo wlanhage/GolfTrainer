@@ -8,6 +8,7 @@ import { useFollowsApi } from '@/lib/api';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { formatRelativeShort } from '@/lib/format';
 import { UserAvatar } from '@/components/UserAvatar';
+import { RoundReactions } from '@/components/RoundReactions';
 import { Skeleton } from '@/components/Skeleton';
 import type { FollowingFeedEntry } from '@/lib/types';
 
@@ -86,27 +87,35 @@ export default function ActivityPage() {
           <>
             <div className="flex flex-col gap-3">
               {items.map((entry) => (
-                <Link
+                <div
                   key={entry.roundId}
-                  href={`/play/round/${entry.roundId}/overview`}
-                  className="bg-white border border-border rounded-xl p-4 flex items-center gap-4 active:bg-slate-50 transition-colors"
+                  className="bg-white border border-border rounded-xl overflow-hidden"
                 >
-                  <UserAvatar displayName={entry.username} size={44} />
+                  <Link
+                    href={`/play/round/${entry.roundId}/overview`}
+                    className="p-4 flex items-center gap-4 active:bg-slate-50 transition-colors"
+                  >
+                    <UserAvatar displayName={entry.username} size={44} />
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-bold text-ink truncate">{entry.username}</p>
-                      <p className="text-xs text-slate-400 shrink-0 ml-2">
-                        {formatRelativeShort(entry.startedAt)}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-ink truncate">{entry.username}</p>
+                        <p className="text-xs text-slate-400 shrink-0 ml-2">
+                          {formatRelativeShort(entry.startedAt)}
+                        </p>
+                      </div>
+                      <p className="text-sm text-slate-500 truncate mt-0.5">{entry.course}</p>
                     </div>
-                    <p className="text-sm text-slate-500 truncate mt-0.5">{entry.course}</p>
-                  </div>
 
-                  <div className="shrink-0 text-right">
-                    <p className="text-2xl font-extrabold text-primary">{entry.totalScore}</p>
+                    <div className="shrink-0 text-right">
+                      <p className="text-2xl font-extrabold text-primary">{entry.totalScore}</p>
+                    </div>
+                  </Link>
+
+                  <div className="px-4 pb-3">
+                    <RoundReactions roundId={entry.roundId} initialReactions={entry.reactions} />
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
 

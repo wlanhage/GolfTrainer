@@ -64,30 +64,45 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
 
+  // Gästkonton (QR-join) har bara tillgång till spel-relaterade vyer.
+  const isGuestUser = me?.isGuest === true;
+  const guestAllowed = (path: string) =>
+    path.startsWith('/play') || path.startsWith('/join') || path === '/register/claim';
+
   useEffect(() => {
     if (status === 'loading') return;
     const isAuthRoute = pathname === '/login' || pathname === '/register';
-    if (status === 'guest' && !isAuthRoute && pathname !== '/welcome') router.replace('/login');
-    if (status === 'authenticated' && isAuthRoute) router.replace('/');
+    const isPublicRoute = isAuthRoute || pathname === '/welcome' || pathname.startsWith('/join/');
+    if (status === 'guest' && !isPublicRoute) router.replace('/login');
+    if (status === 'authenticated' && isAuthRoute) {
+      // Auth-sidor kan skickas en ?next= (t.ex. tillbaka till QR-join-sidan)
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.replace(next && next.startsWith('/') ? next : '/');
+    }
     if (status === 'authenticated' && pathname.startsWith('/admin') && me?.role !== 'ADMIN') {
       router.replace('/');
     }
-  }, [status, pathname, router, me?.role]);
+    if (status === 'authenticated' && isGuestUser && !isAuthRoute && !guestAllowed(pathname)) {
+      router.replace('/play');
+    }
+  }, [status, pathname, router, me?.role, isGuestUser]);
 
   const isAuthRoute = pathname === '/login' || pathname === '/register';
   const isWelcome = pathname === '/welcome';
+  const isJoinRoute = pathname.startsWith('/join/');
   const isAdminPath = pathname.startsWith('/admin');
 
   if (
     status === 'loading' ||
-    (status === 'guest' && !isAuthRoute && !isWelcome) ||
+    (status === 'guest' && !isAuthRoute && !isWelcome && !isJoinRoute) ||
     (status === 'authenticated' && isAuthRoute) ||
-    (status === 'authenticated' && isAdminPath && me?.role !== 'ADMIN')
+    (status === 'authenticated' && isAdminPath && me?.role !== 'ADMIN') ||
+    (status === 'authenticated' && isGuestUser && !guestAllowed(pathname))
   ) {
     return <Loader fullScreen />;
   }
 
-  if (isAuthRoute || isWelcome) {
+  if (isAuthRoute || isWelcome || isJoinRoute) {
     return <main className="min-h-screen bg-white">{children}</main>;
   }
 
@@ -118,14 +133,20 @@ export function AppShell({ children }: { children: ReactNode }) {
         <h1 className="flex-1 text-center text-base font-bold text-ink truncate">
           {t(titleKeyForPath(pathname))}
         </h1>
-        <Link href="/profile" className="flex items-center justify-center">
-          <UserAvatar
-            avatarImage={me?.profile?.avatarImage}
-            displayName={me?.profile?.displayName}
-            email={me?.email}
-            size={40}
-          />
-        </Link>
+        {isGuestUser ? (
+          <div className="flex items-center justify-center" aria-hidden="true">
+            <UserAvatar displayName={me?.profile?.displayName} size={40} />
+          </div>
+        ) : (
+          <Link href="/profile" className="flex items-center justify-center">
+            <UserAvatar
+              avatarImage={me?.profile?.avatarImage}
+              displayName={me?.profile?.displayName}
+              email={me?.email}
+              size={40}
+            />
+          </Link>
+        )}
       </header>
 
       <main className="max-w-3xl mx-auto">{children}</main>
@@ -134,8 +155,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="pwa-bottom-nav fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="max-w-3xl mx-auto grid grid-cols-5">
-          {TAB_ITEMS.map(({ href, labelKey, icon: Icon }) => {
+        <div className={`max-w-3xl mx-auto grid ${isGuestUser ? 'grid-cols-1' : 'grid-cols-5'}`}>
+          {(isGuestUser ? TAB_ITEMS.filter((tab) => tab.href === '/play') : TAB_ITEMS).map(({ href, labelKey, icon: Icon }) => {
             const active = current === href;
             return (
               <Link

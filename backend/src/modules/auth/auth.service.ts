@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { ConflictError, UnauthorizedError } from '../../common/errors/AppError.js';
+import { BadRequestError, ConflictError, UnauthorizedError } from '../../common/errors/AppError.js';
 import { env } from '../../config/env.js';
 import { jwtService } from '../../infrastructure/jwt/jwt.service.js';
 import { passwordService } from '../../infrastructure/password/password.service.js';
+import { prisma } from '../../infrastructure/prisma/client.js';
 import { authRepository } from './auth.repository.js';
 
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
@@ -71,6 +72,26 @@ export const authService = {
     const activeTokens = await authRepository.findActiveTokensByUser(payload.sub);
     const current = activeTokens.find((t) => t.tokenHash === tokenHash);
     if (current) await authRepository.revokeToken(current.id);
+  },
+
+  /**
+   * Uppgraderar ett gästkonto (skapat via QR-join) till ett riktigt konto.
+   * Gästens rundor och scores följer med eftersom userId behålls.
+   */
+  async claimGuest(userId: string, input: { email: string; password: string }) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { isGuest: true } });
+    if (!user) throw new UnauthorizedError('User not found');
+    if (!user.isGuest) throw new BadRequestError('Account is already registered');
+
+    const existing = await authRepository.findUserByEmail(input.email);
+    if (existing) throw new ConflictError('Email is already registered');
+
+    const passwordHash = await passwordService.hash(input.password);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { email: input.email, passwordHash, isGuest: false }
+    });
+    return { ok: true as const };
   },
 
   async issueTokenPair(userId: string, meta: { ip?: string; userAgent?: string }) {

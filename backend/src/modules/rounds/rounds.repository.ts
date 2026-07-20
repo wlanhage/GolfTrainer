@@ -31,7 +31,11 @@ const ROUND_INCLUDE = {
     orderBy: { holeNumber: 'asc' as const },
     include: { scores: true }
   },
-  players: { orderBy: { order: 'asc' as const } }
+  players: {
+    orderBy: { order: 'asc' as const },
+    // isGuest låter klienten markera gästspelare ("(Gäst)", ingen profillänk)
+    include: { user: { select: { isGuest: true } } }
+  }
 } satisfies Prisma.RoundInclude;
 
 export const roundsRepository = {
@@ -359,5 +363,58 @@ export const roundsRepository = {
     if (!existing) return false;
     await prisma.round.delete({ where: { id: roundId } });
     return true;
+  },
+
+  listReactions(roundId: string) {
+    return prisma.roundReaction.findMany({
+      where: { roundId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { displayName: true, avatarImage: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+  },
+
+  listReactionsForRounds(roundIds: string[]) {
+    if (roundIds.length === 0) return Promise.resolve([]);
+    return prisma.roundReaction.findMany({
+      where: { roundId: { in: roundIds } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { displayName: true, avatarImage: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+  },
+
+  /**
+   * Togglar en reaktion: samma emoji igen tar bort den, annars
+   * skapas/ersätts användarens reaktion på rundan.
+   */
+  async toggleReaction(roundId: string, userId: string, emoji: string) {
+    const existing = await prisma.roundReaction.findUnique({
+      where: { roundId_userId: { roundId, userId } },
+      select: { id: true, emoji: true }
+    });
+    if (existing?.emoji === emoji) {
+      await prisma.roundReaction.delete({ where: { id: existing.id } });
+      return;
+    }
+    await prisma.roundReaction.upsert({
+      where: { roundId_userId: { roundId, userId } },
+      update: { emoji },
+      create: { roundId, userId, emoji }
+    });
   }
 };
