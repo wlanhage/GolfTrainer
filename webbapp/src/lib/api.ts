@@ -449,10 +449,10 @@ export function useRoundsApi() {
         client.request<null>(`/rounds/${roundId}/shots/${shotId}`, { method: 'DELETE' }),
       listReactions: (roundId: string) =>
         client.request<RoundReactionEntry[]>(`/rounds/${roundId}/reactions`),
-      toggleReaction: (roundId: string, emoji: string) =>
+      toggleReaction: (roundId: string, playerId: string, emoji: string) =>
         client.request<RoundReactionEntry[]>(`/rounds/${roundId}/reactions`, {
           method: 'POST',
-          body: JSON.stringify({ emoji })
+          body: JSON.stringify({ emoji, playerId })
         })
     }),
     [client]

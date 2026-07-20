@@ -85,11 +85,12 @@ export const followsService = {
   async getFollowingFeed(viewerUserId: string, limit: number, offset: number) {
     const rows = await followsRepository.getFollowingFeed(viewerUserId, limit, offset);
     const reactions = await roundsRepository.listReactionsForRounds(rows.map((r) => r.roundId));
-    const byRound = new Map<string, Array<{ emoji: string; userId: string; displayName: string; avatarImage: string | null }>>();
+    const byRound = new Map<string, Array<{ emoji: string; playerId: string; userId: string; displayName: string; avatarImage: string | null }>>();
     for (const reaction of reactions) {
       const list = byRound.get(reaction.roundId) ?? [];
       list.push({
         emoji: reaction.emoji,
+        playerId: reaction.playerId,
         userId: reaction.user.id,
         displayName: reaction.user.profile?.displayName ?? reaction.user.email,
         avatarImage: reaction.user.profile?.avatarImage ?? null

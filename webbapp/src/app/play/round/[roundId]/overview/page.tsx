@@ -285,6 +285,11 @@ function PlayerCard({
         />
       </button>
 
+      {/* Emoji reactions on this player's score */}
+      <div className="px-4 pb-3">
+        <RoundReactions roundId={player.roundId} playerId={player.id} />
+      </div>
+
       {/* Expanded scorecard */}
       {open && (
         <div className="border-t border-border px-4 py-3">
@@ -432,11 +437,6 @@ export default function RoundOverviewPage() {
           ))}
         </div>
       )}
-
-      {/* Emoji reactions on the round */}
-      <div className="bg-white border border-border rounded-2xl px-4 py-3">
-        <RoundReactions roundId={roundId} />
-      </div>
 
       {/* Continue playing link if round is still in progress */}
       {round.status === 'IN_PROGRESS' && (

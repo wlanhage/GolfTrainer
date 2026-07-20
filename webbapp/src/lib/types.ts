@@ -372,6 +372,8 @@ export type FollowCounts = {
 
 export type RoundReactionEntry = {
   emoji: string;
+  /** RoundPlayer vars score reaktionen gäller */
+  playerId: string;
   userId: string;
   displayName: string;
   avatarImage?: string | null;
@@ -384,6 +386,8 @@ export type FollowingFeedEntry = {
   course: string;
   totalScore: number;
   startedAt: string;
+  /** Värdens RoundPlayer-id — målet för reaktioner i flödet */
+  hostPlayerId: string | null;
   reactions: RoundReactionEntry[];
 };
 

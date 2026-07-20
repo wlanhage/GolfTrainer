@@ -112,9 +112,15 @@ export default function ActivityPage() {
                     </div>
                   </Link>
 
-                  <div className="px-4 pb-3">
-                    <RoundReactions roundId={entry.roundId} initialReactions={entry.reactions} />
-                  </div>
+                  {entry.hostPlayerId ? (
+                    <div className="px-4 pb-3">
+                      <RoundReactions
+                        roundId={entry.roundId}
+                        playerId={entry.hostPlayerId}
+                        initialReactions={entry.reactions}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

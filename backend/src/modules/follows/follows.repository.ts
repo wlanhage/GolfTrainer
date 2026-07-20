@@ -191,6 +191,7 @@ export const followsRepository = {
       course: string;
       totalScore: number;
       startedAt: Date;
+      hostPlayerId: string | null;
     }>>`
       SELECT
         r.id as "roundId",
@@ -198,12 +199,14 @@ export const followsRepository = {
         COALESCE(up."displayName", u.email) as username,
         c."courseName" as course,
         r."totalScore" as "totalScore",
-        r."startedAt" as "startedAt"
+        r."startedAt" as "startedAt",
+        rp.id as "hostPlayerId"
       FROM "user_follows" uf
       JOIN "Round" r ON r."userId" = uf."following_user_id"
       JOIN "User" u ON u.id = r."userId"
       LEFT JOIN "UserProfile" up ON up."userId" = u.id
       JOIN "Course" c ON c.id = r."courseId"
+      LEFT JOIN "RoundPlayer" rp ON rp."roundId" = r.id AND rp."userId" = r."userId"
       WHERE uf."follower_user_id" = ${viewerUserId}
         AND r."totalScore" IS NOT NULL
       ORDER BY r."startedAt" DESC

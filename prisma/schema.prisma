@@ -696,19 +696,22 @@ model RoundInviteMember {
   @@index([userId])
 }
 
-// Emoji-reaktion på en runda (t.ex. i vänner-flödet). En reaktion per
-// användare och runda — ny emoji ersätter den gamla, samma emoji tar bort.
+// Emoji-reaktion på en spelares score i en runda. En reaktion per
+// reagerande användare och spelare — ny emoji ersätter, samma tar bort.
 model RoundReaction {
   id        String   @id @default(cuid())
   roundId   String
+  playerId  String
   userId    String
   emoji     String
   createdAt DateTime @default(now())
 
-  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User  @relation("UserRoundReactions", fields: [userId], references: [id], onDelete: Cascade)
+  round  Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  player RoundPlayer @relation("RoundPlayerReactions", fields: [playerId], references: [id], onDelete: Cascade)
+  user   User        @relation("UserRoundReactions", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([roundId, userId])
+  @@unique([playerId, userId])
+  @@index([roundId])
   @@index([userId])
 }
 
@@ -723,9 +726,10 @@ model RoundPlayer {
   leftAt              DateTime?
   createdAt           DateTime  @default(now())
 
-  round  Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user   User             @relation("UserRoundPlayers", fields: [userId], references: [id], onDelete: Cascade)
-  scores RoundHoleScore[]
+  round     Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user      User             @relation("UserRoundPlayers", fields: [userId], references: [id], onDelete: Cascade)
+  scores    RoundHoleScore[]
+  reactions RoundReaction[]  @relation("RoundPlayerReactions")
 
   @@unique([roundId, order])
   @@unique([roundId, userId])

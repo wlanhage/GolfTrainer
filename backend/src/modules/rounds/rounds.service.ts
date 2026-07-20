@@ -202,6 +202,7 @@ const areMutualFollowers = async (a: string, b: string): Promise<boolean> => {
 
 type ReactionRow = {
   emoji: string;
+  playerId: string;
   createdAt: Date;
   user: {
     id: string;
@@ -212,6 +213,7 @@ type ReactionRow = {
 
 const toReactionDto = (row: ReactionRow) => ({
   emoji: row.emoji,
+  playerId: row.playerId,
   userId: row.user.id,
   displayName: row.user.profile?.displayName ?? row.user.email,
   avatarImage: row.user.profile?.avatarImage ?? null,
@@ -667,10 +669,13 @@ export const roundsService = {
     return rows.map(toReactionDto);
   },
 
-  async toggleReaction(roundId: string, userId: string, emoji: string) {
-    const round = await prisma.round.findUnique({ where: { id: roundId }, select: { id: true } });
-    if (!round) throw new NotFoundError('Round not found');
-    await roundsRepository.toggleReaction(roundId, userId, emoji);
+  async toggleReaction(roundId: string, userId: string, emoji: string, playerId: string) {
+    const player = await prisma.roundPlayer.findUnique({
+      where: { id: playerId },
+      select: { roundId: true }
+    });
+    if (!player || player.roundId !== roundId) throw new NotFoundError('Player not found in round');
+    await roundsRepository.toggleReaction(roundId, playerId, userId, emoji);
     const rows = await roundsRepository.listReactions(roundId);
     return rows.map(toReactionDto);
   }

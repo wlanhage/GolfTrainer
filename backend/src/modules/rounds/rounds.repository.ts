@@ -399,12 +399,12 @@ export const roundsRepository = {
   },
 
   /**
-   * Togglar en reaktion: samma emoji igen tar bort den, annars
-   * skapas/ersätts användarens reaktion på rundan.
+   * Togglar en reaktion på en spelares score: samma emoji igen tar bort
+   * den, annars skapas/ersätts användarens reaktion på den spelaren.
    */
-  async toggleReaction(roundId: string, userId: string, emoji: string) {
+  async toggleReaction(roundId: string, playerId: string, userId: string, emoji: string) {
     const existing = await prisma.roundReaction.findUnique({
-      where: { roundId_userId: { roundId, userId } },
+      where: { playerId_userId: { playerId, userId } },
       select: { id: true, emoji: true }
     });
     if (existing?.emoji === emoji) {
@@ -412,9 +412,9 @@ export const roundsRepository = {
       return;
     }
     await prisma.roundReaction.upsert({
-      where: { roundId_userId: { roundId, userId } },
+      where: { playerId_userId: { playerId, userId } },
       update: { emoji },
-      create: { roundId, userId, emoji }
+      create: { roundId, playerId, userId, emoji }
     });
   }
 };

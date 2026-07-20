@@ -157,8 +157,8 @@ export const roundsController = {
 
   async toggleReaction(request: FastifyRequest, reply: FastifyReply) {
     const { roundId } = roundIdParamSchema.parse(request.params);
-    const { emoji } = setRoundReactionSchema.parse(request.body);
-    const reactions = await roundsService.toggleReaction(roundId, request.auth!.userId, emoji);
+    const { emoji, playerId } = setRoundReactionSchema.parse(request.body);
+    const reactions = await roundsService.toggleReaction(roundId, request.auth!.userId, emoji, playerId);
     return reply.send(reactions);
   }
 };
